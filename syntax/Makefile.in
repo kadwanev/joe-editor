@@ -113,7 +113,12 @@ DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(srcdir)/troff.jsf.in $(srcdir)/typescript.jsf.in \
 	$(srcdir)/verilog.jsf.in $(srcdir)/vhdl.jsf.in \
 	$(srcdir)/whitespace.jsf.in $(srcdir)/xml.jsf.in \
-	$(srcdir)/yaml.jsf.in $(srcdir)/filename.jsf.in
+	$(srcdir)/yaml.jsf.in $(srcdir)/filename.jsf.in \
+	$(srcdir)/avr.jsf.in $(srcdir)/r.jsf.in \
+	$(srcdir)/groovy.jsf.in $(srcdir)/clojure.jsf.in \
+	$(srcdir)/rust.jsf.in $(srcdir)/coffee.jsf.in \
+	$(srcdir)/scala.jsf.in $(srcdir)/swift.jsf.in \
+	$(srcdir)/d.jsf.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
@@ -132,7 +137,8 @@ CONFIG_CLEAN_FILES = 4gl.jsf ada.jsf ant.jsf asm.jsf awk.jsf batch.jsf \
 	ps.jsf puppet.jsf python.jsf rexx.jsf ruby.jsf sed.jsf sh.jsf \
 	sieve.jsf skill.jsf sml.jsf spec.jsf sql.jsf tcl.jsf tex.jsf \
 	troff.jsf typescript.jsf verilog.jsf vhdl.jsf whitespace.jsf \
-	xml.jsf yaml.jsf filename.jsf
+	xml.jsf yaml.jsf filename.jsf avr.jsf r.jsf groovy.jsf \
+	clojure.jsf rust.jsf coffee.jsf scala.jsf swift.jsf d.jsf
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -297,7 +303,8 @@ data_syntax_DATA = c.jsf perl.jsf verilog.jsf conf.jsf python.jsf php.jsf sh.jsf
 	js.jsf json.jsf typescript.jsf ant.jsf comment_todo.jsf debian.jsf elixir.jsf \
 	erb.jsf git-commit.jsf haml.jsf htmlerb.jsf iptables.jsf md.jsf prolog.jsf \
 	properties.jsf sieve.jsf whitespace.jsf yaml.jsf erlang.jsf powershell.jsf \
-	puppet.jsf filename.jsf
+	puppet.jsf filename.jsf avr.jsf r.jsf groovy.jsf clojure.jsf rust.jsf \
+	coffee.jsf scala.jsf swift.jsf d.jsf
 
 EXTRA_DIST = $(data_syntax_DATA)
 all: all-am
@@ -470,6 +477,24 @@ xml.jsf: $(top_builddir)/config.status $(srcdir)/xml.jsf.in
 yaml.jsf: $(top_builddir)/config.status $(srcdir)/yaml.jsf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 filename.jsf: $(top_builddir)/config.status $(srcdir)/filename.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+avr.jsf: $(top_builddir)/config.status $(srcdir)/avr.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+r.jsf: $(top_builddir)/config.status $(srcdir)/r.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+groovy.jsf: $(top_builddir)/config.status $(srcdir)/groovy.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+clojure.jsf: $(top_builddir)/config.status $(srcdir)/clojure.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+rust.jsf: $(top_builddir)/config.status $(srcdir)/rust.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+coffee.jsf: $(top_builddir)/config.status $(srcdir)/coffee.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+scala.jsf: $(top_builddir)/config.status $(srcdir)/scala.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+swift.jsf: $(top_builddir)/config.status $(srcdir)/swift.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+d.jsf: $(top_builddir)/config.status $(srcdir)/d.jsf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 install-data_syntaxDATA: $(data_syntax_DATA)
 	@$(NORMAL_INSTALL)

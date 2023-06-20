@@ -2,7 +2,228 @@
 
 [Back to README file](http://sourceforge.net/p/joe-editor/mercurial/ci/default/tree/README.md)
 
+### JOE 4.1
+
+* New or improved syntax files for the following languages: 
+	* Groovy, R, Clojure, Rust, Coffeescript, Java, Scala, Swift, D,
+	  AVR, Ruby, Perl
+
+* New translations
+	* Chinese (zh_TW)
+
+* UTF-16 support
+
+	* JOE can now edit UTF-16BE and UTF-16LE files.  It does this
+	  by converting them to UTF-8 during load and back to UTF-16 during
+	  save.
+
+	* Within JOE, native byte order is called UTF-16 and reversed order
+	  is called UTF-16R.
+
+	* If you change the encoding (with ^T E) between UTF-8, UTF-16 and UTF-16R,
+	  JOE will convert the file to the desired encoding on save.
+
+* New regular expression engine
+	* Old one was a recursive matcher, new one is compiled Thompson NFA matcher
+
+	* JOE now supports full regular expressions (but as before special characters are
+	  escaped by default), so:
+
+		* It now supports alternative: X\|Y
+		* It now supports grouping and submatch addressing with parenthesis: a\\(inside\\)b
+		* You can specify an explicit number of matches: X\\{3} for XXX
+		* Or a range of matches: X\\{3,5} for XXX, XXXX  or XXXXX
+		* \\! is a JOE extension: it's like \\., but matches whole balanced expressions
+
+	* JOE also supports the standard regular expression syntax where
+	  these characters are not escaped.
+
+		* Use the 'x' search & replace option for this, or use the
+		  '-regex' global option to make it the default.
+
+	* Standard syntax regular expressions are now used in the ftyperc
+          file (which is used to determine the syntax of the file by
+	  inspecting its contents)
+
+	* Submatches within regular expressions can now be any size (up to
+	  the size of the disk!).  Before this, they were limited to 16K.
+
+	* Case conversion allowed in replacement string, as in sed:
+	  everything between \\U and \\E converted to uppercase. 
+
+* Unicode improvements
+
+	* Character class database has been updated to the latest version
+	  (Unicode 8.0.0)
+
+	* Switched to new character class data structure for faster Unicode
+	  (uses radix search instead of binary search).
+
+	* Key sequences in the joerc file are now UTF-8 coded Unicode.
+
+		* Also you can specify Unicode in hexadecimal like this: U+F123
+
+		* Note that even if you are using an 8-bit locale, keys are
+	          tranlated to UTF-8 before keymap lookup.  This means you
+	          must use the Unicode code for your character in the joerc
+	          file, not the 8-bit code for the character.
+
+	* Jump to matching delimiter (Ctrl-G) now supports Unicode for word
+	  delimiters (for example, within XML tags).
+
+	* Identifiers within JOE now allow Unicode.  For example, variables
+	  at the math prompt and JOE macros can use any letter.
+
+	* JOE now displays Unicode combining characters properly
+
+	* Syntax files are now UTF-8 coded and support Unicode syntax.
+
+	* Character lists in syntax files and search strings (regular
+	  expressions) now provide access to the Unicode category database
+	  and provide some other useful character classes:
+
+		* Use \x{f123} to specify a particular character.
+
+		* Use \p{Lu} to specify a Unicode character class: any one of
+			L, Lu, Ll, Lt, Lm, Lo
+			M, Mn, Mc, Me
+			N, Nd, Nl, No
+			P, Pc, Pd, Ps, Pe, Pi, Pf, Po
+			S, Sm, Sc, Sk, So
+			Z, Zs, Zl, Zp
+			C, Cc, Cf, Cs, Co, Cn
+			See: ftp://ftp.unicode.org/Public/5.1.0/ucd/UCD.html#General_Category_Values
+
+		* Use \p{Cherokee} to specify any character from a named Unicode block.
+
+		* \d for a digit, \D for not a digit
+
+		* \w for a word character, \W for not a word character
+
+		* \s for a space character, \S for not a space character
+
+		* \i for identifier start character, \I for not identifier start character
+
+		* \c for identifier continuation character, \C for not identifier continuation character
+
+* Code clean up
+
+	* Switch to ptrdiff_t for memory offsets and off_t for file offsets
+	  (prior to this, int and long were used).  Now you can edit files
+	  larger than 4 GB on 32-bit systems.
+
+	* Give up trying force all strings to "unsigned char *" so that the
+	  code is less weird.
+
+	* Clean up code so that we get a clean compile even with many more
+	  warnings enabled.  Going forward this helps find real bugs by
+	  highlighting new warnings.
+
+	* Remove C usage which is illegal in C++ so that JOE can be compiled
+	  by C++ compilers as well as C compilers.  This is useful because
+	  C++ compilers sometimes warn about issues that C compilers miss.
+
+* Bugs fixed
+
+	* Fix bug where \\ was not parsed correctly within syntax file
+	  character lists unless it was at the end of the string.
+
+	* Fix bug where position cursor history operations would mix
+	  pointers between different buffers if user had switched buffers in
+	  a window.
+
+	* Fix bug where lockup would happen if you try querysave when the
+	  only buffer left is the startup log.
+
+	* Default locale
+		* If no locale set, default to C / POSIX, not ISO-8859-1
+		* If locale is C / POSIX, set language to en_US (for aspell).
+
+	* Improve performance where JOE would seem to lock up if you tried
+	  to reformat a very long single word due to O(n^3) algorithm.
+
+	* Prevent filt and blkdel from modifying read-only buffers.  This
+	  could happen if you run them from modifyable buffer but with block
+	  set in a read-only buffer.
+
+	* Fixed issue when recording paste in a macro.  If you tried to
+	  play the macro, the pasted text is not inserted and JOE is
+	  stuck waiting for the bracketed paste end string.
+
+	* Fixed issue where syntax could not be set on command line with
+	  -syntax.
+
+* Minor enhancements
+	* Tab completion now works for the command and its file arguments
+	  after '!' in file prompts.  Tab completion now works for the
+	  filename after '>>' in file write prompts.
+
+	* Tab completion now handles directory and file names with spaces
+	  in them.
+
+	* Backspace now jumps back to parent menu in ^T submenus (and
+	  remembers the cursor position within the parent)
+
+	* Macros after :def are now allowed to cross lines in the joerc file
+
+	* Make ^K ^SPACE same as ^K SPACE
+
+	* Quoted insert of TAB always inserts a TAB character, even when
+	  smart indent is enabled.
+
+	* Add options to control sending of bracketed paste mode command
+	  to terminal emulator (brpaste) and detection of paste by timing
+	  (pastehack).
+
+	* Modified ftyperc file syntax to reduce redundancy
+
+	* Added file type (as defined in ftyperc) setting option.  For
+	  example, with "joe -type c fred" JOE will assume fred is a C
+	  language file.  Use ^T F to change the file type from within JOE.
+
+	* Highighter enhancement: when % is used in place of a character
+	  list, it matches the save_c delimiting character as-is (vs.  &
+	  which matches the opposite character).  For example, if save_c has
+	  {, then % matches { while & matches }.  This allows JOE to
+	  highlight q{hello { there } } in Perl.
+
+* jmacs fixes:
+	* ^X b / ^X ^B were reversed
+
+	* ^X 0 printed an exit message for no reason
+
+	* ^X 0 now can pop shell windows
+
+	* M-^ deleted indentation but did not join with previous line
+
+	* Ignore case for letter commands: ^X i and ^X I are the same
+
+	* Fix bug where regular expressions were not working in incremental
+	  search when wrap is enabled (which is the case in jmacs).
+
+* ESC g (grep/find) and ESC c (compile) improvements
+	* Tab completion now works for the command and its arguments
+
+	* Change to the current directory before running the command
+
+	* Show the current directory in the compile window
+
+	* Show the exit status in the compile window
+
+	* Provide more consistent window setup during compile
+
+	* Parse "Entering directory `/home/xxxxxx'" messages to determine
+	  the directory containing the file with an error message.
+
+### JOE 3.8 Native Windows Version
+
+[Download](http://sourceforge.net/projects/joe-editor/files/JOE%20for%20Windows/joewin.msi/download)
+
+* Thanks to John J. Jordan we now have a native Windows version of JOE
+
 ### JOE 4.0
+
+[Download](http://sourceforge.net/projects/joe-editor/files/JOE%20sources/joe-4.0/joe-4.0.tar.gz/download)
 
 * JOE now has pop-up shell windows with full terminal emulation and shell commands
   that can control the editor.  Hit F1 - F4 to bring up a shell window.
@@ -42,6 +263,8 @@
 * Clean up documentation, convert much of it to Markdown.
 
 ### JOE 3.8
+
+[Download](http://sourceforge.net/projects/joe-editor/files/JOE%20sources/joe-3.8/joe-3.8.tar.gz/download)
 
 - Search JOE image for :include files referenced by the joerc file.
   Include ftyperc file in the JOE image.
