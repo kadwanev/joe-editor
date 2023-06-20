@@ -664,7 +664,11 @@ static double m_erfc(double n) { return erfc(n); }
 #endif
 
 #ifdef HAVE_J0
+#ifdef _MSC_VER
+static double m_j0(double n) { return _j0(n); }
+#else
 static double m_j0(double n) { return j0(n); }
+#endif
 #else
 #ifdef j0
 static double m_j0(double n) { return j0(n); }
@@ -672,7 +676,11 @@ static double m_j0(double n) { return j0(n); }
 #endif
 
 #ifdef HAVE_J1
+#ifdef _MSC_VER
+static double m_j1(double n) { return _j1(n); }
+#else
 static double m_j1(double n) { return j1(n); }
+#endif
 #else
 #ifdef j1
 static double m_j1(double n) { return j1(n); }
@@ -680,7 +688,11 @@ static double m_j1(double n) { return j1(n); }
 #endif
 
 #ifdef HAVE_Y0
+#ifdef _MSC_VER
+static double m_y0(double n) { return _y0(n); }
+#else
 static double m_y0(double n) { return y0(n); }
+#endif
 #else
 #ifdef y0
 static double m_y0(double n) { return y0(n); }
@@ -688,7 +700,11 @@ static double m_y0(double n) { return y0(n); }
 #endif
 
 #ifdef HAVE_Y1
+#ifdef _MSC_VER
+static double m_y1(double n) { return _y1(n); }
+#else
 static double m_y1(double n) { return y1(n); }
+#endif
 #else
 #ifdef y1
 static double m_y1(double n) { return y1(n); }
@@ -1204,16 +1220,15 @@ static void setup_vars(BW *tbw)
 #endif
 #endif
 		v = get("int"); v->func = m_int;
+		v = get("lr"); v->func = m_lr;
+		v = get("rlr"); v->func = m_rlr;
+		v = get("Lr"); v->func = m_Lr;
+		v = get("rLr"); v->func = m_rLr;
+		v = get("lR"); v->func = m_lR;
+		v = get("rlR"); v->func = m_rlR;
+		v = get("LR"); v->func = m_LR;
+		v = get("rLR"); v->func = m_rLR;
 	}
-
-	v = get("lr"); v->func = m_lr;
-	v = get("rlr"); v->func = m_rlr;
-	v = get("Lr"); v->func = m_Lr;
-	v = get("rLr"); v->func = m_rLr;
-	v = get("lR"); v->func = m_lR;
-	v = get("rlR"); v->func = m_rlR;
-	v = get("LR"); v->func = m_LR;
-	v = get("rLR"); v->func = m_rLR;
 
 	v = get("top");
 	v->val = (double)(tbw->top->line + 1);
@@ -1381,8 +1396,10 @@ static char *eng(char *d, const char *s)
 		}
 	}
 	/* Trim trailing zeros */
-	for (len = vslen(a); len > 0 && a[len - 1] == 0; )
+	for (len = vslen(a); len > 0 && a[len - 1] == '0'; ) {
 		--len;
+		--dp;
+	}
 	vstrunc(a, len);
 
 	/* Exponent? */
@@ -1464,11 +1481,11 @@ static char *eng(char *d, const char *s)
 	/* Any more digits? */
 	if (dp) {
 		d = vsadd(d, '.');
-		for (x = vslen(a) - dp; x != vslen(a); ++x) {
+		for (x = vslen(a) - dp; x != vslen(a); ++x)
 			d = vsadd(d, a[x]);
-		}
+
 		/* Trim trailing zeros */
-		for (len = vslen(d); d > 0 && d[len - 1] == '0'; )
+		for (len = vslen(d); len > 0 && d[len - 1] == '0'; )
 			--len;
 		d = vstrunc(d, len);
 	}

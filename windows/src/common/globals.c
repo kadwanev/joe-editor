@@ -22,5 +22,11 @@
 
 #define _JOEWIN_DO_GLOBALS
 #include "jwglobals.h"
-#include "jwcolors.h"
 #include "jwutils.h"
+
+void jwInitializeGlobals(void)
+{
+	jw_sendOK = 0;
+	jw_initialpalette = NULL;
+	jw_initialbg = jw_initialfg = jw_initialcurbg = jw_initialcurfg = -1;
+}

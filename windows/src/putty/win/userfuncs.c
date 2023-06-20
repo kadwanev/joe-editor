@@ -17,13 +17,13 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include "putty.h"
 
 #include "jwuserfuncs.h"
 #include "jwcomm.h"
 #include "jwglobals.h"
 #include "jwutils.h"
-#include "jwcolors.h"
 #include "jwbentries.h"
 
 static struct buffer_entry *buffers = NULL;
@@ -33,17 +33,67 @@ static void UpdateWindowTitle();
 
 void jwUIProcessPacket(void *data, struct CommMessage* m)
 {
-    if (m->msg == COMM_EXIT) {
-	jwShutdownBackend(data, m->arg1);
-    } else if (m->msg == COMM_UPDATEBUFFER) {
-	struct buffer_update bu;
+    switch (m->msg) {
+	case COMM_EXIT:
+	    jwShutdownBackend(data, m->arg1);
+	    break;
 
-	unmarshal_buffer_update(m, &bu);
-	apply_buffer_updates(&buffers, &bu);
-    } else if (m->msg == COMM_DONEBUFFERUPDATE) {
-	UpdateWindowTitle();
-    } else if (m->msg == COMM_CONTEXTMENU) {
-	jwContextMenu(m->arg1);
+	case COMM_UPDATEBUFFER: {
+	    struct buffer_update bu;
+	    unmarshal_buffer_update(m, &bu);
+	    apply_buffer_updates(&buffers, &bu);
+
+	    break;
+	}
+
+	case COMM_DONEBUFFERUPDATE:
+	    UpdateWindowTitle();
+	    break;
+
+	case COMM_CONTEXTMENU:
+	    jwContextMenu(m->arg1);
+	    break;
+
+	case COMM_SETPALETTE:
+	    jwLoadPalette((int *)m->ptr, m->arg1, m->arg2, m->arg3, m->arg4);
+	    break;
+
+	case COMM_COLORSCHEMES: {
+	    
+	    int i = 0;
+	    int qd = JW_TO_UI;
+	    char **schemes = (char **)safemalloc(sizeof(char *), m->arg1 + 2);
+	    int remaining = m->arg1;
+
+	    schemes[i++] = strdup(m->buffer->buffer);
+
+	    /* arg1 == number of schemes left to send.  They will all come together without interruption. */
+	    remaining = m->arg1;
+	    while (remaining > 0) {
+		struct CommMessage *sc = jwWaitForComm(&qd, 1, INFINITE, NULL);
+		assert(sc);
+		assert(sc->msg == COMM_COLORSCHEMES);
+
+		schemes[i++] = strdup(sc->buffer->buffer);
+		remaining = sc->arg1;
+		jwReleaseComm(JW_TO_UI, sc);
+	    }
+
+	    schemes[i] = NULL;
+
+	    jwSetSchemes(schemes);
+
+	    /* Clear array */
+	    for (i = 0; schemes[i]; i++)
+		free(schemes[i]);
+	    free(schemes);
+
+	    break;
+	}
+
+	case COMM_ACTIVESCHEME:
+	    jwSetActiveScheme(m->buffer->buffer);
+	    break;
     }
 }
 
@@ -62,12 +112,6 @@ void jwSendFiles(HDROP hdrop, int x, int y)
     }
 
     jwSendComm3(JW_FROM_UI, COMM_DROPFILES, x, y, 0);
-}
-
-void jwSendJoeColor(void *colorp)
-{
-    struct jwcolors *colors = dupcolorscheme((struct jwcolors*)colorp);
-    jwSendComm0p(JW_FROM_UI, COMM_COLORSCHEME, colors);
 }
 
 static void UpdateWindowTitle()

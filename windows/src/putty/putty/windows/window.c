@@ -37,6 +37,7 @@
 #include "jwuserfuncs.h"
 #include "jwres.h"
 #include "jwui.h"
+#include "jwglobals.h"
 #endif
 
 /* From MSDN: In the WM_SYSCOMMAND message, the four low-order bits of
@@ -58,7 +59,6 @@
 #else
 #define IDM_COLSCHEME 0x0160
 #define IDM_FONT      0x0170
-#define IDM_RSTSCHEME 0x0210
 #define IDM_CURSVERT  0x0220
 #define IDM_CURSHORZ  0x0230
 #define IDM_CURSBLOK  0x0240
@@ -117,8 +117,6 @@ static void another_font(int);
 static void deinit_fonts(void);
 static void set_input_locale(HKL);
 #ifdef JOEWIN
-static void update_schemes_menu(void);
-static void update_schemes_check(void);
 static void update_cursor_check(void);
 static void update_font_menu(void);
 #else
@@ -201,17 +199,17 @@ struct agent_callback {
 #define FONT_BOLD 1
 #define FONT_UNDERLINE 2
 #define FONT_BOLDUND 3
-#define FONT_WIDE	0x04
-#define FONT_HIGH	0x08
-#define FONT_NARROW	0x10
+#define FONT_ITALIC 4
+#define FONT_WIDE	0x08
+#define FONT_HIGH	0x10
+#define FONT_NARROW	0x20
+#define FONT_OEM 	0x40
+#define FONT_OEMBOLD 	0x41
+#define FONT_OEMUND 	0x42
+#define FONT_OEMBOLDUND 0x43
 
-#define FONT_OEM 	0x20
-#define FONT_OEMBOLD 	0x21
-#define FONT_OEMUND 	0x22
-#define FONT_OEMBOLDUND 0x23
-
-#define FONT_MAXNO 	0x2F
-#define FONT_SHIFT	5
+#define FONT_MAXNO 	0x4F
+#define FONT_SHIFT	6
 static HFONT fonts[FONT_MAXNO];
 static LOGFONT lfont;
 static int fontflag[FONT_MAXNO];
@@ -222,6 +220,7 @@ static enum {
     UND_LINE, UND_FONT
 } und_mode;
 static int descent;
+static int use_italics;
 
 #define NCFGCOLOURS 22
 #define NEXTCOLOURS 240
@@ -230,10 +229,6 @@ static COLORREF colours[NALLCOLOURS];
 static HPALETTE pal;
 static LPLOGPALETTE logpal;
 static RGBTRIPLE defpal[NALLCOLOURS];
-
-#ifdef JOEWIN
-static int boldcolors[NALLCOLOURS];
-#endif
 
 static HBITMAP caretbm;
 
@@ -840,8 +835,7 @@ int PuttyWinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	update_savedsess_menu();
 #else
 	schemes_menu = CreateMenu();
-	update_schemes_menu();
-	update_schemes_check();
+	/* ...done out of bound */
 	
 	cursor_menu = CreateMenu();
 	AppendMenu(cursor_menu, MF_ENABLED, IDM_CURSVERT, "Vertical");
@@ -924,6 +918,20 @@ int PuttyWinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      */
     set_input_locale(GetKeyboardLayout(0));
 
+#ifdef JOEWIN
+    /* Accept messages */
+    if (jwRendezvous(JW_TO_UI, JW_TO_EDITOR)) {
+	    /* Error, probably premature exit. */
+	    return 1;
+    }
+
+    /* Ask for color schemes to populate the menu */
+    jwSendComm0(JW_TO_EDITOR, COMM_COLORSCHEMES);
+
+    /* Apply the *correct* palette */
+    jwLoadPalette(jw_initialpalette, jw_initialfg, jw_initialbg, jw_initialcurfg, jw_initialcurbg);
+#endif
+
     /*
      * Finally show the window!
      */
@@ -939,14 +947,6 @@ int PuttyWinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     term_set_focus(term, GetForegroundWindow() == hwnd);
     UpdateWindow(hwnd);
-
-#ifdef JOEWIN
-    /* Accept messages */
-    if (jwRendezvous(JW_TO_UI, JW_TO_EDITOR)) {
-	    /* Error, probably premature exit. */
-	    return 1;
-    }
-#endif
 
     while (1) {
 #ifndef JOEWIN
@@ -1061,34 +1061,48 @@ char *do_select(SOCKET skt, int startup)
 
 #ifdef JOEWIN
 
-static void update_schemes_menu(void)
+void jwSetSchemes(char **schemes)
 {
-    struct jwcolorlist *colorlist = cfg.colorlist;
+    int n;
 
     while (DeleteMenu(schemes_menu, 0, MF_BYPOSITION)) ;
-    for (; colorlist && (colorlist->idx + 1) <= IDM_SCHEMES_MAX; colorlist = colorlist->next)
-    {
-	AppendMenu(schemes_menu, MF_ENABLED, IDM_SCHEMES_MIN + colorlist->idx * MENU_SCHEMES_STEP, colorlist->name);
+    for (n = IDM_SCHEMES_MIN; *schemes && n <= IDM_SCHEMES_MAX; schemes++, n += MENU_SCHEMES_STEP) {
+	AppendMenu(schemes_menu, MF_ENABLED, n, *schemes);
     }
-
-    AppendMenu(schemes_menu, MF_SEPARATOR, 0, 0);
-    AppendMenu(schemes_menu, MF_ENABLED, IDM_RSTSCHEME, "Reload schemes");
 }
 
-static void update_schemes_check(void)
+void jwSetActiveScheme(char *scheme)
 {
-    struct jwcolorlist *colorlist = cfg.colorlist;
+    int n;
+    char buf[256];
 
-    for (; colorlist && (colorlist->idx + 1) <= IDM_SCHEMES_MAX; colorlist = colorlist->next)
-    {
-	DWORD id = IDM_SCHEMES_MIN + colorlist->idx * MENU_SCHEMES_STEP;
-	if (cfg.currentcolors->idx == colorlist->idx)
-	{
-	    CheckMenuItem(schemes_menu, id, MF_CHECKED);
-	}
-	else
-	{
-	    CheckMenuItem(schemes_menu, id, MF_UNCHECKED);
+    for (n = IDM_SCHEMES_MIN; n <= IDM_SCHEMES_MAX; n += MENU_SCHEMES_STEP) {
+	MENUITEMINFOA item;
+
+	ZeroMemory(&item, sizeof(item));
+	item.dwTypeData = 0;
+	item.fMask = MIIM_TYPE;
+	item.cbSize = sizeof(item);
+
+	if (GetMenuItemInfoA(schemes_menu, n, FALSE, &item)) {
+	    if (item.cch < sizeof(buf)) {
+		item.cch++;
+		item.dwTypeData = buf;
+		item.fMask |= MIIM_STATE;
+
+		if (GetMenuItemInfoA(schemes_menu, n, FALSE, &item)) {
+		    if (!strcmp(scheme, (LPSTR)item.dwTypeData)) {
+			CheckMenuItem(schemes_menu, n, MF_CHECKED);
+		    } else if (item.fState == MF_CHECKED) {
+			CheckMenuItem(schemes_menu, n, MF_UNCHECKED);
+		    }
+		}
+	    } else {
+		assert(FALSE);
+	    }
+	} else {
+	    /* Failed to get item information */
+	    break;
 	}
     }
 }
@@ -1140,11 +1154,6 @@ void jwContextMenu(int hasblock)
 		TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
 		cursorpos.x, cursorpos.y,
 		0, hwnd, NULL);
-}
-
-void jwUpdateJoeColor(void)
-{
-    jwSendJoeColor(cfg.currentcolors->colors);
 }
 
 #else
@@ -1384,6 +1393,56 @@ static void enact_pending_netevent(void)
     reentering = 0;
 }
 
+#ifdef JOEWIN
+
+#define JW_LOAD_COLOR(n,v) { \
+    int rgb = (v), idx = (n); \
+    defpal[idx].rgbtRed = (rgb >> 16) & 0xff; \
+    defpal[idx].rgbtGreen = (rgb >> 8) & 0xff; \
+    defpal[idx].rgbtBlue = rgb & 0xff; \
+}
+
+void jwLoadPalette(int *palette, int fg, int bg, int cfg, int cbg)
+{
+    int i;
+
+    InvalidateRect(hwnd, NULL, TRUE);
+    sfree(logpal);
+    if (pal)
+	DeleteObject(pal);
+    logpal = NULL;
+    pal = NULL;
+    cfgtopalette();
+
+    if (palette) {
+	for (i = 0; i < 256; i++)
+	    if (palette[i] >= 0)
+		JW_LOAD_COLOR(i, palette[i])
+
+	if (fg >= 0 && palette[fg] >= 0)
+	    defpal[256] = defpal[257] = defpal[fg];
+	if (bg >= 0 && palette[bg] >= 0)
+	    defpal[258] = defpal[259] = defpal[bg];
+	if (cfg >= 0 && palette[cfg] >= 0)
+	    defpal[260] = defpal[cfg];
+	if (cbg >= 0 && palette[cbg] >= 0)
+	    defpal[261] = defpal[cbg];
+    } else {
+	if (fg >= 0)
+	    defpal[256] = defpal[257] = defpal[fg];
+	if (bg >= 0)
+	    defpal[258] = defpal[259] = defpal[bg];
+	if (cfg >= 0)
+	    defpal[260] = defpal[cfg];
+	if (cbg >= 0)
+	    defpal[261] = defpal[cbg];
+    }
+
+    init_palette();
+}
+
+#endif
+
 /*
  * Copy the colour palette from the configuration data into defpal.
  * This is non-trivial because the colour indices are different.
@@ -1405,6 +1464,43 @@ static void cfgtopalette(void)
 	defpal[w].rgbtGreen = cfg.colours[i][1];
 	defpal[w].rgbtBlue = cfg.colours[i][2];
     }
+#else
+    static struct {
+	int n;
+	int rgb;
+    } default_colors[] = {
+	{ 256, 0x000000 },	// Default foreground
+	{ 257, 0x000000 },	// Default foreground bold
+	{ 258, 0xffffff },	// Default background
+	{ 259, 0xbbbbbb },	// Default background bold
+	{ 260, 0xffffff },	// Default cursor text
+	{ 261, 0x0080f0 },	// Default cursor color
+
+	{ 0,   0x000000 },	// Black
+	{ 8,   0x000000 },	// Bold black
+	{ 1,   0xbb0000 },	// Red
+	{ 9,   0xff3030 },	// Bold red
+	{ 2,   0x00884c },	// Green
+	{ 10,  0x437d25 },	// Bold green
+	{ 3,   0xb07800 },	// Yellow
+	{ 11,  0xe0e040 },	// Bold yellow
+	{ 4,   0x0033cc },	// Blue
+	{ 12,  0x5555ff },	// Bold blue
+	{ 5,   0xbb00bb },	// Magenta
+	{ 13,  0xb64f90 },	// Bold magenta
+	{ 6,   0x0090a0 },	// Cyan
+	{ 14,  0x00b7cc },	// Bold cyan
+	{ 7,   0x6b6b6b },	// White
+	{ 15,  0xffffff },	// Bold white
+
+	{ -1, 0 },		// Terminator
+    };
+
+    for (i = 0; default_colors[i].n >= 0; i++) {
+	JW_LOAD_COLOR(default_colors[i].n, default_colors[i].rgb);
+    }
+#endif
+
     for (i = 0; i < NEXTCOLOURS; i++) {
 	if (i < 216) {
 	    int r = i / 36, g = (i / 6) % 6, b = i % 6;
@@ -1418,28 +1514,6 @@ static void cfgtopalette(void)
 		defpal[i+16].rgbtBlue = shade;
 	}
     }
-#else
-    struct jwcolors *curcolors = cfg.currentcolors->colors;
-
-    for (i = 0; i < NALLCOLOURS; i++)
-    {
-	/* Fill everything with black, first. */
-	defpal[i].rgbtRed = defpal[i].rgbtBlue = defpal[i].rgbtGreen = 0;
-	boldcolors[i] = 0;
-    }
-
-    for (i = 0; i < curcolors->ncolors; i++)
-    {
-	int w = curcolors->colors[i].paletteidx;
-	int c = curcolors->colors[i].color;
-
-	defpal[w].rgbtRed = JWC_RED(c);
-	defpal[w].rgbtGreen = JWC_GREEN(c);
-	defpal[w].rgbtBlue = JWC_BLUE(c);
-
-	boldcolors[w] = c & COLOR_FLAG_BOLD;
-    }
-#endif
 
     /* Override with system colours if appropriate */
     if (cfg.system_colour)
@@ -1698,18 +1772,18 @@ static void init_fonts(int pick_width, int pick_height)
     }
     font_width = pick_width;
 
-#define f(i,c,w,u) \
-    fonts[i] = CreateFont (font_height, font_width, 0, 0, w, FALSE, u, FALSE, \
+#define f(i,c,w,u,t) \
+    fonts[i] = CreateFont (font_height, font_width, 0, 0, w, t, u, FALSE, \
 			   c, OUT_DEFAULT_PRECIS, \
 		           CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality), \
 			   FIXED_PITCH | FF_DONTCARE, cfg.font.name)
 
-    f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE);
+    f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE, FALSE);
 #ifdef JOEWIN
     /* Move this line up for nice bold Consolas... Thanks StackOverflow! */
     /* http://stackoverflow.com/questions/2520610/detecting-cleartype-optimized-fonts */
     if (bold_mode == BOLD_FONT) {
-	f(FONT_BOLD, cfg.font.charset, fw_bold, FALSE);
+	f(FONT_BOLD, cfg.font.charset, fw_bold, FALSE, FALSE);
     }
 #endif
     SelectObject(hdc, fonts[FONT_NORMAL]);
@@ -1746,7 +1820,56 @@ static void init_fonts(int pick_width, int pick_height)
 	ucsdata.dbcs_screenfont = (cpinfo.MaxCharSize > 1);
     }
 
-    f(FONT_UNDERLINE, cfg.font.charset, fw_dontcare, TRUE);
+    /* Check out italics vs. regular */
+    f(FONT_ITALIC, cfg.font.charset, fw_dontcare, FALSE, TRUE);
+    {
+	LPOUTLINETEXTMETRICA regularOtm, italicOtm;
+
+	use_italics = 0;
+
+	i = GetOutlineTextMetricsA(hdc, 0, NULL);
+	if (i > 0) {
+	    regularOtm = safemalloc(1, i);
+	    regularOtm->otmSize = sizeof(OUTLINETEXTMETRICA);
+	    if (GetOutlineTextMetricsA(hdc, i, regularOtm)) {
+		/* Now get the italic version */
+		SelectObject(hdc, fonts[FONT_ITALIC]);
+		i = GetOutlineTextMetricsA(hdc, 0, NULL);
+		if (i > 0) {
+		    italicOtm = safemalloc(1, i);
+		    italicOtm->otmSize = sizeof(OUTLINETEXTMETRICA);
+		    if (GetOutlineTextMetricsA(hdc, i, italicOtm)) {
+			/* Compare... */
+			char *regStyle = (char*)regularOtm + (int)regularOtm->otmpStyleName;
+			char *itaStyle = (char*)italicOtm + (int)italicOtm->otmpStyleName;
+
+			/* Weed out "italic" fonts that...
+			   - Do not specify an italic slant (probably just the regular font)
+			   - Have the same style as the regular font.  Then it *is* just the regular
+			     font with a linear transformation.
+			   - Report the style name of "Oblique".
+			   
+			   My experience is these a) don't look very good b) tend to overhang the
+			   next character and get cut off during paints... which doesn't look very good. */
+			if (strcmp(regStyle, itaStyle) && stricmp(itaStyle, "Oblique") && italicOtm->otmItalicAngle != 0) {
+			    use_italics = 1;
+			}
+		    }
+
+		    safefree(italicOtm);
+		}
+	    }
+
+	    safefree(regularOtm);
+	}
+
+	if (!use_italics) {
+	    DeleteObject(fonts[FONT_ITALIC]);
+	    fonts[FONT_ITALIC] = NULL;
+	}
+    }
+
+    f(FONT_UNDERLINE, cfg.font.charset, fw_dontcare, TRUE, FALSE);
 
     /*
      * Some fonts, e.g. 9-pt Courier, draw their underlines
@@ -1840,7 +1963,7 @@ static void another_font(int fontno)
 {
     int basefont;
     int fw_dontcare, fw_bold;
-    int c, u, w, x;
+    int c, u, w, x, t;
     char *s;
 
     if (fontno < 0 || fontno >= FONT_MAXNO || fontflag[fontno])
@@ -1863,6 +1986,7 @@ static void another_font(int fontno)
     u = FALSE;
     s = cfg.font.name;
     x = font_width;
+    t = FALSE;
 
     if (fontno & FONT_WIDE)
 	x *= 2;
@@ -1874,10 +1998,12 @@ static void another_font(int fontno)
 	w = fw_bold;
     if (fontno & FONT_UNDERLINE)
 	u = TRUE;
+    if ((fontno & FONT_ITALIC) && use_italics)
+	t = TRUE;
 
     fonts[fontno] =
 	CreateFont(font_height * (1 + !!(fontno & FONT_HIGH)), x, 0, 0, w,
-		   FALSE, u, FALSE, c, OUT_DEFAULT_PRECIS,
+		   t, u, FALSE, c, OUT_DEFAULT_PRECIS,
 		   CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality),
 		   FIXED_PITCH | FF_DONTCARE, s);
 
@@ -2588,71 +2714,23 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 #else
 	  case IDM_COLSCHEME:
             {
-		unsigned int schemeno = ((lParam - IDM_SCHEMES_MIN) / MENU_SCHEMES_STEP);
-		struct jwcolorlist *clist = cfg.colorlist;
+		MENUITEMINFOA item;
+		char scheme[128];
+		char buf[256];
 
-		while (clist && clist->idx != schemeno)
-		{
-		    clist = clist->next;
-		}
+		ZeroMemory(&item, sizeof(item));
+		item.dwTypeData = (LPSTR)&scheme;
+		item.cch = sizeof(scheme);
+		item.cbSize = sizeof(item);
+		item.fMask = MIIM_STRING;
 
-		if (clist)
-		{
-		    struct jwcolors *colors = loadcolorscheme(clist);
-		    if (colors)
-		    {
-			/* Update configuration */
-			cfg.currentcolors = clist;
-
-			/* Schedule window repaint */
-			InvalidateRect(hwnd, NULL, TRUE);
-
-			/* Reset palette */
-			sfree(logpal);
-			if (pal)
-			    DeleteObject(pal);
-			logpal = NULL;
-			pal = NULL;
-			cfgtopalette();
-			init_palette();
-
-			/* Notify JOE */
-			jwUpdateJoeColor();
-
-			/* Update checkbox */
-			update_schemes_check();
-
-			/* Update saved settings */
-			jwSaveSettings(&cfg);
-		    }
+		if (GetMenuItemInfoA(schemes_menu, lParam, FALSE, &item)) {
+		    sprintf(buf, "mode,\"colors\",rtn,\"%s\",rtn", scheme);
+		    jwSendComm0s(JW_TO_EDITOR, COMM_EXEC, buf);
 		}
 	    }
 	    break;
 
-	  case IDM_RSTSCHEME:
-  	    {
-		jwReloadColors(&cfg, cfg.currentcolors->file);
-		update_schemes_menu();
-
-		/* Reset palette */
-		sfree(logpal);
-		if (pal)
-			DeleteObject(pal);
-		logpal = NULL;
-		pal = NULL;
-		cfgtopalette();
-		init_palette();
-
-		/* Schedule window repaint */
-		InvalidateRect(hwnd, NULL, TRUE);
-
-		/* Notify JOE */
-		jwUpdateJoeColor();
-
-		/* Update checkbox */
-		update_schemes_check();
-	    }
-	    break;
 	  case IDM_CURSVERT:
 	    if ((wParam & ~0xF) == IDM_CURSVERT) { cfg.cursor_type = 2; }
 	  case IDM_CURSHORZ:
@@ -3785,10 +3863,10 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
     if (und_mode == UND_FONT && (attr & ATTR_UNDER))
 	nfont |= FONT_UNDERLINE;
 #ifdef JOEWIN
-    if (((attr & ATTR_BOLD) && ((nfg < 16 && boldcolors[nfg | 8]) || (nfg >= 256 && boldcolors[nfg | 1]))) || boldcolors[nfg])
-    {
+    if (nfg == 257 || nfg == 259 || (attr & ATTR_BOLD))
 	nfont |= FONT_BOLD;
-    }
+    if (attr & ATTR_ITALIC)
+	nfont |= FONT_ITALIC;
 #endif
     another_font(nfont);
     if (!fonts[nfont]) {

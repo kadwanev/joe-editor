@@ -25,6 +25,7 @@
 
 #ifdef JOEWIN
 #include "joedata.h"
+#define _USE_MATH_DEFINES
 #endif
 
 /* Common header files */
@@ -279,7 +280,6 @@ typedef int pid_t;
 
 #define FITHEIGHT	4		/* Minimum height needed for new text windows */
 #define FITMIN		2		/* Minimum main window height */
-#define LINCOLS		10
 #define NPROC		8		/* Number of processes we keep track of */
 #define INC		16		/* Pages to allocate each time */
 
@@ -328,6 +328,8 @@ typedef struct obj Obj;
 typedef struct vt_context VT;
 typedef struct Phash PHASH;
 typedef struct coroutine Coroutine;
+typedef struct color_set COLORSET;
+typedef struct color_scheme SCHEME;
 
 /* Structure which are passed by value */
 
@@ -350,7 +352,6 @@ struct highlight_state {
 /* Include files */
 
 #ifdef JOEWIN
-#include "jwcolors.h"
 #include "jwversion.h"
 #endif
 
@@ -381,6 +382,7 @@ struct highlight_state {
 #include "frag.h"
 #include "regex.h"
 #include "scrn.h"
+#include "colors.h"
 #include "syntax.h"
 #include "tab.h"
 #include "termcapj.h"
@@ -416,4 +418,5 @@ struct highlight_state {
 #include "uwindows.h"
 #include "jwutils.h"
 #include "subproc.h"
+#include "jwcomm.h"
 #endif
