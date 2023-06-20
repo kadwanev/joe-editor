@@ -118,7 +118,8 @@ DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(srcdir)/groovy.jsf.in $(srcdir)/clojure.jsf.in \
 	$(srcdir)/rust.jsf.in $(srcdir)/coffee.jsf.in \
 	$(srcdir)/scala.jsf.in $(srcdir)/swift.jsf.in \
-	$(srcdir)/d.jsf.in $(srcdir)/dockerfile.jsf.in
+	$(srcdir)/d.jsf.in $(srcdir)/dockerfile.jsf.in \
+	$(srcdir)/context.jsf.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
@@ -139,7 +140,7 @@ CONFIG_CLEAN_FILES = 4gl.jsf ada.jsf ant.jsf asm.jsf awk.jsf batch.jsf \
 	troff.jsf typescript.jsf verilog.jsf vhdl.jsf whitespace.jsf \
 	xml.jsf yaml.jsf filename.jsf avr.jsf r.jsf groovy.jsf \
 	clojure.jsf rust.jsf coffee.jsf scala.jsf swift.jsf d.jsf \
-	dockerfile.jsf
+	dockerfile.jsf context.jsf
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -305,7 +306,7 @@ data_syntax_DATA = c.jsf perl.jsf verilog.jsf conf.jsf python.jsf php.jsf sh.jsf
 	erb.jsf git-commit.jsf haml.jsf htmlerb.jsf iptables.jsf md.jsf prolog.jsf \
 	properties.jsf sieve.jsf whitespace.jsf yaml.jsf erlang.jsf powershell.jsf \
 	puppet.jsf filename.jsf avr.jsf r.jsf groovy.jsf clojure.jsf rust.jsf \
-	coffee.jsf scala.jsf swift.jsf d.jsf dockerfile.jsf
+	coffee.jsf scala.jsf swift.jsf d.jsf dockerfile.jsf context.jsf
 
 EXTRA_DIST = $(data_syntax_DATA)
 all: all-am
@@ -498,6 +499,8 @@ swift.jsf: $(top_builddir)/config.status $(srcdir)/swift.jsf.in
 d.jsf: $(top_builddir)/config.status $(srcdir)/d.jsf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 dockerfile.jsf: $(top_builddir)/config.status $(srcdir)/dockerfile.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+context.jsf: $(top_builddir)/config.status $(srcdir)/context.jsf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 install-data_syntaxDATA: $(data_syntax_DATA)
 	@$(NORMAL_INSTALL)

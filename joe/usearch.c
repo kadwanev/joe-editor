@@ -269,7 +269,7 @@ static int srch_cmplt(BW *bw, int k)
      p is placed right after the found string
 
    Return 0 if we did not find the string:
-     p is left in its orignal spot
+     p is left in its original spot
 */
 
 static P *searchf(BW *bw,SRCH *srch, P *p)
@@ -334,7 +334,7 @@ static P *searchf(BW *bw,SRCH *srch, P *p)
      p is placed at the beginning of the string
 
    Return 0 if we did not find the string:
-     p is left in its orignal spot
+     p is left in its original spot
 */
 
 static P *searchb(BW *bw,SRCH *srch, P *p)
@@ -451,15 +451,15 @@ void rmsrch(SRCH *srch)
 {
 	if (srch->comp)
 		joe_regfree(srch->comp);
-	prm(markb);
-	prm(markk);
 	prm(srch->wrap_p);
 	if (srch->markb) {
+                prm(markb);
 		markb = srch->markb;
 		markb->owner = &markb;
 		markb->xcol = piscol(markb);
 	}
 	if (srch->markk) {
+		prm(markk);
 		markk = srch->markk;
 		markk->owner = &markk;
 		markk->xcol = piscol(markk);
@@ -642,14 +642,14 @@ static int pfsave(W *w, void *obj)
 		srch->repeat = -1;
 		srch->flg = 0;
 
-		prm(markb);
-		prm(markk);
 		if (srch->markb) {
+		        prm(markb);
 			markb = srch->markb;
 			markb->owner = &markb;
 			markb->xcol = piscol(markb);
 		}
 		if (srch->markk) {
+		        prm(markk);
 			markk = srch->markk;
 			markk->owner = &markk;
 			markk->xcol = piscol(markk);
