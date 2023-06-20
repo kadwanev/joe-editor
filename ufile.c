@@ -303,14 +303,17 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 			 *		24 Apr 2001, Marx
 			 */
 			UNDO *u = bw->b->undo;
-			UNDOREC *rec = u->recs.link.prev;
-			
-			while (rec->changed) {
-				rec = rec->link.prev;
-			}		
-			rec->changed = 1;
-		}
+			UNDOREC *rec, *rec_start;
 
+			rec = rec_start = &u->recs;
+
+			do {
+				rec = rec->link.prev;
+			} while (rec != rec_start && rec->changed);
+			if(rec->changed == 0)
+				rec->changed = 1;
+
+		}
 		genexmsg(bw, 1, req->name);
 		vsrm(req->name);
 		free(req);
@@ -371,11 +374,6 @@ int usave(BW *bw)
 {
 	BW *pbw;
 	
-	if (!bw->b->changed) {
-		/* there is no change */
-		genexmsg (bw,0,NULL);
-		return -1;
-	}
 	pbw = wmkpw(bw->parent, "Name of file to save (^C to abort): ", &filehist, dosave1, "Names", NULL, cmplt, NULL, NULL);
 
 	if (pbw && bw->b->name) {

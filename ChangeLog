@@ -1,3 +1,37 @@
+Wed Nov 07 2001  Vitezslav Samel <samel@mail.cz>
+	*** Release joe-2.9.7 ***
+
+Wed Nov 07 2001  Vitezslav Samel <samel@mail.cz>
+	* configure.ac: bump up version number
+
+Wed Nov 07 2001  Vitezslav Samel <samel@mail.cz>
+	* NEWS: update - prepare for release
+
+Wed Nov 07 2001  Vitezslav Samel <samel@mail.cz>
+	* Makefile.am, deleted conf.c: conf.c not used anymore
+
+Wed Nov 07 2001 Vitezslav Samel <samel@mail.cz>
+	* Makefile.am: add README.cvs and docs/help-system.html
+	to EXTRA_DIST variable
+
+Wed Nov 07 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+	* docs/help-system.html: updated
+
+Tue Nov 06 2001  Vitezslav Samel <samel@mail.cz>
+	* new file README.cvs: documentation file on how to access joe sources
+	via CVS
+
+Sun Nov 04 2001  Vitezslav Samel <samel@mail.cz>
+	* ufile.c: kill infinite loop when saving unmodified file
+	(sourceforge.net BUG #478290)
+
+Sun Nov 04 2001  Vitezslav Samel <samel@mail.cz>
+	* ufile.c: remove "feature" added in 2.9.7-pre1 so the user is always
+	asked of the filename saved (sourceforge.net BUG #449489)
+
+Wed Oct 31 2001  Vitezslav Samel <samel@mail.cz>
+	* bw.h, tty.c, configure.ac: make use of pid_t type
+
 Mon Oct 29 2001  Vitezslav Samel <samel@mail.cz>
 	*** Release joe-2.9.7-pre3 ***
 
