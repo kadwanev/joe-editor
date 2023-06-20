@@ -1,0 +1,41 @@
+Thu Jul 19 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+	* help.c, help.h, main.c: help system was rebuilt
+	
+Thu Jul 19 2001  Vitezslav Samel <samel@mail.cz>
+	* joe.1, ufile.c: new feature 'backup suffix', when the system 
+	environment SIMPLE_BACKUP_SUFFIX is set then it is used instead of ~.
+	Inspired by patch program.
+	
+Thu Jul 19 2001  Vitezslav Samel <samel@mail.cz>
+	* lot of files: patch which removes a lot of warnings.
+	
+Wed Jul 04 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+
+	* b.c, main.c, path.c, path.h, rc.c, ufile.c: Function 'ossep'
+	was completly removed because it was not possible to access
+	files like test\ in UNIX like systems.
+	
+Wed Jul 04 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+
+	* ufile.c: Several minor changes.
+	
+Wed Jul 04 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+
+	* ufile.c: Problem with freezing when saving unmodified file 
+	is solved. But it is possible that this patch is only partial	
+
+Wed Jul 04 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+
+	* ufile.c: Modified flag is now properly set. It can look
+	awful but pre-first undo record has modified flag set on.
+
+Wed Jul 03 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+
+	* joe-2.9.7pre0.tgz: version 2.9.7pre0 was released
+
+Wed Jul 02 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+
+	* lot of files: I get last version without wordwrap bug (2.9.6pre1) and
+	applied almost all patches which are mentioned in NEWS file. Problem
+	with ${sysconfdir}/joerc is probably still actual, because I was not
+	able to find patch :(

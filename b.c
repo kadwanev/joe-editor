@@ -109,7 +109,7 @@ static H *halloc(void)
 		h = (H *) alitem(&nhdrs, sizeof(H));
 		h->seg = my_valloc(vmem, (long) SEGSIZ);
 	} else
-		h = deque(H, link, ohdrs.link.next);
+		h = deque_f(H, link, ohdrs.link.next);
 	h->hole = 0;
 	h->ehole = SEGSIZ;
 	h->nlines = 0;
@@ -322,7 +322,7 @@ void prm(P * p)
 		*p->owner = 0;
 	if (p->ptr)
 		vunlock(p->ptr);
-	pfree(deque(P, link, p));
+	pfree(deque_f(P, link, p));
 }
 
 P *pset(P * n, P * p)
@@ -1217,7 +1217,7 @@ void pcoalesce(P * p)
 		ginsm(p->hdr, p->ptr, GSIZE(p->hdr), ptr, size);
 		p->hdr->nlines += hdr->nlines;
 		vunlock(ptr);
-		hfree(deque(H, link, hdr));
+		hfree(deque_f(H, link, hdr));
 		for (q = p->link.next; q != p; q = q->link.next)
 			if (q->hdr == hdr) {
 				q->hdr = p->hdr;
@@ -1238,7 +1238,7 @@ void pcoalesce(P * p)
 		ginsm(p->hdr, p->ptr, 0, ptr, size);
 		p->hdr->nlines += hdr->nlines;
 		vunlock(ptr);
-		hfree(deque(H, link, hdr));
+		hfree(deque_f(H, link, hdr));
 		p->ofst += size;
 		for (q = p->link.next; q != p; q = q->link.next)
 			if (q->hdr == hdr) {
@@ -1309,7 +1309,7 @@ static B *bcut(P * from, P * to)
 	} else {		/* Delete crosses segments */
 		H *a;
 
-		if (toamnt = to->ofst) {
+		if ((toamnt = to->ofst) != 0) {
 			/* Delete beginning of to */
 			/* Move gap to deletion point */
 			/* To could be deleted if it's at the end of the file */
@@ -1385,7 +1385,7 @@ static B *bcut(P * from, P * to)
 	if (!GSIZE(to->hdr) && from->byte) {
 		H *ph = from->hdr->link.prev;
 
-		hfree(deque(H, link, from->hdr));
+		hfree(deque_f(H, link, from->hdr));
 		vunlock(from->ptr);
 		from->hdr = ph;
 		from->ptr = vlock(vmem, from->hdr->seg);
@@ -1416,8 +1416,8 @@ static B *bcut(P * from, P * to)
 	for (p = from->link.next; p != from; p = p->link.next)
 		if (p->line == from->line && p->byte > from->byte)
 			p->valcol = 0;
-	for (p = from->link.next; p != from; p = p->link.next)
-		if (p->byte >= from->byte)
+	for (p = from->link.next; p != from; p = p->link.next) {
+		if (p->byte >= from->byte) {
 			if (p->byte <= from->byte + amnt) {
 				if (p->ptr) {
 					pset(p, from);
@@ -1430,6 +1430,8 @@ static B *bcut(P * from, P * to)
 				p->byte -= amnt;
 				p->line -= nlines;
 			}
+		}
+	}
 
 	pcoalesce(from);
 
@@ -1557,13 +1559,13 @@ static void inschn(P * p, H * a)
 		p->ptr = vlock(vmem, p->hdr->seg);
 		p->ofst = 0;
 	} else if (pisbof(p)) {	/* We're at the beginning of the file: insert chain and set bof pointer */
-		p->hdr = spliceb(H, link, p->hdr, a);
+		p->hdr = spliceb_f(H, link, p->hdr, a);
 		vunlock(p->ptr);
 		p->ptr = vlock(vmem, a->seg);
 		pset(p->b->bof, p);
 	} else {		/* We're in the middle of the file: split and insert */
 		bsplit(p);
-		p->hdr = spliceb(H, link, p->hdr, a);
+		p->hdr = spliceb_f(H, link, p->hdr, a);
 		vunlock(p->ptr);
 		p->ptr = vlock(vmem, a->seg);
 	}
@@ -1580,7 +1582,7 @@ static void fixupins(P * p, long amnt, long nlines, H * hdr, int hdramnt)
 	inserr(p->b->name, p->line, nlines);
 
 	for (pp = p->link.next; pp != p; pp = pp->link.next)
-		if (pp->line == p->line && (pp->byte > p->byte || pp->end && pp->byte == p->byte))
+		if (pp->line == p->line && (pp->byte > p->byte || (pp->end && pp->byte == p->byte)))
 			pp->valcol = 0;
 	for (pp = p->link.next; pp != p; pp = pp->link.next)
 		if (pp->byte == p->byte && !pp->end)
@@ -1588,7 +1590,7 @@ static void fixupins(P * p, long amnt, long nlines, H * hdr, int hdramnt)
 				pset(pp, p);
 			else
 				poffline(pset(pp, p));
-		else if (pp->byte > p->byte || pp->end && pp->byte == p->byte) {
+		else if (pp->byte > p->byte || (pp->end && pp->byte == p->byte)) {
 			pp->byte += amnt;
 			pp->line += nlines;
 			if (pp->hdr == hdr)
@@ -1735,7 +1737,7 @@ long *skip, *amnt;
 
 	*skip = 0;
 	*amnt = MAXLONG;
-	for (x = sLEN(n) - 1; x > 0 && (n[x] >= '0' && n[x] <= '9' || n[x] == 'x' || n[x] == 'X'); --x) ;
+	for (x = sLEN(n) - 1; x > 0 && ((n[x] >= '0' && n[x] <= '9') || n[x] == 'x' || n[x] == 'X'); --x) ;
 	if (n[x] == ',') {
 		n[x] = 0;
 		if (n[x + 1] == 'x' || n[x + 1] == 'X')
@@ -1746,7 +1748,7 @@ long *skip, *amnt;
 			sscanf(n + x + 1, "%lo", skip);
 		else
 			sscanf(n + x + 1, "%ld", skip);
-		for (--x; x > 0 && (n[x] >= '0' && n[x] <= '9' || n[x] == 'x' || n[x] == 'X'); --x) ;
+		for (--x; x > 0 && ((n[x] >= '0' && n[x] <= '9') || n[x] == 'x' || n[x] == 'X'); --x) ;
 		if (n[x] == ',') {
 			n[x] = 0;
 			*amnt = *skip;
@@ -1823,7 +1825,6 @@ char *s;
 	n = parsens(s, &skip, &amnt);
 
 	/* Open file or stream */
-	ossep(n);
 #ifndef __MSDOS__
 	if (n[0] == '!') {
 		nescape(maint->t);
@@ -1995,7 +1996,7 @@ long size;
 		size -= amnt;
 		pnext(np);
 	}
-	if (size)
+	if (size) {
 		if (np->ofst < np->hdr->hole) {
 			if (size > np->hdr->hole - np->ofst) {
 				if (jwrite(fd, np->ptr + np->ofst, np->hdr->hole - np->ofst) < 0)
@@ -2010,6 +2011,7 @@ long size;
 			if (jwrite(fd, np->ptr + np->ofst + GGAPSZ(np->hdr), (int) size) < 0)
 				goto err;
 		}
+	}
 	prm(np);
 	return error = 0;
       err:;
@@ -2032,7 +2034,6 @@ long size;
 	if (amnt < size)
 		size = amnt;
 
-	ossep(s);
 #ifndef __MSDOS__
 	if (s[0] == '!') {
 		nescape(maint->t);

@@ -229,19 +229,19 @@ extern unsigned atab[];
 #define BLINK 2048
 #define DIM 4096
 
-#define outatr(t,scrn,xx,yy,c,a) \
-  ( \
-    (*(scrn)!=((c)|(a))) ? \
-      ( \
-      *(scrn)=((c)|(a)), \
-      ((t)->ins?clrins(t):0), \
-      ((t)->x!=(xx) || (t)->y!=(yy)?cpos((t),(xx),(yy)):0), \
-      ((t)->attrib!=(a)?attr((t),(a)):0), \
-      ttputc(c), ++(t)->x \
-      ) \
-    : \
-      0 \
-  )
+#define outatr(t, scrn, xx, yy, c, a) {			\
+	if(*(scrn) != ((c) | (a))) {			\
+		*(scrn) = ((c) | (a));			\
+		if((t)->ins)				\
+			clrins(t);			\
+		if((t)->x != (xx) || (t)->y != (yy))	\
+			cpos((t), (xx), (yy));		\
+		if((t)->attrib != (a))			\
+			attr((t), (a));			\
+		ttputc(c);				\
+		++(t)->x;				\
+	}						\
+}
 
 #endif
 

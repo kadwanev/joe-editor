@@ -39,7 +39,7 @@ UNDOREC *alrec()
 
 void frrec(UNDOREC * rec)
 {
-	if (rec->del)
+	if (rec->del) {
 		if (rec->len < SMALL)
 			free(rec->small);
 		else {
@@ -48,6 +48,7 @@ void frrec(UNDOREC * rec)
 			bonline(b);
 			brm(b);
 		}
+	}
 	enquef(UNDOREC, link, &frrecs, rec);
 }
 
@@ -145,7 +146,7 @@ int uredo(BW * bw)
 		inredo = 1;
 		doundo(bw, ptr);
 		inredo = 0;
-		frrec(deque(UNDOREC, link, ptr));
+		frrec(deque_f(UNDOREC, link, ptr));
 		undo->ptr = undo->ptr->link.next;
 	}
 	while (upto && upto != ptr);
@@ -175,8 +176,8 @@ static void undogc(UNDO * undo)
 		flg = 1;
 	if (unit)
 		while (unit != undo->recs.link.next)
-			frrec(deque(UNDOREC, link, undo->recs.link.next));
-	frrec(deque(UNDOREC, link, undo->recs.link.next));
+			frrec(deque_f(UNDOREC, link, undo->recs.link.next));
+	frrec(deque_f(UNDOREC, link, undo->recs.link.next));
 	--undo->nrecs;
 	if (flg)
 		undo->ptr = undo->recs.link.next;
@@ -249,7 +250,7 @@ void yankdel(long where, B * b)
 
 	/* Store in yank buffer */
 	rec = yanked.link.prev;
-	if (!inyank)
+	if (!inyank) {
 		if (rec != &yanked && where == rec->where && justkilled) {
 			if (rec->len + size >= SMALL) {
 				if (rec->len < SMALL) {
@@ -286,7 +287,7 @@ void yankdel(long where, B * b)
 			rec->where = where;
 		} else {
 			if (++nyanked == 100)
-				frrec(deque(UNDOREC, link, yanked.link.next)), --nyanked;
+				frrec(deque_f(UNDOREC, link, yanked.link.next)), --nyanked;
 			rec = alrec();
 			if (size < SMALL) {
 				rec->small = (char *) malloc(size);
@@ -300,6 +301,7 @@ void yankdel(long where, B * b)
 			rec->del = 1;
 			enqueb(UNDOREC, link, &yanked, rec);
 		}
+	}
 }
 
 void undodel(UNDO * undo, long where, B * b)

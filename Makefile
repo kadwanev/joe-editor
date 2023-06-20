@@ -48,7 +48,7 @@ TERMINFO = 1
 
 # C compiler options: make's built-in rules use this variable
 
-CFLAGS = -O2 -fsigned-char -fomit-frame-pointer -pipe
+CFLAGS = -O2 -fsigned-char -fomit-frame-pointer -pipe -Wall
 
 # You may have to include some extra libraries
 # for some systems

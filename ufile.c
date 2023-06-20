@@ -9,8 +9,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include "config.h"
 #include <string.h>
+#include "config.h"
+#include "undo.h"
 
 #ifdef UTIME
 #include <utime.h>
@@ -41,6 +42,7 @@
 #include "uerror.h"
 #include "macro.h"
 #include "ufile.h"
+#include "ushell.h"
 
 extern int orphan;
 char *backpath = 0;		/* Place to store backup files */
@@ -54,25 +56,28 @@ void genexmsg(BW * bw, int saved, char *name)
 {
 	char *s;
 
-	if (bw->b->name && bw->b->name[0])
+	if (bw->b->name && bw->b->name[0]) {
 		s = bw->b->name;
-	else
+	} else {
 		s = "(Unnamed)";
+	}
 
-	if (name)
-		if (saved)
+	if (name) {
+		if (saved) {
 			snprintf(msgbuf, MSGBUFSIZE, "File %s saved", name);
-		else
+		} else {
 			snprintf(msgbuf, MSGBUFSIZE, "File %s not saved", name);
-	else if (bw->b->changed && bw->b->count == 1)
+		}
+	} else if (bw->b->changed && bw->b->count == 1) {
 		snprintf(msgbuf, MSGBUFSIZE, "File %s not saved", s);
-	else if (saved)
+	} else if (saved) {
 		snprintf(msgbuf, MSGBUFSIZE, "File %s saved", s);
-	else
+	} else {
 		snprintf(msgbuf, MSGBUFSIZE, "File %s not changed so no update needed", s);
+	}
 	msgnw(bw, msgbuf);
 
-	if (!exmsg)
+	if (!exmsg) {
 		if (bw->b->changed && bw->b->count == 1) {
 			exmsg = vsncpy(NULL, 0, sc("File "));
 			exmsg = vsncpy(sv(exmsg), sz(s));
@@ -86,6 +91,7 @@ void genexmsg(BW * bw, int saved, char *name)
 			exmsg = vsncpy(sv(exmsg), sz(s));
 			exmsg = vsncpy(sv(exmsg), sc(" not changed so no update needed."));
 		}
+	}
 }
 
 /* Write highlighted block to a file */
@@ -93,12 +99,14 @@ void genexmsg(BW * bw, int saved, char *name)
 int ublksave(BW * bw)
 {
 	if (markb && markk && markb->b == markk->b && (markk->byte - markb->byte) > 0 && (!square || piscol(markk) > piscol(markb))) {
-		if (wmkpw(bw->parent, "Name of file to write (^C to abort): ", &filehist, dowrite, "Names", NULL, cmplt, NULL, NULL))
+		if (wmkpw(bw->parent, "Name of file to write (^C to abort): ", &filehist, dowrite, "Names", NULL, cmplt, NULL, NULL)) {
 			return 0;
-		else
+		} else {
 			return -1;
-	} else
+		}
+	} else {
 		return usave(bw);
+	}
 }
 
 /* Shell escape */
@@ -127,22 +135,27 @@ int cp(char *from, char *to)
 #endif
 
 	f = open(from, O_RDONLY);
-	if (f < 0)
+	if (f < 0) {
 		return -1;
-	if (fstat(f, &sbuf) < 0)
+	}
+	if (fstat(f, &sbuf) < 0) {
 		return -1;
+	}
 	g = creat(to, sbuf.st_mode);
 	if (g < 0) {
 		close(f);
 		return -1;
 	}
-	while ((amnt = read(f, stdbuf, stdsiz)) > 0)
-		if (amnt != write(g, stdbuf, amnt))
+	while ((amnt = read(f, stdbuf, stdsiz)) > 0) {
+		if (amnt != write(g, stdbuf, amnt)) {
 			break;
+		}
+	}
 	close(f);
 	close(g);
-	if (amnt)
+	if (amnt) {
 		return -1;
+	}
 
 #ifdef HAVEUTIME
 #ifdef NeXT
@@ -168,34 +181,40 @@ static int backup(BW * bw)
 	if (!bw->b->backup && !nobackups && bw->b->name && bw->b->name[0]) {
 		char tmp[1024];
 		char name[1024];
-		int x;
 
 #ifdef __MSDOS__
+		int x;
 
-		if (backpath)
+		if (backpath) {
 			snprintf(name, sizeof(name), "%s/%s", backpath, namepart(tmp, bw->b->name));
-		else
+		} else {
 			snprintf(name, sizeof(name), "%s", bw->b->name);
+		}
 
-		ossep(name);
-
-		for (x = strlen(name); name[--x] != '.';)
+		for (x = strlen(name); name[--x] != '.';) {
 			if (name[x] == '\\' || (name[x] == ':' && x == 1)
 			    || x == 0) {
 				x = strlen(name);
 				break;
 			}
+		}
 
 		strcpy(name + x, ".bak");
 
 #else
 
 		/* Create backup file name */
-		if (backpath)
-			snprintf(name, sizeof(name), "%s/%s~", backpath, namepart(tmp, bw->b->name));
-		else
-			snprintf(name, sizeof(name), "%s~", bw->b->name);
-
+		char *simple_backup_suffix = getenv("SIMPLE_BACKUP_SUFFIX");
+		
+		if (simple_backup_suffix == NULL) {
+			simple_backup_suffix = "~";
+		}
+		if (backpath) {
+			snprintf(name, sizeof(name), "%s/%s%s", backpath, namepart(tmp, bw->b->name), simple_backup_suffix);
+		} else {
+			snprintf(name, sizeof(name), "%s%s", bw->b->name, simple_backup_suffix);
+		}
+		
 		/* Attempt to delete backup file first */
 		unlink(name);
 
@@ -208,8 +227,9 @@ static int backup(BW * bw)
 			bw->b->backup = 1;
 			return 0;
 		}
-	} else
+	} else {
 		return 0;
+	}
 }
 
 /* Write file */
@@ -219,11 +239,7 @@ struct savereq {
 	char *name;
 };
 
-static int saver(bw, c, req, notify)
-BW *bw;
-int c;
-struct savereq *req;
-int *notify;
+static int saver(BW *bw, int c, struct savereq *req, int *notify)
 {
 	int (*callback) ();
 	int fl;
@@ -232,36 +248,43 @@ int *notify;
 	if (c == 'n' || c == 'N') {
 		vsrm(req->name);
 		free(req);
-		if (notify)
+		if (notify) {
 			*notify = 1;
+		}
 		msgnw(bw, "Couldn't make backup file... file not saved");
-		if (callback)
+		if (callback) {
 			return callback(bw, -1);
-		else
+		} else {
 			return -1;
+		}
 	}
-	if (c != 'y' && c != 'Y')
-		if (mkqw(bw->parent, sc("Could not make backup file.  Save anyway (y,n,^C)? "), saver, NULL, req, notify))
+	if (c != 'y' && c != 'Y') {
+		if (mkqw(bw->parent, sc("Could not make backup file.  Save anyway (y,n,^C)? "), saver, NULL, req, notify)) {
 			return 0;
-		else {
+		} else {
 			if (notify)
 				*notify = 1;
 			return -1;
 		}
-	if (notify)
+	}
+	if (notify) {
 		*notify = 1;
-	if (bw->b->er == -1 && bw->o.msnew)
+	}
+	if (bw->b->er == -1 && bw->o.msnew) {
 		exemac(bw->o.msnew), bw->b->er = -3;
-	if (bw->b->er == 0 && bw->o.msold)
+	}
+	if (bw->b->er == 0 && bw->o.msold) {
 		exemac(bw->o.msold);
-	if (fl = bsave(bw->b->bof, req->name, bw->b->eof->byte)) {
+	}
+	if ((fl = bsave(bw->b->bof, req->name, bw->b->eof->byte)) != 0) {
 		msgnw(bw, msgs[fl + 5]);
 		vsrm(req->name);
 		free(req);
-		if (callback)
+		if (callback) {
 			return callback(bw, -1);
-		else
+		} else {
 			return -1;
+		}
 	} else {
 		if (!bw->b->name)
 			bw->b->name = joesep(strdup(req->name));
@@ -269,61 +292,69 @@ int *notify;
 			bw->b->changed = 0;
 			saverr(bw->b->name);
 		}
+		{
+			/* Last UNDOREC which wasn't modified will be changed
+			 * to modified. And because this block is
+			 * executed after each 'save', there can't be more
+			 * than one record which is not modified
+			 *		24 Apr 2001, Marx
+			 */
+			UNDO *u = bw->b->undo;
+			UNDOREC *rec = u->recs.link.prev;
+			
+			while (rec->changed) {
+				rec = rec->link.prev;
+			}		
+			rec->changed = 1;
+		}
+
 		genexmsg(bw, 1, req->name);
 		vsrm(req->name);
 		free(req);
-		if (callback)
+		if (callback) {
 			return callback(bw, 0);
-		else
+		} else {
 			return 0;
+		}
 	}
 }
 
-static int dosave(bw, s, callback, notify)
-BW *bw;
-char *s;
-int (*callback) ();
-int *notify;
+static int dosave(BW *bw, char *s, int (*callback) (), int *notify)
 {
 	struct savereq *req = (struct savereq *) malloc(sizeof(struct savereq));
 
 	req->name = s;
 	req->callback = callback;
-	if (backup(bw))
-		saver(bw, 0, req, notify);
-	else
-		saver(bw, 'y', req, notify);
+	if (backup(bw)) {
+		return saver(bw, 0, req, notify);
+	} else {
+		return saver(bw, 'y', req, notify);
+	}
 }
 
-static int dosave2(bw, c, s, notify)
-BW *bw;
-char *s;
-int *notify;
+static int dosave2(BW *bw, int c, char *s, int *notify)
 {
-	if (c == 'y' || c == 'Y')
+	if (c == 'y' || c == 'Y') {
 		return dosave(bw, s, NULL, notify);
-	else if (c == 'n' || c == 'N') {
-		if (notify)
+	} else if (c == 'n' || c == 'N') {
+		if (notify) {
 			*notify = 1;
+		}
 		genexmsg(bw, 0, s);
 		vsrm(s);
 		return -1;
-	} else if (mkqw(bw->parent, sc("File exists.  Overwrite (y,n,^C)? "), dosave2, NULL, s, notify))
+	} else if (mkqw(bw->parent, sc("File exists.  Overwrite (y,n,^C)? "), dosave2, NULL, s, notify)) {
 		return 0;
-	else
+	} else {
 		return -1;
+	}
 }
 
-static int dosave1(bw, s, object, notify)
-BW *bw;
-char *s;
-void *object;
-int *notify;
+static int dosave1(BW *bw, char *s, void *object, int *notify)
 {
 	int f;
 
-	if (s[0] != '!' && !(s[0] == '>' && s[1] == '>')
-	    && (!bw->b->name || strcmp(s, bw->b->name))) {
+	if (s[0] != '!' && !(s[0] == '>' && s[1] == '>') && (!bw->b->name || strcmp(s, bw->b->name))) {
 		f = open(s, O_RDONLY);
 		if (f != -1) {
 			close(f);
@@ -333,32 +364,32 @@ int *notify;
 	return dosave(bw, s, object, notify);
 }
 
-int usave(bw)
-BW *bw;
+int usave(BW *bw)
 {
-	BW *pbw = wmkpw(bw->parent,
-			"Name of file to save (^C to abort): ", &filehist,
-			dosave1,
-			"Names", NULL, cmplt, NULL, NULL);
+	BW *pbw;
+	
+	if (!bw->b->changed) {
+		/* there is no change */
+		genexmsg (bw,0,NULL);
+		return -1;
+	}
+	pbw = wmkpw(bw->parent, "Name of file to save (^C to abort): ", &filehist, dosave1, "Names", NULL, cmplt, NULL, NULL);
 
 	if (pbw && bw->b->name) {
 		binss(pbw->cursor, bw->b->name);
 		pset(pbw->cursor, pbw->b->eof);
 		pbw->cursor->xcol = piscol(pbw->cursor);
 	}
-	if (pbw)
+	if (pbw) {
 		return 0;
-	else
+	} else {
 		return -1;
+	}
 }
 
 /* Load file to edit */
 
-int doedit(bw, s, obj, notify)
-BW *bw;
-char *s;
-void *obj;
-int *notify;
+int doedit(BW *bw, char *s, void *obj, int *notify)
 {
 	int ret = 0;
 	int er;
@@ -366,28 +397,31 @@ int *notify;
 	W *w;
 	B *b;
 
-	if (notify)
+	if (notify) {
 		*notify = 1;
+	}
 	if (bw->pid) {
 		msgnw(bw, "Process running in this window");
 		return -1;
 	}
 	b = bfind(s);
 	er = error;
-	if (bw->b->count == 1 && (bw->b->changed || bw->b->name))
-		if (orphan)
+	if (bw->b->count == 1 && (bw->b->changed || bw->b->name)) {
+		if (orphan) {
 			orphit(bw);
-		else {
+		} else {
 			if (uduptw(bw)) {
 				brm(b);
 				return -1;
 			}
 			bw = (BW *) maint->curwin->object;
 		}
+	}
 	if (er) {
 		msgnwt(bw, msgs[er + 5]);
-		if (er != -1)
+		if (er != -1) {
 			ret = -1;
+		}
 	}
 	object = bw->object;
 	w = bw->parent;
@@ -396,39 +430,37 @@ int *notify;
 	wredraw(bw->parent);
 	bw->object = object;
 	vsrm(s);
-	if (er == -1 && bw->o.mnew)
+	if (er == -1 && bw->o.mnew) {
 		exemac(bw->o.mnew);
-	if (er == 0 && bw->o.mold)
+	}
+	if (er == 0 && bw->o.mold) {
 		exemac(bw->o.mold);
+	}
 	return ret;
 }
 
-int okrepl(bw)
-BW *bw;
+int okrepl(BW *bw)
 {
 	if (bw->b->count == 1 && bw->b->changed) {
 		msgnw(bw, "Can't replace modified file");
 		return -1;
-	} else
+	} else {
 		return 0;
+	}
 }
 
-int uedit(bw)
-BW *bw;
+int uedit(BW *bw)
 {
-	if (wmkpw(bw->parent, "Name of file to edit (^C to abort): ", &filehist, doedit, "Names", NULL, cmplt, NULL, NULL))
+	if (wmkpw(bw->parent, "Name of file to edit (^C to abort): ", &filehist, doedit, "Names", NULL, cmplt, NULL, NULL)) {
 		return 0;
-	else
+	} else {
 		return -1;
+	}
 }
 
 /* Load file into buffer: can result in an orphaned buffer */
 
-int dorepl(bw, s, obj, notify)
-BW *bw;
-char *s;
-void *obj;
-int *notify;
+int dorepl(BW *bw, char *s, void *obj, int *notify)
 {
 	void *object = bw->object;
 	int ret = 0;
@@ -436,8 +468,9 @@ int *notify;
 	W *w = bw->parent;
 	B *b;
 
-	if (notify)
+	if (notify) {
 		*notify = 1;
+	}
 	if (bw->pid) {
 		msgnw(bw, "Process running in this window");
 		return -1;
@@ -446,27 +479,30 @@ int *notify;
 	er = error;
 	if (error) {
 		msgnwt(bw, msgs[error + 5]);
-		if (error != -1)
+		if (error != -1) {
 			ret = -1;
+		}
 	}
-	if (bw->b->count == 1 && (bw->b->changed || bw->b->name))
+	if (bw->b->count == 1 && (bw->b->changed || bw->b->name)) {
 		orphit(bw);
+	}
 	bwrm(bw);
 	w->object = (void *) (bw = bwmk(w, b, 0));
 	wredraw(bw->parent);
 	bw->object = object;
 	vsrm(s);
-	if (er == -1 && bw->o.mnew)
+	if (er == -1 && bw->o.mnew) {
 		exemac(bw->o.mnew);
-	if (er == 0 && bw->o.mold)
+	}
+	if (er == 0 && bw->o.mold) {
 		exemac(bw->o.mold);
+	}
 	return ret;
 }
 
 /* Switch to next buffer in window */
 
-int unbuf(bw)
-BW *bw;
+int unbuf(BW *bw)
 {
 	void *object = bw->object;
 	W *w = bw->parent;
@@ -477,16 +513,20 @@ BW *bw;
 		return -1;
 	}
 	b = bnext();
-	if (b == bw->b)
+	if (b == bw->b) {
 		b = bnext();
-	if (b == bw->b)
+	}
+	if (b == bw->b) {
 		return -1;
-	if (!b->orphan)
+	}
+	if (!b->orphan) {
 		++b->count;
-	else
+	} else {
 		b->orphan = 0;
-	if (bw->b->count == 1)
+	}
+	if (bw->b->count == 1) {
 		orphit(bw);
+	}
 	bwrm(bw);
 	w->object = (void *) (bw = bwmk(w, b, 0));
 	wredraw(bw->parent);
@@ -494,8 +534,7 @@ BW *bw;
 	return 0;
 }
 
-int upbuf(bw)
-BW *bw;
+int upbuf(BW *bw)
 {
 	void *object = bw->object;
 	W *w = bw->parent;
@@ -506,16 +545,20 @@ BW *bw;
 		return -1;
 	}
 	b = bprev();
-	if (b == bw->b)
+	if (b == bw->b) {
 		b = bprev();
-	if (b == bw->b)
+	}
+	if (b == bw->b) {
 		return -1;
-	if (!b->orphan)
+	}
+	if (!b->orphan) {
 		++b->count;
-	else
+	} else {
 		b->orphan = 0;
-	if (bw->b->count == 1)
+	}
+	if (bw->b->count == 1) {
 		orphit(bw);
+	}
 	bwrm(bw);
 	w->object = (void *) (bw = bwmk(w, b, 0));
 	wredraw(bw->parent);
@@ -523,19 +566,18 @@ BW *bw;
 	return 0;
 }
 
-int uinsf(bw)
-BW *bw;
+int uinsf(BW *bw)
 {
-	if (wmkpw(bw->parent, "Name of file to insert (^C to abort): ", &filehist, doinsf, "Names", NULL, cmplt, NULL, NULL))
+	if (wmkpw(bw->parent, "Name of file to insert (^C to abort): ", &filehist, doinsf, "Names", NULL, cmplt, NULL, NULL)) {
 		return 0;
-	else
+	} else {
 		return -1;
+	}
 }
 
 /* Save and exit */
 
-static int exdone(bw, flg)
-BW *bw;
+static int exdone(BW *bw, int flg)
 {
 	if (flg) {
 		if (bw->b->name)
@@ -549,8 +591,7 @@ BW *bw;
 	}
 }
 
-static int exdone1(bw, flg)
-BW *bw;
+static int exdone1(BW *bw, int flg)
 {
 	if (flg) {
 		return -1;
@@ -561,18 +602,13 @@ BW *bw;
 	}
 }
 
-static int doex(bw, s, object, notify)
-BW *bw;
-char *s;
-void *object;
-int *notify;
+static int doex(BW *bw, char *s, void *object,int *notify)
 {
 	bw->b->name = joesep(strdup(s));
 	return dosave(bw, s, exdone, notify);
 }
 
-int uexsve(bw)
-BW *bw;
+int uexsve(BW *bw)
 {
 	if (!bw->b->changed) {
 		uabort(bw, MAXINT);
@@ -580,155 +616,147 @@ BW *bw;
 	} else if (bw->b->name && !exask) {
 		return dosave(bw, vsncpy(NULL, 0, sz(bw->b->name)), exdone1, NULL);
 	} else {
-		BW *pbw = wmkpw(bw->parent,
-				"Name of file to save (^C to abort): ",
-				&filehist,
-				doex, "Names", NULL, cmplt, NULL, NULL);
+		BW *pbw = wmkpw(bw->parent, "Name of file to save (^C to abort): ", &filehist, doex, "Names", NULL, cmplt, NULL, NULL);
 
 		if (pbw && bw->b->name) {
 			binss(pbw->cursor, bw->b->name);
 			pset(pbw->cursor, pbw->b->eof);
 			pbw->cursor->xcol = piscol(pbw->cursor);
 		}
-		if (pbw)
+		if (pbw) {
 			return 0;
-		else
+		} else {
 			return -1;
+		}
 	}
 }
 
 /* If buffer is modified, prompt for saving */
 
-static int nask(bw, c, object, notify)
-BW *bw;
-void *object;
-int *notify;
+static int nask(BW *bw, int c, void *object, int *notify)
 {
-	if (c == 'y' || c == 'Y')
-		if (bw->b->name)
+	if (c == 'y' || c == 'Y') {
+		if (bw->b->name) {
 			return dosave1(bw, vsncpy(NULL, 0, sz(bw->b->name)), object, notify);
-		else {
-			BW *pbw = wmkpw(bw->parent,
-					"Name of file to save (^C to abort): ",
-					&filehist,
-					dosave1, "Names", NULL, cmplt,
-					object, notify);
+		} else {
+			BW *pbw = wmkpw(bw->parent, "Name of file to save (^C to abort): ", &filehist, dosave1, "Names", NULL, cmplt, object, notify);
 
-			if (pbw)
+			if (pbw) {
 				return 0;
-			else
+			} else {
 				return -1;
+			}
+		}
 	} else if (c == 'n' || c == 'N') {
 		genexmsg(bw, 0, NULL);
-		if (notify)
+		if (notify) {
 			*notify = 1;
+		}
 		return 0;
 	} else if (bw->b->count == 1 && bw->b->changed) {
-		if (mkqw(bw->parent, sc("Save changes to this file (y,n,^C)? "), nask, NULL, object, notify))
+		if (mkqw(bw->parent, sc("Save changes to this file (y,n,^C)? "), nask, NULL, object, notify)) {
 			return 0;
-		else
+		} else {
 			return -1;
+		}
 	} else {
-		if (notify)
+		if (notify) {
 			*notify = 1;
+		}
 		return 0;
 	}
 }
 
-int uask(bw)
-BW *bw;
+int uask(BW *bw)
 {
 	return nask(bw, 0, NULL, NULL);
 }
 
 /* Ask to save file if it is modified.  If user answers yes, run save */
 
-static int nask2(bw, c, object, notify)
-BW *bw;
-void *object;
-int *notify;
+static int nask2(BW *bw, int c, void *object, int *notify)
 {
 	if (c == 'y' || c == 'Y') {
-		BW *pbw = wmkpw(bw->parent,
-				"Name of file to save (^C to abort): ",
-				&filehist,
-				dosave1, "Names", NULL, cmplt, object,
-				notify);
+		BW *pbw = wmkpw(bw->parent, "Name of file to save (^C to abort): ", &filehist, dosave1, "Names", NULL, cmplt, object, notify);
 
-		if (pbw)
+		if (pbw) {
 			return 0;
-		else
+		} else {
 			return -1;
+		}
 	} else if (c == 'n' || c == 'N') {
 		genexmsg(bw, 0, NULL);
-		if (notify)
+		if (notify) {
 			*notify = 1;
+		}
 		return 0;
 	} else if (bw->b->count == 1 && bw->b->changed) {
-		if (mkqw(bw->parent, sc("Save changes to this file (y,n,^C)? "), nask, NULL, object, notify))
+		if (mkqw(bw->parent, sc("Save changes to this file (y,n,^C)? "), nask, NULL, object, notify)) {
 			return 0;
-		else
+		} else {
 			return -1;
+		}
 	} else {
-		if (notify)
+		if (notify) {
 			*notify = 1;
+		}
 		return 0;
 	}
 }
 
-int uask2(bw)
-BW *bw;
+int uask2(BW *bw)
 {
 	return nask2(bw, 0, NULL, NULL);
 }
 
 /* If buffer is modified, ask if it's ok to lose changes */
 
-int dolose(bw, c, object, notify)
-BW *bw;
-void *object;
-int *notify;
+int dolose(BW *bw, int c, void *object, int *notify)
 {
 	W *w;
 
-	if (notify)
+	if (notify) {
 		*notify = 1;
-	if (c != 'y' && c != 'Y')
+	}
+	if (c != 'y' && c != 'Y') {
 		return -1;
+	}
 	genexmsg(bw, 0, NULL);
-	if (bw->b->count == 1)
+	if (bw->b->count == 1) {
 		bw->b->changed = 0;
+	}
 	object = bw->object;
 	w = bw->parent;
 	bwrm(bw);
 	w->object = (void *) (bw = bwmk(w, bfind(""), 0));
 	wredraw(bw->parent);
 	bw->object = object;
-	if (bw->o.mnew)
+	if (bw->o.mnew) {
 		exemac(bw->o.mnew);
+	}
 	return 0;
 }
 
-int ulose(bw)
-BW *bw;
+int ulose(BW *bw)
 {
 	msgnw(bw, NULL);
-	if (bw->pid)
+	if (bw->pid) {
 		return ukillpid(bw);
-	if (bw->b->count == 1 && bw->b->changed)
-		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), dolose, NULL, NULL, NULL))
+	}
+	if (bw->b->count == 1 && bw->b->changed) {
+		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), dolose, NULL, NULL, NULL)) {
 			return 0;
-		else
+		} else {
 			return -1;
-	else
+		}
+	} else {
 		return dolose(bw, 'y', NULL, NULL);
+	}
 }
 
 /* Buffer list */
 
-int dobuf(m, x, s)
-MENU *m;
-char **s;
+int dobuf(MENU *m, int x, char **s)
 {
 	char *name;
 	BW *bw = m->parent->win->object;
@@ -740,16 +768,13 @@ char **s;
 	return dorepl(bw, name, NULL, notify);
 }
 
-int abrtb(m, x, s)
-MENU *m;
-char **s;
+int abrtb(MENU *m, int x, char **s)
 {
 	varm(s);
 	return -1;
 }
 
-int ubufed(bw)
-BW *bw;
+int ubufed(BW *bw)
 {
 	char **s = getbufs();
 

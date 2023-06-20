@@ -13,6 +13,7 @@
 #include "ufile.h"
 #include "main.h"
 #include "uerror.h"
+#include "tw.h"
 
 /* Error database */
 
@@ -43,13 +44,16 @@ long n;
 {
 	ERROR *e;
 
-	if (name)
-		for (e = errors.link.next; e != &errors; e = e->link.next)
-			if (!strcmp(e->file, name))
+	if (name) {
+		for (e = errors.link.next; e != &errors; e = e->link.next) {
+			if (!strcmp(e->file, name)) {
 				if (e->line > where)
 					e->line += n;
 				else if (e->line == where && bol)
 					e->line += n;
+			}
+		}
+	}
 }
 
 void delerr(name, where, n)
@@ -59,13 +63,16 @@ long n;
 {
 	ERROR *e;
 
-	if (name)
-		for (e = errors.link.next; e != &errors; e = e->link.next)
-			if (!strcmp(e->file, name))
+	if (name) {
+		for (e = errors.link.next; e != &errors; e = e->link.next) {
+			if (!strcmp(e->file, name)) {
 				if (e->line > where + n)
 					e->line -= n;
 				else if (e->line > where)
 					e->line = where;
+			}
+		}
+	}
 }
 
 /* Abort notice */
@@ -113,7 +120,7 @@ ERROR *n;
 void freeall()
 {
 	while (!qempty(ERROR, link, &errors))
-		freeerr(deque(ERROR, link, errors.link.next));
+		freeerr(deque_f(ERROR, link, errors.link.next));
 	errptr = &errors;
 }
 
@@ -149,7 +156,7 @@ long row;
 	if (line != -1)
 		--line;
 
-	if (name)
+	if (name) {
 		if (line != -1) {
 			/* We have an error */
 			err = (ERROR *) alitem(&errnodes, sizeof(ERROR));
@@ -162,6 +169,7 @@ long row;
 			return 1;
 		} else
 			vsrm(name);
+	}
 	return 0;
 }
 

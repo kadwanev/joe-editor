@@ -320,9 +320,10 @@ decide that you don't want the changes you made to a file during a
 particular edit session, you can hit \fB^C\fR to exit the editor without
 saving them.
 
-If you edit a file and save the changes, a "backup" copy of that file is 
-created in the current directory, with a ~ appended to the name, which 
-contains the original version of the file. 
+If you edit a file and save the changes, a "backup" copy of that
+file is created in the current directory, with a suffix defined in
+SIMPLE_BACKUP_SUFFIX environment variable (or ~ if it doesn't exist)
+appended to the name, which contains the original version of the file.
 
 .SS Word wrap and formatting
 

@@ -143,11 +143,12 @@ int c;
 		t->attrib = 0;
 	}
 	e = (c & ~t->attrib);
-	if (e & INVERSE)
+	if (e & INVERSE) {
 		if (t->mr)
 			texec(t->cap, t->mr, 1);
 		else if (t->so)
 			texec(t->cap, t->so, 1);
+	}
 	if (e & UNDERLINE)
 		if (t->us)
 			texec(t->cap, t->us, 1);
@@ -335,7 +336,7 @@ CAP *cap;
 	t->so = 0;
 	t->se = 0;
 	if (getnum(t->cap, "sg") <= 0 && !t->mr && jgetstr(t->cap, "se")) {
-		if (t->so = jgetstr(t->cap, "so"))
+		if ((t->so = jgetstr(t->cap, "so")) != NULL)
 			t->avattr |= INVERSE;
 		t->se = jgetstr(t->cap, "se");
 	}
@@ -345,7 +346,7 @@ CAP *cap;
 	t->us = 0;
 	t->ue = 0;
 	if (getnum(t->cap, "ug") <= 0 && jgetstr(t->cap, "ue")) {
-		if (t->us = jgetstr(t->cap, "us"))
+		if ((t->us = jgetstr(t->cap, "us")) != NULL)
 			t->avattr |= UNDERLINE;
 		t->ue = jgetstr(t->cap, "ue");
 	}
@@ -476,7 +477,7 @@ CAP *cap;
       ok:
 
 /* Determine if we can scroll */
-	if ((t->sr || t->SR) && (t->sf || t->SF) && t->cs || (t->al || t->AL) && (t->dl || t->DL))
+	if (((t->sr || t->SR) && (t->sf || t->SF) && t->cs) || ((t->al || t->AL) && (t->dl || t->DL)))
 		t->scroll = 1;
 	else {
 		t->scroll = 0;
@@ -854,20 +855,21 @@ register int x, y;
 /* Use relative cursor position functions if we're not there yet */
 
 /* First adjust row */
-	if (y > t->y)
+	if (y > t->y) {
 		/* Have to go down */
 		if (!t->lf || t->cDO < (y - t->y) * t->clf)
 			texec(t->cap, t->DO, 1, y - t->y), t->y = y;
 		else
 			while (y > t->y)
 				texec(t->cap, t->lf, 1), ++t->y;
-	else if (y < t->y)
+	} else if (y < t->y) {
 		/* Have to go up */
 		if (!t->up || t->cUP < (t->y - y) * t->cup)
 			texec(t->cap, t->UP, 1, t->y - y), t->y = y;
 		else
 			while (y < t->y)
 				texec(t->cap, t->up, 1), --t->y;
+	}
 
 /* Use tabs */
 	if (x > t->x && t->ta) {
@@ -922,14 +924,14 @@ register int x, y;
 	}
 
 /* Now adjust column */
-	if (x < t->x)
+	if (x < t->x) {
 		/* Have to go left */
 		if (!t->bs || t->cLE < (t->x - x) * t->cbs)
 			texec(t->cap, t->LE, 1, t->x - x), t->x = x;
 		else
 			while (x < t->x)
 				texec(t->cap, t->bs, 1), --t->x;
-	else if (x > t->x)
+	} else if (x > t->x) {
 		/* Have to go right */
 		/* Hmm.. this should take into account possible attribute changes */
 		if (t->cRI < x - t->x)
@@ -950,6 +952,7 @@ register int x, y;
 				++t->x;
 			}
 		}
+	}
 }
 
 int cpos(t, x, y)
@@ -998,7 +1001,7 @@ int x, y, *s, n;
 		return;
 	if (t->im || t->ic || t->IC) {
 		cpos(t, x, y);
-		if (n == 1 && t->ic || !t->IC) {
+		if ((n == 1 && t->ic) || !t->IC) {
 			if (!t->ic)
 				setins(t, x);
 			for (a = 0; a != n; ++a) {
@@ -1031,7 +1034,7 @@ int x, y, n;
 	if (t->dc || t->DC) {
 		cpos(t, x, y);
 		texec(t->cap, t->dm, 1, x);	/* Enter delete mode */
-		if (n == 1 && t->dc || !t->DC)
+		if ((n == 1 && t->dc) || !t->DC)
 			for (a = n; a; --a)
 				texec(t->cap, t->dc, 1, x);
 		else
@@ -1116,7 +1119,7 @@ int y, *cs, *s;
 	for (x = 0; x != t->co - 1; ++x) {
 		int q = ofst[x];
 
-		if (q && q != t->co - 1)
+		if (q && q != t->co - 1) {
 			if (q > 0) {
 				int z, fu;
 
@@ -1141,6 +1144,7 @@ int y, *cs, *s;
 						ofst[fu] -= q;
 				x = z - 1;
 			}
+		}
 	}
 }
 
@@ -1156,7 +1160,7 @@ int top, bot, amnt;
 	if (top == 0 && bot == t->li && (t->sf || t->SF)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, t->li - 1);
-		if (amnt == 1 && t->sf || !t->SF)
+		if ((amnt == 1 && t->sf) || !t->SF)
 			while (a--)
 				texec(t->cap, t->sf, 1, t->li - 1);
 		else
@@ -1166,7 +1170,7 @@ int top, bot, amnt;
 	if (bot == t->li && (t->dl || t->DL)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, top);
-		if (amnt == 1 && t->dl || !t->DL)
+		if ((amnt == 1 && t->dl) || !t->DL)
 			while (a--)
 				texec(t->cap, t->dl, 1, top);
 		else
@@ -1176,7 +1180,7 @@ int top, bot, amnt;
 	if (t->cs && (t->sf || t->SF)) {
 		setregn(t, top, bot);
 		cpos(t, 0, bot - 1);
-		if (amnt == 1 && t->sf || !t->SF)
+		if ((amnt == 1 && t->sf) || !t->SF)
 			while (a--)
 				texec(t->cap, t->sf, 1, bot - 1);
 		else
@@ -1185,14 +1189,14 @@ int top, bot, amnt;
 	}
 	if ((t->dl || t->DL) && (t->al || t->AL)) {
 		cpos(t, 0, top);
-		if (amnt == 1 && t->dl || !t->DL)
+		if ((amnt == 1 && t->dl) || !t->DL)
 			while (a--)
 				texec(t->cap, t->dl, 1, top);
 		else
 			texec(t->cap, t->DL, a, a);
 		a = amnt;
 		cpos(t, 0, bot - amnt);
-		if (amnt == 1 && t->al || !t->AL)
+		if ((amnt == 1 && t->al) || !t->AL)
 			while (a--)
 				texec(t->cap, t->al, 1, bot - amnt);
 		else
@@ -1224,7 +1228,7 @@ int top, bot, amnt;
 	if (top == 0 && bot == t->li && (t->sr || t->SR)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, 0);
-		if (amnt == 1 && t->sr || !t->SR)
+		if ((amnt == 1 && t->sr) || !t->SR)
 			while (a--)
 				texec(t->cap, t->sr, 1, 0);
 		else
@@ -1234,7 +1238,7 @@ int top, bot, amnt;
 	if (bot == t->li && (t->al || t->AL)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, top);
-		if (amnt == 1 && t->al || !t->AL)
+		if ((amnt == 1 && t->al) || !t->AL)
 			while (a--)
 				texec(t->cap, t->al, 1, top);
 		else
@@ -1244,7 +1248,7 @@ int top, bot, amnt;
 	if (t->cs && (t->sr || t->SR)) {
 		setregn(t, top, bot);
 		cpos(t, 0, top);
-		if (amnt == 1 && t->sr || !t->SR)
+		if ((amnt == 1 && t->sr) || !t->SR)
 			while (a--)
 				texec(t->cap, t->sr, 1, top);
 		else
@@ -1253,14 +1257,14 @@ int top, bot, amnt;
 	}
 	if ((t->dl || t->DL) && (t->al || t->AL)) {
 		cpos(t, 0, bot - amnt);
-		if (amnt == 1 && t->dl || !t->DL)
+		if ((amnt == 1 && t->dl) || !t->DL)
 			while (a--)
 				texec(t->cap, t->dl, 1, bot - amnt);
 		else
 			texec(t->cap, t->DL, a, a);
 		a = amnt;
 		cpos(t, 0, top);
-		if (amnt == 1 && t->al || !t->AL)
+		if ((amnt == 1 && t->al) || !t->AL)
 			while (a--)
 				texec(t->cap, t->al, 1, top);
 		else
@@ -1288,7 +1292,7 @@ SCRN *t;
 		q = t->sary[y];
 		if (have)
 			return;
-		if (q && q != t->li)
+		if (q && q != t->li) {
 			if (q > 0) {
 				for (z = y; z != t->li && t->sary[z] == q; ++z)
 					t->sary[z] = 0;
@@ -1308,6 +1312,7 @@ SCRN *t;
 				while (p-- != y);
 				y = r - 1;
 			}
+		}
 	}
 	msetI(t->sary, 0, t->li);
 }
@@ -1343,8 +1348,6 @@ SCRN *t;
 void nclose(t)
 SCRN *t;
 {
-	int x;
-
 	leave = 1;
 	attr(t, 0);
 	clrins(t);
@@ -1370,7 +1373,7 @@ int top, bot, amnt;
 
 	if (!amnt || top >= bot || bot > t->li)
 		return;
-	if (amnt < bot - top && bot - top - amnt < amnt / 2 || !t->scroll)
+	if ((amnt < bot - top && bot - top - amnt < amnt / 2) || !t->scroll)
 		amnt = bot - top;
 	if (amnt < bot - top) {
 		for (x = bot; x != top + amnt; --x)
@@ -1393,7 +1396,7 @@ int top, bot, amnt;
 
 	if (!amnt || top >= bot || bot > t->li)
 		return;
-	if (amnt < bot - top && bot - top - amnt < amnt / 2 || !t->scroll)
+	if ((amnt < bot - top && bot - top - amnt < amnt / 2) || !t->scroll)
 		amnt = bot - top;
 	if (amnt < bot - top) {
 		for (x = top + amnt; x != bot; ++x)
@@ -1428,7 +1431,7 @@ SCRN *t;
 	clrins(t);
 	setregn(t, 0, t->li);
 
-	if (!skiptop)
+	if (!skiptop) {
 		if (t->cl) {
 			texec(t->cap, t->cl, 1, 0);
 			t->x = 0;
@@ -1439,4 +1442,5 @@ SCRN *t;
 			texec(t->cap, t->cd, 1, 0);
 			msetI(t->scrn, ' ', t->li * t->co);
 		}
+	}
 }

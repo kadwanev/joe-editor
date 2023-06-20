@@ -504,6 +504,7 @@ static CAP *outcap;
 static int outout(c)
 {
 	outcap->out(outcap->outptr, c);
+	return(c);	/* act like putchar() - return written char */
 }
 
 void texec(cap, s, l, a0, a1, a2, a3)
@@ -549,7 +550,7 @@ int l, a0, a1, a2, a3;
 		++s, tenth *= l;
 
 /* Output string */
-	while (c = *s++)
+	while ((c = *s++) != '\0')
 		if (c == '%' && *s)
 			switch (x = a[0], c = escape(&s)) {
 				case 'C':
@@ -651,7 +652,7 @@ int l, a0, a1, a2, a3;
 			--s, cap->out(cap->outptr, escape(&s));
 
 /* Output padding characters */
-	if (cap->dopadding)
+	if (cap->dopadding) {
 		if (cap->pad)
 			while (tenth >= cap->div)
 				for (s = cap->pad; *s; ++s)
@@ -659,6 +660,7 @@ int l, a0, a1, a2, a3;
 		else
 			while (tenth >= cap->div)
 				cap->out(cap->outptr, 0), tenth -= cap->div;
+	}
 }
 
 static int total;

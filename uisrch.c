@@ -74,7 +74,7 @@ int itype(BW * bw, int c, struct isrch *isrch, int *notify)
 			dofollows();
 			mid = omid;
 			isrch->pattern = vstrunc(isrch->pattern, sLEN(isrch->pattern) - i->what);
-			frirec(deque(IREC, link, i));
+			frirec(deque_f(IREC, link, i));
 		} else {
 			ttputc(7);
 		}
@@ -96,7 +96,8 @@ int itype(BW * bw, int c, struct isrch *isrch, int *notify)
 			i->disp = i->start = bw->cursor->byte;
 			i->what = 0;
 			if (dopfnext(bw, mksrch(vsncpy(NULL, 0, isrch->pattern + isrch->ofst, sLen(isrch->pattern) - isrch->ofst), NULL, 0, isrch->dir, -1, 0, 0), NULL)) {
-				ttputc(7), frirec(i);
+				ttputc(7);
+				frirec(i);
 			} else {
 				enqueb(IREC, link, &isrch->irecs, i);
 			}

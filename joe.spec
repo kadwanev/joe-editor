@@ -1,6 +1,6 @@
 %define name joe
 %define version 2.9.7
-%define release pre0
+%define release pre1
 
 Summary: An easy to use, modeless text editor.
 Name: %{name}

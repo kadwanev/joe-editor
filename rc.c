@@ -235,11 +235,12 @@ int glopt(char *s, char *arg, OPTIONS * options, int set)
 				break;
 
 				case 2:
-				if (set)
+				if (set) {
 					if (arg)
 						*(char **) glopts[x].set = strdup(arg);
 					else
 						*(char **) glopts[x].set = 0;
+				}
 				break;
 
 				case 4:
@@ -250,7 +251,7 @@ int glopt(char *s, char *arg, OPTIONS * options, int set)
 				break;
 
 				case 5:
-				if (arg)
+				if (arg) {
 					if (options) {
 						sscanf(arg, "%d", &val);
 						if (val >= glopts[x].low && val <= glopts[x].high)
@@ -262,6 +263,7 @@ int glopt(char *s, char *arg, OPTIONS * options, int set)
 							*(int *) ((char *)
 								  &fdefault + glopts[x].ofst) = val;
 					}
+				}
 				break;
 
 				case 7:
@@ -361,7 +363,8 @@ int glopt(char *s, char *arg, OPTIONS * options, int set)
 		} else
 			ret = 1;
 	}
-      done:return ret;
+
+	return ret;
 }
 
 static int optx = 0;
@@ -574,7 +577,7 @@ int procrc(CAP * cap, char *name)
 	int line = 0;		/* Line number */
 	int err = 0;		/* Set to 1 if there was a syntax error */
 
-	ossep(strcpy(buf, name));
+	strcpy(buf, name);
 #ifdef __MSDOS__
 	fd = fopen(buf, "rt");
 #else
@@ -629,43 +632,14 @@ int procrc(CAP * cap, char *name)
 			}
 			break;
 
-			case '{':	/* Enter help text */
+			case '{':	/* Ignore help text */
 			{
-				int bfl;
-				struct help *tmp = (struct help *)
-				     malloc(sizeof(struct help));
-
-				tmp->next = help_first;
-				help_first = tmp;
-				tmp->name = vsncpy(NULL, 0, sz(buf + 1) - 1);
-				help_names = vaadd(help_names, tmp->name);
-				tmp->hlptxt = 0;
-				tmp->hlpsiz = 0;
-				tmp->hlpbsz = 0;
-				tmp->hlplns = 0;
-			      up:
-				if (++line, !fgets(buf, 256, fd)) {
+				while ((fgets(buf, 256, fd)) && (buf[0] != '}'));
+				if (buf[0] != '}') {
 					err = 1;
-					fprintf(stderr, "\n%s %d: End of joerc file occured before end of help text", name, line);
+					fprintf(stderr, "\n%s %d: End of joerc file occured before end of help text\n", name, line);
 					break;
 				}
-				if (buf[0] == '}') {
-					if (!hlptxt)
-						hlptxt = tmp->hlptxt, hlpsiz = tmp->hlpsiz, hlpbsz = tmp->hlpbsz, hlplns = tmp->hlplns;
-					continue;
-				}
-				bfl = strlen(buf);
-				if (tmp->hlpsiz + bfl > tmp->hlpbsz) {
-					if (tmp->hlptxt)
-						tmp->hlptxt = (char *) realloc(tmp->hlptxt, tmp->hlpbsz + bfl + 1024);
-					else
-						tmp->hlptxt = (char *) malloc(bfl + 1024), tmp->hlptxt[0] = 0;
-					tmp->hlpbsz += bfl + 1024;
-				}
-				strcpy(tmp->hlptxt + tmp->hlpsiz, buf);
-				tmp->hlpsiz += bfl;
-				++tmp->hlplns;
-				goto up;
 			}
 			break;
 
@@ -756,7 +730,7 @@ int procrc(CAP * cap, char *name)
 
 			default:	/* Get key-sequence to macro binding */
 			{
-				int x, y, c;
+				int x, y;
 				MACRO *m;
 
 				if (!context) {

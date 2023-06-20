@@ -409,7 +409,7 @@ int *notify;
 	genexmsg(bw, 0, NULL);
 
 	if (countmain(w->t) == 1)
-		if (b = borphan()) {
+		if ((b = borphan()) != NULL) {
 			void *object = bw->object;
 
 			bwrm(bw);
@@ -470,7 +470,7 @@ BW *bw;
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte && k != MAXINT) {
 		char c = k;
 
-		write(bw->out, &c, 1);
+		jwrite(bw->out, &c, 1);
 		return 0;
 	}
 	if (bw->pid)
@@ -498,7 +498,7 @@ BW *bw;
 	if (okrepl(bw))
 		return -1;
 
-	if (b = borphan()) {
+	if ((b = borphan()) != NULL) {
 		void *object = bw->object;
 
 		bwrm(bw);
@@ -534,8 +534,8 @@ int utw1(b)
 BASE *b;
 {
 	W *starting = b->parent;
-	W *main = starting->main;
-	SCREEN *t = main->t;
+	W *mainw = starting->main;
+	SCREEN *t = mainw->t;
 	int yn;
 
 	do {
@@ -543,8 +543,8 @@ BASE *b;
 	      loop:
 		do
 			wnext(t);
-		while (t->curwin->main == main && t->curwin != starting);
-		if (t->curwin->main != main) {
+		while (t->curwin->main == mainw && t->curwin != starting);
+		if (t->curwin->main != mainw) {
 			if (((BW *) t->curwin->main->object)->pid) {
 				msgnw(t->curwin->main->object, "Process running in this window");
 				return -1;

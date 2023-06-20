@@ -39,21 +39,6 @@
 #endif
 #endif
 /********************************************************************/
-char *ossep(char *path)
-{
-	int x;
-
-	for (x = 0; path[x]; ++x)
-#ifdef __MSDOS__
-		if (path[x] == '/')
-			path[x] = '\\';
-#else
-		if (path[x] == '\\')
-			path[x] = '/';
-#endif
-	return path;
-}
-/********************************************************************/
 char *joesep(char *path)
 {
 	int x;
@@ -202,7 +187,6 @@ char *mktmp(char *where)
 				   vsrm(); */
       loop:
 	snprintf(name, namesize, "%s/J%03d%03d.tmp", where, seq = ++seq % 1000, (unsigned) time(NULL) % 1000);
-	ossep(name);
 	if ((fd = open(name, O_RDONLY)) != -1) {
 		close(fd);
 		goto loop;
@@ -331,7 +315,7 @@ char **rexpnd(char *word)
 #endif
 	dir = opendir(".");
 	if (dir) {
-		while (de = readdir(dir))
+		while ((de = readdir(dir)) != NULL)
 			if (strcmp(".", de->d_name))
 				if (rmatch(word, de->d_name))
 					lst = vaadd(lst, vsncpy(NULL, 0, sz(de->d_name)));

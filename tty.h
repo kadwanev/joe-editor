@@ -108,7 +108,7 @@ extern int obufp;
 extern int obufsiz;
 extern char *obuf;
 
-#define ttputc(c) (obuf[obufp++]=(c), obufp==obufsiz && ttflsh())
+#define ttputc(c) { obuf[obufp++] = (c); if(obufp == obufsiz) ttflsh(); }
 
 /* void ttputs(char *s);  Write a string to the output buffer.  Any time the
  * output buffer gets full, call ttflsh()

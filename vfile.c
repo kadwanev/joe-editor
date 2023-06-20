@@ -233,7 +233,7 @@ VFILE *vtmp()
 	new->flags = 1;
 	new->vpage1 = 0;
 	new->addr = -1;
-	return enqueb(VFILE, link, &vfiles, new);
+	return enqueb_f(VFILE, link, &vfiles, new);
 }
 
 #ifdef junk
@@ -260,7 +260,7 @@ char *name;
 	new->flags = 0;
 	new->vpage1 = 0;
 	new->addr = -1;
-	return enqueb(VFILE, link, &vfiles, new);
+	return enqueb_f(VFILE, link, &vfiles, new);
 }
 
 #endif
@@ -284,7 +284,7 @@ VFILE *vfile;
 	}
 	if (vfile->fd)
 		close(vfile->fd);
-	free(deque(VFILE, link, vfile));
+	free(deque_f(VFILE, link, vfile));
 	for (x = 0; x != HTSIZE; x++)
 		for (pp = (VPAGE *) (htab + x), vp = pp->next; vp;)
 			if (vp->vfile == vfile) {

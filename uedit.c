@@ -607,7 +607,7 @@ int udelch(BW * bw)
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
 		char c = 4;
 
-		write(bw->pid, &c, 0);
+		jwrite(bw->pid, &c, 0);	/* FIXME: why would we write zero chars ??? */
 	} else {
 		P *p;
 
@@ -809,10 +809,12 @@ int utypebw(BW * bw, int k)
 
 			if (!upd && piseol(bw->cursor))
 				t->updtab[y] = 0;
-			if (markb && markk && markb->b == bw->b
-			    && markk->b == bw->b && (!square
-						     && bw->cursor->byte >=
-						     markb->byte && bw->cursor->byte < markk->byte || square && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line && piscol(bw->cursor) >= markb->xcol && piscol(bw->cursor) < markk->xcol))
+			if (markb &&
+			    markk &&
+			    markb->b == bw->b &&
+			    markk->b == bw->b &&
+			   ((!square && bw->cursor->byte >= markb->byte && bw->cursor->byte < markk->byte) ||
+			    ( square && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line && piscol(bw->cursor) >= markb->xcol && piscol(bw->cursor) < markk->xcol)))
 				c = INVERSE;
 			xlat(c, k);
 			outatr(t, screen + x, x, y, k, c);

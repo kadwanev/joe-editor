@@ -1,3 +1,11 @@
+Overview of Changes in JOE 2.9.7pre1 (19 Jul 2001)
+- help system was slightly modified
+- a lot of warnings of compiler were removed
+- BUGFIX:: problem with freezing when save was solved (at least partially)
+- BUGFIX:: undo after save of file (again same patch)
+- FEATURE:: suffix of backup copy from SIMPLE_BACKUP_SUFFIX environment 
+    variable
+    
 Overview of Changes in JOE 2.9.7pre0 (02 Jul 2001)
 - major BUGFIX:: wordwrap problem
 - BUGFIX:: indentation
@@ -7,7 +15,6 @@ Overview of Changes in JOE 2.9.7pre0 (02 Jul 2001)
 Overview of Changes in JOE 2.9.6 (13 Apr 2001)
 
 - BUGFIX:: resizing window
-- BUGFIX:: undo after save of file
 - JOE can be compiled on Windows platform again
 * BUGFIX:: problem with ${sysconfdir}/joerc was solved
 - BUGFIX:: security patch for sprintf

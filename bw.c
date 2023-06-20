@@ -65,11 +65,12 @@ BW *w;
 	if (w->cursor->line < w->top->line) {
 		newtop = pdup(w->cursor);
 		p_goto_bol(newtop);
-		if (mid)
+		if (mid) {
 			if (newtop->line >= w->h / 2)
 				pline(newtop, newtop->line - w->h / 2);
 			else
 				pset(newtop, newtop->b->bof);
+		}
 		if (w->top->line - newtop->line < w->h)
 			nscrldn(w->t->t, w->y, w->y + w->h, (int) (w->top->line - newtop->line));
 		else
@@ -114,11 +115,12 @@ int flg;
 			w->t->t->sary[w->y + l - w->top->line] = w->t->t->li;
 		nscrldn(w->t->t, (int) (w->y + l + flg - w->top->line), w->y + w->h, (int) n);
 	}
-	if (l < w->top->line + w->h && l >= w->top->line)
+	if (l < w->top->line + w->h && l >= w->top->line) {
 		if (n >= w->h - (l - w->top->line))
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, w->h - (int) (l - w->top->line));
 		else
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, (int) n + 1);
+	}
 }
 
 /* Scroll current windows after a delete */
@@ -136,25 +138,26 @@ int flg;
 	if (l + n < w->top->line + w->h && l + n >= w->top->line)
 		w->t->t->updtab[w->y + l + n - w->top->line] = 1;
 
-	if (l < w->top->line + w->h && (l + n >= w->top->line + w->h || l + n == w->b->eof->line && w->b->eof->line >= w->top->line + w->h))
+	if (l < w->top->line + w->h && (l + n >= w->top->line + w->h || (l + n == w->b->eof->line && w->b->eof->line >= w->top->line + w->h))) {
 		if (l >= w->top->line)
 			/* Update window from l to end */
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, w->h - (int) (l - w->top->line));
 		else
 			/* Update entire window */
 			msetI(w->t->t->updtab + w->y, 1, w->h);
-	else if (l < w->top->line + w->h && l + n == w->b->eof->line && w->b->eof->line < w->top->line + w->h)
+	} else if (l < w->top->line + w->h && l + n == w->b->eof->line && w->b->eof->line < w->top->line + w->h) {
 		if (l >= w->top->line)
 			/* Update window from l to end of file */
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, (int) n);
 		else
 			/* Update from beginning of window to end of file */
 			msetI(w->t->t->updtab + w->y, 1, (int) (w->b->eof->line - w->top->line));
-	else if (l + n < w->top->line + w->h && l + n > w->top->line && l + n < w->b->eof->line)
+	} else if (l + n < w->top->line + w->h && l + n > w->top->line && l + n < w->b->eof->line) {
 		if (l + flg >= w->top->line)
 			nscrlup(w->t->t, (int) (w->y + l + flg - w->top->line), w->y + w->h, (int) n);
 		else
 			nscrlup(w->t->t, w->y, w->y + w->h, (int) (l + n - w->top->line));
+	}
 }
 
 /* Update a single line */
@@ -523,7 +526,6 @@ long from, to;			/* Range for marked block */
 	done = 0;
 
 /* Set p to bp/amnt */
-      bye:
 	if (bp - p->ptr <= p->hdr->hole)
 		p->ofst = bp - p->ptr;
 	else
@@ -585,7 +587,7 @@ BW *w;
 			toline = markk->line;
 		} else
 			from = markb->byte, to = markk->byte;
-	else if (marking && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from)
+	else if (marking && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
 		if (square) {
 			from = long_min(w->cursor->xcol, markb->xcol), to = long_max(w->cursor->xcol, markb->xcol);
 			fromline = long_min(w->cursor->line, markb->line);
@@ -593,6 +595,7 @@ BW *w;
 			dosquare = 1;
 		} else
 			from = long_min(w->cursor->byte, markb->byte), to = long_max(w->cursor->byte, markb->byte);
+	}
 
 	if (marking)
 		msetI(t->updtab + w->y, 1, w->h);
@@ -688,7 +691,7 @@ int prompt;
 	w->pid = 0;
 	w->out = -1;
 	w->b = b;
-	if (prompt || !window->y && staen)
+	if (prompt || (!window->y && staen))
 		w->y = window->y, w->h = window->h;
 	else
 		w->y = window->y + 1, w->h = window->h - 1;

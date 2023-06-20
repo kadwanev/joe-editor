@@ -10,7 +10,6 @@
 
 #include "config.h"
 
-char *ossep();
 char *joesep();
 
 /* char *namprt(char *path);

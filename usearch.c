@@ -347,7 +347,7 @@ int *notify;
 
 	vsrm(srch->pattern);
 	srch->pattern = s;
-	if (pbw = wmkpw(bw->parent, "(I)gnore (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ", NULL, set_options, srchstr, pfabort, utypebw, srch, notify)) {
+	if ((pbw = wmkpw(bw->parent, "(I)gnore (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ", NULL, set_options, srchstr, pfabort, utypebw, srch, notify)) != NULL) {
 		char buf[10];
 
 		if (srch->ignore)
@@ -572,11 +572,12 @@ SRCH *srch;
 	P *sta;
 
       next:
-	if (srch->repeat != -1)
+	if (srch->repeat != -1) {
 		if (!srch->repeat)
 			return 0;
 		else
 			--srch->repeat;
+	}
       again:if (srch->backwards)
 		sta = searchb(srch, bw->cursor);
 	else

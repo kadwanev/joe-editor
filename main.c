@@ -65,7 +65,7 @@ void edupd(flg)
 	if (dostaupd)
 		staupd = 1, dostaupd = 0;
 	ttgtsz(&wid, &hei);
-	if (wid >= 2 && wid != maint->w || hei >= 1 && hei != maint->h) {
+	if ((wid >= 2 && wid != maint->w) || (hei >= 1 && hei != maint->h)) {
 		nresize(maint->t, wid, hei);
 		sresize(maint);
 	}
@@ -104,13 +104,13 @@ int edloop(flg)
 {
 	int term = 0;
 	int ret = 0;
-	SCRN *n = maint->t;
 
-	if (flg)
+	if (flg) {
 		if (maint->curwin->watom->what == TYPETW)
 			return 0;
 		else
 			maint->curwin->notify = &term;
+	}
 	while (!leave && (!flg || !term)) {
 		MACRO *m;
 		int c;
@@ -160,7 +160,9 @@ char *envv[];
 	CAP *cap;
 	char *s;
 	char *run;
+#ifdef __MSDOS__
 	char *rundir;
+#endif
 	SCRN *n;
 	int opened = 0;
 	int omid;
@@ -188,17 +190,17 @@ char *envv[];
 	run = namprt(argv[0]);
 #endif
 
-	if (s = getenv("LINES"))
+	if ((s = getenv("LINES")) != NULL)
 		sscanf(s, "%d", &lines);
-	if (s = getenv("COLUMNS"))
+	if ((s = getenv("COLUMNS")) != NULL)
 		sscanf(s, "%d", &columns);
-	if (s = getenv("BAUD"))
+	if ((s = getenv("BAUD")) != NULL)
 		sscanf(s, "%u", &Baud);
 	if (getenv("DOPADDING"))
 		dopadding = 1;
 	if (getenv("NOXON"))
 		noxon = 1;
-	if (s = getenv("JOETERM"))
+	if ((s = getenv("JOETERM")) != NULL)
 		joeterm = s;
 
 #ifndef __MSDOS__
@@ -285,9 +287,9 @@ char *envv[];
 	return 1;
 
       donerc:
-	help_to_array();
-	for (c = 1; argv[c]; ++c)
-		if (argv[c][0] == '-')
+	help_init(s);
+	for (c = 1; argv[c]; ++c) {
+		if (argv[c][0] == '-') {
 			if (argv[c][1])
 				switch (glopt(argv[c] + 1, argv[c + 1], NULL, 1)) {
 					case 0:
@@ -300,6 +302,8 @@ char *envv[];
 					break;
 			} else
 				idleout = 0;
+		}
+	}
 
 	if (!(n = nopen(cap)))
 		return 1;
@@ -330,8 +334,8 @@ char *envv[];
 				long lnum = 0;
 
 				bw->o.readonly = bw->b->rdonly;
-				if (backopt)
-					while (backopt != c)
+				if (backopt) {
+					while (backopt != c) {
 						if (argv[backopt][0] == '+') {
 							sscanf(argv[backopt] + 1, "%ld", &lnum);
 							++backopt;
@@ -339,6 +343,8 @@ char *envv[];
 							backopt += 2;
 						else
 							backopt += 1;
+					}
+				}
 				bw->b->o = bw->o;
 				bw->b->rdonly = bw->o.readonly;
 				maint->curwin = bw->parent;
@@ -367,11 +373,11 @@ char *envv[];
 	}
 	maint->curwin = maint->topwin;
 
-	if (help)
+	if (help) {
 		help_on(maint);
-
+	}
 	if (!nonotice)
-		msgnw(lastw(maint)->object, "\\i** Joe's Own Editor v2.9.6-pre1 ** Copyright (C) 2001 **\\i");
+		msgnw(lastw(maint)->object, "\\i** Joe's Own Editor v2.9.7-pre1 ** Copyright (C) 2001 **\\i");
 	edloop(0);
 	vclose(vmem);
 	nclose(n);

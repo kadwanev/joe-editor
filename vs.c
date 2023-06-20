@@ -289,7 +289,7 @@ int alen, blen;
 	else
 		l = blen;
 	for (x = 0; x != l; ++x)
-		if (t = scmp(a[x], b[x]))
+		if ((t = scmp(a[x], b[x])) != 0)
 			return t;
 	if (alen > blen)
 		return 1;

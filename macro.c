@@ -72,11 +72,12 @@ MACRO *macro;
 void addmacro(macro, m)
 MACRO *macro, *m;
 {
-	if (macro->n == macro->size)
+	if (macro->n == macro->size) {
 		if (macro->steps)
 			macro->steps = (MACRO **) realloc(macro->steps, (macro->size += 8) * sizeof(MACRO *));
 		else
 			macro->steps = (MACRO **) malloc((macro->size = 8) * sizeof(MACRO *));
+	}
 	macro->steps[macro->n++] = m;
 }
 
@@ -163,11 +164,11 @@ int *sta;
 					c = 0;
 					if (buf[x + 1] >= '0' && buf[x + 1] <= '9')
 						c = c * 16 + buf[++x] - '0';
-					else if (buf[x + 1] >= 'a' && buf[x + 1] <= 'f' || buf[x + 1] >= 'A' && buf[x + 1] <= 'F')
+					else if ((buf[x + 1] >= 'a' && buf[x + 1] <= 'f') || (buf[x + 1] >= 'A' && buf[x + 1] <= 'F'))
 						c = c * 16 + (buf[++x] & 0xF) + 9;
 					if (buf[x + 1] >= '0' && buf[x + 1] <= '9')
 						c = c * 16 + buf[++x] - '0';
-					else if (buf[x + 1] >= 'a' && buf[x + 1] <= 'f' || buf[x + 1] >= 'A' && buf[x + 1] <= 'F')
+					else if ((buf[x + 1] >= 'a' && buf[x + 1] <= 'f') || (buf[x + 1] >= 'A' && buf[x + 1] <= 'F'))
 						c = c * 16 + (buf[++x] & 0xF) + 9;
 					buf[x] = c;
 					break;
@@ -377,7 +378,6 @@ MACRO *m;
 	int negarg = 0;
 	int flg = 0;
 	CMD *cmd;
-	int n;
 	int ret = 0;
 
 	if (argset) {
@@ -392,11 +392,12 @@ MACRO *m;
 			cmd = m->cmd;
 			if (!cmd->arg)
 				larg = 0;
-			else if (negarg)
+			else if (negarg) {
 				if (cmd->negarg)
 					cmd = findcmd(cmd->negarg);
 				else
 					larg = 0;
+			}
 		}
 	} else {
 		cmd = m->cmd;
@@ -648,7 +649,7 @@ BW *bw;
 {
 	unaarg = 0;
 	negarg = 0;
-	if (c >= '0' && c <= '9' || c == '-')
+	if ((c >= '0' && c <= '9') || c == '-')
 		return douarg(bw, c, NULL, NULL);
 	else if (mkqwna(bw, sc("Repeat"), douarg, NULL, NULL, NULL))
 		return 0;

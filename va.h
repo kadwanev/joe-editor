@@ -167,13 +167,13 @@ aELEMENT(*vadup());
 aELEMENT(*_vaset());
 
 #define vaset(v,p,el)  \
- (!(v) || (p)>aLen(v) || (p)==aLen(v) && (p)==aSiz(v) ?  \
+ (!(v) || (p) > aLen(v) || ((p) == aLen(v) && (p) == aSiz(v)) ?  \
   _vaset((v),(p),(el)) \
  : \
-  ((p)==aLen(v) ? \
-   ((v)[(p)+1]=(v)[p], (v)[p]=(el), aLen(v)=(p)+1, (v)) \
+  ((p) == aLen(v) ? \
+   ((v)[(p)+1] = (v)[p], (v)[p] = (el), aLen(v) = (p)+1, (v)) \
   : \
-   (adel((v)[p]), (v)[p]=(el), (v)) \
+   (adel((v)[p]), (v)[p] = (el), (v)) \
   ) \
  )
 

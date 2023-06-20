@@ -373,7 +373,7 @@ void ttopnn()
 #endif
 #endif
 
-	if (!termin)
+	if (!termin) {
 		if (idleout ? (!(termin = stdin) || !(termout = stdout)) : (!(termin = fopen("/dev/tty", "r")) || !(termout = fopen("/dev/tty", "w")))) {
 			fprintf(stderr, "Couldn\'t open /dev/tty\n");
 			exit(1);
@@ -384,6 +384,7 @@ void ttopnn()
 #endif
 			tickon();
 		}
+	}
 
 	if (ttymode)
 		return;
@@ -609,7 +610,7 @@ int ttflsh()
 
 	/* Check for typeahead or next packet */
 
-	if (!have && !leave)
+	if (!have && !leave) {
 		if (ackkbd != -1) {
 			fcntl(mpxfd, F_SETFL, O_NDELAY);
 			if (read(mpxfd, &pack, sizeof(struct packet) - 1024) > 0) {
@@ -629,6 +630,7 @@ int ttflsh()
 			/* Set terminal back to blocking */
 			fcntl(fileno(termin), F_SETFL, 0);
 		}
+	}
 	return 0;
 }
 
@@ -650,13 +652,14 @@ int ttgetc()
 		if (!have) {	/* Wait for input */
 			stat = read(mpxfd, &pack, sizeof(struct packet) - 1024);
 
-			if (pack.size && stat > 0)
+			if (pack.size && stat > 0) {
 				jread(mpxfd, pack.data, pack.size);
-			else if (stat < 1)
+			} else if (stat < 1) {
 				if (winched || ticked)
 					goto loop;
 				else
 					ttsig(0);
+			}
 			accept = pack.ch;
 		}
 		have = 0;
@@ -676,14 +679,15 @@ int ttgetc()
 			}
 		}
 	}
-	if (have)
+	if (have) {
 		have = 0;
-	else {
-		if (read(fileno(termin), &havec, 1) < 1)
+	} else {
+		if (read(fileno(termin), &havec, 1) < 1) {
 			if (winched || ticked)
 				goto loop;
 			else
 				ttsig(0);
+		}
 	}
 	return havec;
 }
@@ -740,7 +744,7 @@ char *cmd;
 	if (!s)
 		return;
 	ttclsn();
-	if (x = fork()) {
+	if ((x = fork()) != 0) {
 		if (x != -1)
 			wait(NULL);
 		if (omode)

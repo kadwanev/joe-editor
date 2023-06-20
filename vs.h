@@ -127,7 +127,7 @@ JOE; see the file COPYING.  If not, write to the Free Software Foundation,
 
 /* Delete an element */
 /* sELEMENT(sdel()); */
-#define sdel(a) 0
+#define sdel(a) do {} while(0)		/* effectively do nothing ;-) */
 
 /* Compare a single element */
 /* int scmp(); */

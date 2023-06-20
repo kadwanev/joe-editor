@@ -199,26 +199,28 @@ void scrins(B * b, long l, long n, int flg)
 {
 	W *w;
 
-	if (w = scr->topwin)
-		do
+	if ((w = scr->topwin) != NULL) {
+		do {
 			if (w->y >= 0) {
 				if (w->object && w->watom->ins)
 					w->watom->ins(w->object, b, l, n, flg);
 			}
-		while (w = w->link.next, w != scr->topwin) ;
+		} while (w = w->link.next, w != scr->topwin);
+	}
 }
 
 void scrdel(B * b, long l, long n, int flg)
 {
 	W *w;
 
-	if (w = scr->topwin)
-		do
+	if ((w = scr->topwin) != NULL) {
+		do {
 			if (w->y >= 0) {
 				if (w->object && w->watom->del)
 					w->watom->del(w->object, b, l, n, flg);
 			}
-		while (w = w->link.next, w != scr->topwin) ;
+		} while (w = w->link.next, w != scr->topwin);
+	}
 }
 
 /* Fit as many windows on the screen as is possible beginning with the window
@@ -563,7 +565,8 @@ W *wcreate(SCREEN * t, WATOM * watom, W * where, W * target, W * original, int h
 	new->msgb = 0;
 	new->msgt = 0;
 	/* Set window's target and family */
-	if (new->win = target) {	/* A subwindow */
+/* was:	if (new->win = target) {	which may be mistyped == */
+	if ((new->win = target) != NULL) {	/* A subwindow */
 		new->main = target->main;
 		new->fixed = height;
 	} else {		/* A parent window */
@@ -572,13 +575,14 @@ W *wcreate(SCREEN * t, WATOM * watom, W * where, W * target, W * original, int h
 	}
 
 	/* Get space for window */
-	if (original)
+	if (original) {
 		if (original->h - height <= 2) {
 			/* Not enough space for window */
 			free(new);
 			return 0;
 		} else
 			seth(original, original->h - height);
+	}
 
 	/* Create new keyboard handler for window */
 	if (watom->context)
@@ -622,13 +626,14 @@ static int doabort(W * w, int *ret)
 	while (z = z->link.next, z != w->t->topwin);
 	if (w->orgwin)
 		seth(w->orgwin, geth(w->orgwin) + geth(w));
-	if (w->t->curwin == w)
+	if (w->t->curwin == w) {
 		if (w->t->curwin->win)
 			w->t->curwin = w->t->curwin->win;
 		else if (w->orgwin)
 			w->t->curwin = w->orgwin;
 		else
 			w->t->curwin = w->link.next;
+	}
 	if (qempty(W, link, w)) {
 		leave = 1;
 		amnt = 0;
@@ -681,7 +686,7 @@ void genfmt(SCRN * t, int x, int y, int ofst, char *s, int flg)
 	int col = 0;
 	int c;
 
-	while (c = *s++)
+	while ((c = *s++) != '\0')
 		if (c == '\\')
 			switch (c = *s++) {
 				case 'u':

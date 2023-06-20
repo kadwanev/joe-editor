@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-gen(s, fd)
+void gen(s, fd)
 char *s;
 FILE *fd;
 {
@@ -43,15 +43,18 @@ FILE *fd;
 					for (y = z; s[y] && s[y] != '|' && s[y] != ':'; ++y) ;
 					c = s[y];
 					s[y] = 0;
-					if (strlen(s + z) > 2 && !strchr(s + z, ' ')
-					    && !strchr(s + z, '\t'))
-						(flg && putchar(' ')), fputs(s + z, stdout), flg = 1;
+					if (strlen(s + z) > 2 && !strchr(s + z, ' ') && !strchr(s + z, '\t')) {
+						if(flg)
+							putchar(' ');
+						fputs(s + z, stdout);
+						flg = 1;
+					}
 					s[y] = c;
 					z = y + 1;
 				}
 				while (c && c != ':');
 				if (flg)
-					printf(" %x\n", addr - oaddr);
+					printf(" %lx\n", addr - oaddr);
 			}
 			goto loop;
 		} else if (c == '\r') ;
@@ -60,9 +63,10 @@ FILE *fd;
 	}
 }
 
-main()
+int main(int argc, char *argv[])
 {
 	char array[65536];
 
 	gen(array, stdin);
+	return(0);
 }

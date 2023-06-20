@@ -12,8 +12,10 @@ void *QUEUE;
 void *ITEM;
 void *LAST;
 
-void *alitem(STDITEM * freelist, int itemsize)
+void *alitem(void *list, int itemsize)
 {
+	STDITEM	*freelist = (STDITEM *)list;
+
 	if (qempty(STDITEM, link, freelist)) {
 		STDITEM *i = (STDITEM *) malloc(itemsize * 16);
 		STDITEM *z = (STDITEM *) ((char *) i + itemsize * 16);
@@ -23,11 +25,13 @@ void *alitem(STDITEM * freelist, int itemsize)
 			i = (STDITEM *) ((char *) i + itemsize);
 		}
 	}
-	return (void *) deque(STDITEM, link, freelist->link.prev);
+	return (void *) deque_f(STDITEM, link, freelist->link.prev);
 }
 
-void frchn(STDITEM * freelist, STDITEM * chn)
+void frchn(void *list, void *ch)
 {
+	STDITEM *freelist = (STDITEM *)list;
+	STDITEM *chn = (STDITEM *)ch;
 	STDITEM *i;
 
 	if ((i = chn->link.prev) != chn) {

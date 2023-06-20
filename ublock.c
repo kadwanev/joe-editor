@@ -529,7 +529,7 @@ int *notify;
 					  markk->line - markb->line + 1,
 					  markk->xcol);
 
-			if (fl = bsave(tmp->bof, s, tmp->eof->byte))
+			if ((fl = bsave(tmp->bof, s, tmp->eof->byte)) != 0)
 				msgnw(bw, msgs[5 + fl]), ret = -1;
 			brm(tmp);
 			if (lightoff)
@@ -540,7 +540,7 @@ int *notify;
 			int fl;
 			int ret = 0;
 
-			if (fl = bsave(markb, s, markk->byte - markb->byte))
+			if ((fl = bsave(markb, s, markk->byte - markb->byte)) != 0)
 				msgnw(bw, msgs[5 + fl]), ret = -1;
 			if (lightoff)
 				unmark(bw);
@@ -924,6 +924,7 @@ BW *bw;
 			return -1;
 
 		case 2:
+		default:
 		msgnw(bw, "No block");
 		return -1;
 	}

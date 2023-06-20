@@ -70,7 +70,7 @@ int pos, n;
 	if (vary) {
 		int x;
 
-		if (pos < aLen(vary))
+		if (pos < aLen(vary)) {
 			if (pos + n <= aLen(vary)) {
 				for (x = pos; x != pos + n; ++x)
 					adel(vary[x]);
@@ -78,6 +78,7 @@ int pos, n;
 				for (x = pos; x != aLen(vary); ++x)
 					adel(vary[x]);
 			}
+		}
 	}
 	return vary;
 }

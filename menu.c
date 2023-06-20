@@ -203,16 +203,18 @@ MENU *m;
 	int x;
 	int n = 0;
 
-	if (c == '0')
+	if (c == '0') {
 		if (m->func)
 			return m->func(m, m->cursor, m->object, -1);
 		else
 			return -1;
-	if (c == '1')
+	}
+	if (c == '1') {
 		if (m->func)
 			return m->func(m, m->cursor, m->object, 1);
 		else
 			return -1;
+	}
 	c &= 0x1F;
 	for (x = 0; x != m->nitems; ++x)
 		if ((m->list[x][0] & 0x1F) == c)
@@ -229,8 +231,8 @@ MENU *m;
 		++m->cursor;
 		if (m->cursor == m->nitems)
 			m->cursor = 0;
-	}
-	while ((m->list[m->cursor][0] & 0x1F) != c);
+	} while ((m->list[m->cursor][0] & 0x1F) != c);
+
 	return -1;
 }
 
