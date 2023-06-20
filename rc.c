@@ -34,13 +34,13 @@ static struct context {
 	struct context *next;
 	char *name;
 	KMAP *kmap;
-} *contexts = 0;		/* List of named contexts */
+} *contexts = NULL;		/* List of named contexts */
 
 /* Find a context of a given name- if not found, one with an empty kmap
  * is created.
  */
 
-KMAP *getcontext(char *name)
+KMAP *kmap_getcontext(unsigned char *name)
 {
 	struct context *c;
 
@@ -55,7 +55,7 @@ KMAP *getcontext(char *name)
 	return c->kmap = mkkmap();
 }
 
-OPTIONS *options = 0;
+OPTIONS *options = NULL;
 extern int mid, dspasis, dspctrl, force, help, pgamnt, square, csmode, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, orphan, marking, beep, keepup, nonotice;
 extern char *backpath;
 
@@ -165,7 +165,7 @@ struct glopts {
 	{ "linums",	4, NULL, (char *) &fdefault.linums, "Line numbers enabled", "Line numbers disabled", "N Line numbers " },
 	{ "marking",	0, &marking, NULL, "Anchored block marking on", "Anchored block marking off", "Marking " },
 	{ "asis",	0, &dspasis, NULL, "Characters above 127 shown as-is", "Characters above 127 shown in inverse", "Meta chars as-is " },
-	{ "force",	0, &force, NULL, "Last line forced to have NL when file saved", "Last line not forces to have NL", "Force last NL " },
+	{ "force",	0, &force, NULL, "Last line forced to have NL when file saved", "Last line not forced to have NL", "Force last NL " },
 	{ "nobackups",	0, &nobackups, NULL, "Backup files will not be made", "Backup files will be made", " Disable backups " },
 	{ "lightoff",	0, &lightoff, NULL, "Highlighting turned off after block operations", "Highlighting not turned off after block operations", "Auto unmark " },
 	{ "exask",	0, &exask, NULL, "Prompt for filename in save & exit command", "Don't prompt for filename in save & exit command", "Exit ask " },
@@ -206,7 +206,7 @@ static void izopts(void)
 	isiz = 1;
 }
 
-int glopt(char *s, char *arg, OPTIONS *options, int set)
+int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 {
 	int val;
 	int ret = 0;
@@ -215,8 +215,10 @@ int glopt(char *s, char *arg, OPTIONS *options, int set)
 
 	if (!isiz)
 		izopts();
-	if (s[0] == '-')
-		st = 0, ++s;
+	if (s[0] == '-') {
+		st = 0;
+		++s;
+	}
 	for (x = 0; glopts[x].name; ++x)
 		if (!strcmp(glopts[x].name, s)) {
 			switch (glopts[x].type) {
@@ -384,8 +386,10 @@ static int doopt1(BW *bw, char *s, int *xx, int *notify)
 			ret = -1;
 		} else if (v >= glopts[x].low && v <= glopts[x].high)
 			*glopts[x].set = v;
-		else
-			msgnw(bw->parent, "Value out of range"), ret = -1;
+		else {
+			msgnw(bw->parent, "Value out of range");
+			ret = -1;
+		}
 		break;
 	case 2:
 		if (s[0])
@@ -398,8 +402,10 @@ static int doopt1(BW *bw, char *s, int *xx, int *notify)
 			ret = -1;
 		} else if (v >= glopts[x].low && v <= glopts[x].high)
 			*(int *) ((char *) &bw->o + glopts[x].ofst) = v;
-		else
-			msgnw(bw->parent, "Value out of range"), ret = -1;
+		else {
+			msgnw(bw->parent, "Value out of range");
+			ret = -1;
+		}
 		break;
 	case 7:
 		v = calc(bw, s) - 1.0;
@@ -408,8 +414,10 @@ static int doopt1(BW *bw, char *s, int *xx, int *notify)
 			ret = -1;
 		} else if (v >= glopts[x].low && v <= glopts[x].high)
 			*(int *) ((char *) &bw->o + glopts[x].ofst) = v;
-		else
-			msgnw(bw->parent, "Value out of range"), ret = -1;
+		else {
+			msgnw(bw->parent, "Value out of range");
+			ret = -1;
+		}
 		break;
 	}
 	vsrm(s);
@@ -436,7 +444,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 			*glopts[x].set = 1;
 		else
 			*glopts[x].set = 0;
-		uabort(m, MAXINT);
+		wabort(m->parent);
 		msgnw(bw->parent, *glopts[x].set ? glopts[x].yes : glopts[x].no);
 		break;
 	case 4:
@@ -446,7 +454,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 			*(int *) ((char *) &bw->o + glopts[x].ofst) = 1;
 		else
 			*(int *) ((char *) &bw->o + glopts[x].ofst) = 0;
-		uabort(m, MAXINT);
+		wabort(m->parent);
 		msgnw(bw->parent, *(int *) ((char *) &bw->o + glopts[x].ofst) ? glopts[x].yes : glopts[x].no);
 		if (glopts[x].ofst == (char *) &fdefault.readonly - (char *) &fdefault)
 			bw->b->rdonly = bw->o.readonly;
@@ -457,7 +465,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 
 		*xx = x;
 		m->parent->notify = 0;
-		uabort(m, MAXINT);
+		wabort(m->parent);
 		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify))
 			return 0;
 		else
@@ -471,7 +479,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 
 		*xx = x;
 		m->parent->notify = 0;
-		uabort(m, MAXINT);
+		wabort(m->parent);
 		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify))
 			return 0;
 		else
@@ -485,7 +493,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 
 		*xx = x;
 		m->parent->notify = 0;
-		uabort(m, MAXINT);
+		wabort(m->parent);
 		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify))
 			return 0;
 		else
@@ -555,10 +563,10 @@ int umode(BW *bw)
  *         1 if there was a syntax error in the file
  */
 
-int procrc(CAP *cap, char *name)
+int procrc(CAP *cap, unsigned char *name)
 {
-	OPTIONS *o = 0;		/* Current options */
-	KMAP *context = 0;	/* Current context */
+	OPTIONS *o = NULL;	/* Current options */
+	KMAP *context = NULL;	/* Current context */
 	unsigned char buf[1024];	/* Input buffer */
 	FILE *fd;		/* rc file */
 	int line = 0;		/* Line number */
@@ -577,7 +585,8 @@ int procrc(CAP *cap, char *name)
 	fprintf(stderr, "Processing '%s'...", name);
 	fflush(stderr);
 
-	while (++line, fgets(buf, 1024, fd))
+	while (fgets(buf, sizeof(buf), fd)) {
+		line++;
 		switch (buf[0]) {
 		case ' ':
 		case '\t':
@@ -602,7 +611,7 @@ int procrc(CAP *cap, char *name)
 			{
 				unsigned char *opt = buf + 1;
 				int x;
-				unsigned char *arg = 0;
+				unsigned char *arg = NULL;
 
 				for (x = 0; buf[x] && buf[x] != '\n' && buf[x] != ' ' && buf[x] != '\t'; ++x) ;
 				if (buf[x] && buf[x] != '\n') {
@@ -663,7 +672,7 @@ int procrc(CAP *cap, char *name)
 							for (c = x; !isspace_eof(buf[c]); ++c) ;
 							buf[c] = 0;
 							if (c != x)
-								kcpy(context, getcontext(buf + x));
+								kcpy(context, kmap_getcontext(buf + x));
 							else {
 								err = 1;
 								fprintf(stderr, "\n%s %d: context name missing from :inherit", name, line);
@@ -704,7 +713,7 @@ int procrc(CAP *cap, char *name)
 							err = 1;
 							fprintf(stderr, "\n%s %d: No context selected for :delete", name, line);
 					} else
-						context = getcontext(buf + 1);
+						context = kmap_getcontext(buf + 1);
 				else {
 					err = 1;
 					fprintf(stderr, "\n%s %d: Invalid context name", name, line);
@@ -748,6 +757,7 @@ int procrc(CAP *cap, char *name)
 			}
 			break;
 		}
+	}
 	fclose(fd);		/* Close rc file */
 
 	/* Print proper ending string */

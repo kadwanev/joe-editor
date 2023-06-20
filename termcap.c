@@ -18,6 +18,11 @@
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
+#ifdef TERMINFO
+#ifdef HAVE_TERM_H
+#include <term.h>
+#endif
+#endif
 
 #include "blocks.h"
 #include "termcap.h"
@@ -26,12 +31,7 @@
 #include "vs.h"
 
 int dopadding = 0;
-char *joeterm = 0;
-
-#ifdef TERMINFO
-extern char *tgoto(char *, int, int);
-extern char *tgetstr(char *, char **);
-#endif
+char *joeterm = NULL;
 
 /* Default termcap entry */
 
@@ -96,9 +96,12 @@ static char *lfind(char *s, int pos, FILE *fd, char *name)
 				goto loop;
 			else
 				return vstrunc(s, x);
-		else if (c == '\r') ;
-		else
-			s = vsset(s, x, c), ++x;
+		else if (c == '\r')
+			/* do nothing */;
+		else {
+			s = vsset(s, x, c);
+			++x;
+		}
 	}
 	while (c = getc(fd), c != -1)
 		if (c == '\n')
@@ -106,9 +109,12 @@ static char *lfind(char *s, int pos, FILE *fd, char *name)
 				--x;
 			else
 				break;
-		else if (c == '\r') ;
-		else
-			s = vsset(s, x, c), ++x;
+		else if (c == '\r')
+			/* do nothing */;
+		else {
+			s = vsset(s, x, c);
+			++x;
+		}
 	s = vstrunc(s, x);
 	return s;
 }
@@ -153,11 +159,11 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *out
 	int sortsiz;
 
 	if (!name && !(name = joeterm) && !(name = getenv("TERM")))
-		return 0;
+		return NULL;
 	cap = (CAP *) joe_malloc(sizeof(CAP));
 	cap->tbuf = vsmk(4096);
-	cap->abuf = 0;
-	cap->sort = 0;
+	cap->abuf = NULL;
+	cap->sort = NULL;
 
 #ifdef TERMINFO
 	cap->abuf = (char *) joe_malloc(4096);
@@ -166,7 +172,7 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *out
 		return setcap(cap, baud, out, outptr);
 	else {
 		joe_free(cap->abuf);
-		cap->abuf = 0;
+		cap->abuf = NULL;
 	}
 #endif
 
@@ -185,10 +191,11 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *out
 		if ((tp = getenv("TERMPATH")))
 			namebuf = vsncpy(NULL, 0, sz(tp));
 		else {
-			if ((tp = getenv("HOME")))
-				namebuf = vsncpy(NULL, 0, sz(tp)), namebuf = vsadd(namebuf, '/');
-			else
-				namebuf = 0;
+			if ((tp = getenv("HOME"))) {
+				namebuf = vsncpy(NULL, 0, sz(tp));
+				namebuf = vsadd(namebuf, '/');
+			} else
+				namebuf = NULL;
 			namebuf = vsncpy(sv(namebuf), sc(".termcap "));
 			namebuf = vsncpy(sv(namebuf), sc(JOERC));
 			namebuf = vsncpy(sv(namebuf), sc("termcap /etc/termcap"));
@@ -298,22 +305,24 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *out
 			goto in;
 		}
 		while (z != (x + y) / 2) {
+			int found;
+
 			z = (x + y) / 2;
-			switch (strcmp(qq, cap->sort[z].name)) {
-			case 1:
+			found = strcmp(qq, cap->sort[z].name);
+			if(found > 0) {
 				x = z;
 				break;
-			case -1:
+			} else if(found < 0) {
 				y = z;
 				break;
-			case 0:
+			} else {
 				if (c == '@')
 					mmove(cap->sort + z, cap->sort + z + 1, (cap->sortlen-- - (z + 1)) * sizeof(struct sortentry));
 
 				else if (c && c != ':')
 					cap->sort[z].value = qq + q + 1;
 				else
-					cap->sort[z].value = 0;
+					cap->sort[z].value = NULL;
 				if (c == ':')
 					goto loop1;
 				else
@@ -329,7 +338,7 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *out
 		if (c && c != ':')
 			cap->sort[y].value = qq + q + 1;
 		else
-			cap->sort[y].value = 0;
+			cap->sort[y].value = NULL;
 		if (c == ':')
 			goto loop1;
 		else
@@ -357,24 +366,22 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *out
 static struct sortentry *findcap(CAP *cap, char *name)
 {
 	int x, y, z;
+	int found;
 
 	x = 0;
 	y = cap->sortlen;
 	z = -1;
 	while (z != (x + y) / 2) {
 		z = (x + y) / 2;
-		switch (strcmp(name, cap->sort[z].name)) {
-		case 1:
+		found = strcmp(name, cap->sort[z].name);
+		if (found > 0)
 			x = z;
-			break;
-		case -1:
+		else if (found < 0)
 			y = z;
-			break;
-		case 0:
+		else
 			return cap->sort + z;
-		}
 	}
-	return 0;
+	return NULL;
 }
 
 CAP *setcap(CAP *cap, unsigned int baud, void (*out) (char *, char), void *outptr)
@@ -392,7 +399,7 @@ int getflag(CAP *cap, char *name)
 	if (cap->abuf)
 		return tgetflag(name);
 #endif
-	return findcap(cap, name) != 0;
+	return findcap(cap, name) != NULL;
 }
 
 char *jgetstr(CAP *cap, char *name)
@@ -407,7 +414,7 @@ char *jgetstr(CAP *cap, char *name)
 	if (s)
 		return s->value;
 	else
-		return 0;
+		return NULL;
 }
 
 int getnum(CAP *cap, char *name)
@@ -441,8 +448,10 @@ static char escape(char **s)
 	if (c == '^' && **s)
 		if (**s != '?')
 			return 037 & *(*s)++;
-		else
-			return (*s)++, 127;
+		else {
+			(*s)++;
+			return 127;
+		}
 	else if (c == '\\' && **s)
 		switch (c = *((*s)++)) {
 		case '0':
@@ -520,20 +529,26 @@ void texec(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 	while (*s >= '0' && *s <= '9')
 		tenth = tenth * 10 + *s++ - '0';
 	tenth *= 10;
-	if (*s == '.')
-		++s, tenth += *s++ - '0';
+	if (*s == '.') {
+		++s;
+		tenth += *s++ - '0';
+	}
 
 /* Check if we have to multiply by number of lines */
-	if (*s == '*')
-		++s, tenth *= l;
+	if (*s == '*') {
+		++s;
+		tenth *= l;
+	}
 
 /* Output string */
 	while ((c = *s++) != '\0')
 		if (c == '%' && *s) {
 			switch (x = a[0], c = escape(&s)) {
 			case 'C':
-				if (x >= 96)
-					cap->out(cap->outptr, x / 96), x %= 96;
+				if (x >= 96) {
+					cap->out(cap->outptr, x / 96);
+					x %= 96;
+				}
 			case '+':
 				if (*s)
 					x += escape(&s);
@@ -549,12 +564,16 @@ void texec(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 					goto two;
 			case '3':
 				c = '0';
-				while (x >= 100)
-					++c, x -= 100;
+				while (x >= 100) {
+					++c;
+					x -= 100;
+				}
 				cap->out(cap->outptr, c);
 			      two:c = '0';
-				while (x >= 10)
-					++c, x -= 10;
+				while (x >= 10) {
+					++c;
+					x -= 10;
+				}
 				cap->out(cap->outptr, c);
 			      one:cap->out(cap->outptr, '0' + x);
 				++a;
@@ -627,18 +646,24 @@ void texec(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 				cap->out(cap->outptr, '%');
 				cap->out(cap->outptr, c);
 			}
-		} else
-			--s, cap->out(cap->outptr, escape(&s));
+		} else {
+			--s;
+			cap->out(cap->outptr, escape(&s));
+		}
 
 /* Output padding characters */
 	if (cap->dopadding) {
 		if (cap->pad)
 			while (tenth >= cap->div)
-				for (s = cap->pad; *s; ++s)
-					cap->out(cap->outptr, *s), tenth -= cap->div;
+				for (s = cap->pad; *s; ++s) {
+					cap->out(cap->outptr, *s);
+					tenth -= cap->div;
+				}
 		else
-			while (tenth >= cap->div)
-				cap->out(cap->outptr, 0), tenth -= cap->div;
+			while (tenth >= cap->div) {
+				cap->out(cap->outptr, 0);
+				tenth -= cap->div;
+			}
 	}
 }
 
@@ -674,7 +699,7 @@ char *tcompile(CAP *cap, char *s, int a0, int a1, int a2, int a3)
 	int div = cap->div;
 
 	if (!s)
-		return 0;
+		return NULL;
 	cap->out = cpl;
 	cap->div = 10000;
 	ssp = vsmk(10);
@@ -742,8 +767,10 @@ int l;
 void (*out) ();
 {
 	latest->outptr = (void *) out;
-	if (latest->baud != ospeed)
-		latest->baud = ospeed, latest->div = 100000 / ospeed;
+	if (latest->baud != ospeed) {
+		latest->baud = ospeed;
+		latest->div = 100000 / ospeed;
+	}
 	texec(latest, str, l, latesty, latestx);
 }
 #endif

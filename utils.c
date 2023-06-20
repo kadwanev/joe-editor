@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #endif
 
+#include "blocks.h"
 #include "utils.h"
 
 /*
@@ -39,7 +40,7 @@ int isspace_eof(int c)
 #ifndef HAVE_WORKING_ISBLANK
 int isblank(int c)
 {
-        return((c == 32) || (c == 9));
+	return((c == 32) || (c == 9));
 }
 #endif
 
@@ -71,7 +72,7 @@ signed long int long_min(signed long int a, signed long int b)
  * 	_ is considered as word character because is often used 
  *	in the names of C/C++ functions
  */
-unsigned int isalnum_(unsigned int c)
+int isalnum_(int c)
 {
 	return (isalnum(c) || (c == 95));
 }
@@ -116,4 +117,40 @@ void *joe_realloc(void *ptr, size_t size)
 void joe_free(void *ptr)
 {
 	free(ptr);
+}
+
+
+#ifndef SIG_ERR
+#define SIG_ERR ((sighandler_t) -1)
+#endif
+
+/* wrapper to hide signal interface differrencies */
+int joe_set_signal(int signum, sighandler_t handler)
+{
+	int retval;
+#ifdef HAVE_SIGACTION
+	struct sigaction sact;
+
+	mset(&sact, 0, sizeof(sact));
+	sact.sa_handler = handler;
+#ifdef SA_INTERRUPT
+	sact.sa_flags = SA_INTERRUPT;
+#endif
+	retval = sigaction(signum, &sact, NULL);
+#elif defined(HAVE_SIGVEC)
+	struct sigvec svec;
+
+	mset(&svec, 0, sizeof(svec));
+	svec.sv_handler = handler;
+#ifdef HAVE_SV_INTERRUPT
+	svec.sv_flags = SV_INTERRUPT;
+#endif
+	retval = sigvec(signum, &svec, NULL);
+#else
+	retval = (signal(signum, handler) != SIG_ERR) ? 0 : -1;
+#ifdef HAVE_SIGINTERRUPT
+	siginterrupt(signum, 1);
+#endif
+#endif
+	return(retval);
 }

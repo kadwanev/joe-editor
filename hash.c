@@ -13,7 +13,9 @@
 #include "hash.h"
 #include "utils.h"
 
-static HENTRY *freentry = 0;
+#define hnext(accu, c) (((accu) << 4) + ((accu) >> 28) + (c))
+
+static HENTRY *freentry = NULL;
 
 unsigned long hash(char *s)
 {
@@ -49,7 +51,8 @@ void *htadd(HASH *ht, char *name, void *val)
 	if (!freentry) {
 		entry = (HENTRY *) joe_malloc(sizeof(HENTRY) *64);
 		for (x = 0; x != 64; ++x) {
-			entry[x].next = freentry, freentry = entry + x;
+			entry[x].next = freentry;
+			freentry = entry + x;
 		}
 	}
 	entry = freentry;
@@ -69,5 +72,5 @@ void *htfind(HASH *ht, char *name)
 			return e->val;
 		}
 	}
-	return 0;
+	return NULL;
 }

@@ -18,7 +18,6 @@
 #endif
 #endif
 #include <stdio.h>
-#include <signal.h>
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
@@ -119,8 +118,8 @@ int Baud = 0;			/* Baud rate from joerc, cmd line or environment */
 
 /* The terminal */
 
-FILE *termin = 0;
-FILE *termout = 0;
+FILE *termin = NULL;
+FILE *termout = NULL;
 
 /* Original state of tty */
 
@@ -138,7 +137,7 @@ static struct ltchars oltarg;
 
 /* Output buffer, index and size */
 
-char *obuf = 0;
+char *obuf = NULL;
 int obufp = 0;
 int obufsiz;
 
@@ -176,11 +175,9 @@ static unsigned char havec;	/* Character read in during pending input check */
 int leave = 0;			/* When set, typeahead checking is disabled */
 
 /* TTY mode flag.  1 for open, 0 for closed */
-
 static int ttymode = 0;
 
 /* Signal state flag.  1 for joe, 0 for normal */
-
 static int ttysig = 0;
 
 /* Stuff for shell windows */
@@ -193,6 +190,7 @@ static int mpxsfd;		/* Clients send packets to this fd */
 
 static int nmpx = 0;
 static int accept = MAXINT;	/* =MAXINT if we have last packet */
+				/* FIXME: overloaded meaning of MAXINT */
 
 struct packet {
 	MPX *who;
@@ -204,29 +202,27 @@ struct packet {
 MPX asyncs[NPROC];
 
 /* Set signals for JOE */
-
 void sigjoe(void)
 {
 	if (ttysig)
 		return;
 	ttysig = 1;
-	signal(SIGHUP, ttsig);
-	signal(SIGTERM, ttsig);
-	signal(SIGINT, SIG_IGN);
-	signal(SIGPIPE, SIG_IGN);
+	joe_set_signal(SIGHUP, ttsig);
+	joe_set_signal(SIGTERM, ttsig);
+	joe_set_signal(SIGINT, SIG_IGN);
+	joe_set_signal(SIGPIPE, SIG_IGN);
 }
 
 /* Restore signals for exiting */
-
 void signrm(void)
 {
 	if (!ttysig)
 		return;
 	ttysig = 0;
-	signal(SIGHUP, SIG_DFL);
-	signal(SIGTERM, SIG_DFL);
-	signal(SIGINT, SIG_DFL);
-	signal(SIGPIPE, SIG_DFL);
+	joe_set_signal(SIGHUP, SIG_DFL);
+	joe_set_signal(SIGTERM, SIG_DFL);
+	joe_set_signal(SIGINT, SIG_DFL);
+	joe_set_signal(SIGPIPE, SIG_DFL);
 }
 
 /* Open terminal and set signals */
@@ -245,20 +241,15 @@ void ttclose(void)
 	signrm();
 }
 
-/* Window size interrupt handler */
-
 static int winched = 0;
-
+#ifdef SIGWINCH
+/* Window size interrupt handler */
 static RETSIGTYPE winchd(int unused)
 {
 	++winched;
-#ifdef SIGWINCH
-	signal(SIGWINCH, winchd);
-#ifdef HAVE_SIGINTERRUPT
-	siginterrupt(SIGWINCH, 1);
-#endif
-#endif
+	REINSTALL_SIGHANDLER(SIGWINCH, winchd);
 }
+#endif
 
 /* Second ticker */
 
@@ -275,24 +266,10 @@ void tickoff(void)
 	alarm(0);
 }
 
-struct sigaction vnew;
-
 void tickon(void)
 {
 	ticked = 0;
-	vnew.sa_handler = dotick;
-
-#ifdef SA_INTERRUPT
-	vnew.sa_flags = SA_INTERRUPT;
-	sigaction(SIGALRM, &vnew, NULL);
-#else
-#ifdef SV_INTERRUPT
-	vnew.sa_flags = SV_INTERRUPT;
-	sigvec(SIGALRM, &vnew, NULL);
-#else
-	signal(SIGALRM, dotick);
-#endif
-#endif
+	joe_set_signal(SIGALRM, dotick);
 	alarm(1);
 }
 
@@ -320,10 +297,7 @@ void ttopnn(void)
 			exit(1);
 		} else {
 #ifdef SIGWINCH
-			signal(SIGWINCH, winchd);
-#ifdef HAVE_SIGINTERRUPT
-			siginterrupt(SIGWINCH, 1);
-#endif
+			joe_set_signal(SIGWINCH, winchd);
 #endif
 			tickon();
 		}
@@ -369,8 +343,10 @@ void ttopnn(void)
 	otarg = targ;
 	oltarg = ltarg;
 	arg.sg_flags = ((arg.sg_flags & ~(ECHO | CRMOD | XTABS | ALLDELAY | TILDE)) | CBREAK);
-	if (noxon)
-		targ.t_startc = -1, targ.t_stopc = -1;
+	if (noxon) {
+		targ.t_startc = -1;
+		targ.t_stopc = -1;
+	}
 	targ.t_intrc = -1;
 	targ.t_quitc = -1;
 	targ.t_eofc = -1;
@@ -514,7 +490,7 @@ int ttflsh(void)
 			a.it_interval.tv_usec = 0;
 			a.it_interval.tv_sec = 0;
 			alarm(0);
-			signal(SIGALRM, dosig);
+			joe_set_signal(SIGALRM, dosig);
 			yep = 0;
 			maskit();
 			setitimer(ITIMER_REAL, &a, &b);
@@ -559,7 +535,8 @@ int ttflsh(void)
 			if (read(mpxfd, &pack, sizeof(struct packet) - 1024) > 0) {
 				fcntl(mpxfd, F_SETFL, 0);
 				joe_read(mpxfd, pack.data, pack.size);
-				have = 1, accept = pack.ch;
+				have = 1;
+				accept = pack.ch;
 			} else
 				fcntl(mpxfd, F_SETFL, 0);
 		} else {
@@ -587,10 +564,16 @@ int ttgetc(void)
 
       loop:
 	ttflsh();
-	while (winched)
-		winched = 0, edupd(1), ttflsh();
-	if (ticked)
-		edupd(0), ttflsh(), tickon();
+	while (winched) {
+		winched = 0;
+		edupd(1);
+		ttflsh();
+	}
+	if (ticked) {
+		edupd(0);
+		ttflsh();
+		tickon();
+	}
 	if (ackkbd != -1) {
 		if (!have) {	/* Wait for input */
 			stat = read(mpxfd, &pack, sizeof(struct packet) - 1024);
@@ -608,8 +591,10 @@ int ttgetc(void)
 		have = 0;
 		if (pack.who) {	/* Got bknd input */
 			if (accept != MAXINT) {
-				if (pack.who->func)
-					pack.who->func(pack.who->object, pack.data, pack.size), edupd(1);
+				if (pack.who->func) {
+					pack.who->func(pack.who->object, pack.data, pack.size);
+					edupd(1);
+				}
 			} else
 				mpxdied(pack.who);
 			goto loop;
@@ -816,7 +801,7 @@ static char *getpty(int *ptyfd)
 {
 	int x, fd;
 	char *orgpwd = pwd();
-	static char **ptys = 0;
+	static char **ptys = NULL;
 	static char *ttydir;
 	static char *ptydir;
 	static char ttyname[32];
@@ -858,7 +843,7 @@ static char *getpty(int *ptyfd)
 					close(*ptyfd);
 			}
 		}
-	return 0;
+	return NULL;
 }
 
 #endif
@@ -875,8 +860,6 @@ static RETSIGTYPE death(int unused)
 #ifndef SIGCHLD
 #define SIGCHLD SIGCLD
 #endif
-
-struct sigaction inew;
 
 /* Build a new environment */
 
@@ -916,13 +899,13 @@ MPX *mpxmk(int *ptyfd, char *cmd, char **args, void (*func) (/* ??? */), void *o
 	char *name;
 
 	if (!(name = getpty(ptyfd)))
-		return 0;
+		return NULL;
 	for (x = 0; x != NPROC; ++x)
 		if (!asyncs[x].func) {
 			m = asyncs + x;
 			goto ok;
 		}
-	return 0;
+	return NULL;
       ok:
 	ttflsh();
 	++nmpx;
@@ -939,18 +922,7 @@ MPX *mpxmk(int *ptyfd, char *cmd, char **args, void (*func) (/* ??? */), void *o
 		close(fds[1]);
 		close(comm[0]);
 		dead = 0;
-		inew.sa_handler = death;
-#ifdef SA_INTERRUPT
-		inew.sa_flags = SA_INTERRUPT;
-		sigaction(SIGCHLD, &inew, (struct sigaction *) 0);
-#else
-#ifdef SV_INTERRUPT
-		inew.sa_flags = SV_INTERRUPT;
-		sigvec(SIGCHLD, &inew, (struct sigvec *) 0);
-#else
-		signal(SIGCHLD, death);
-#endif
-#endif
+		joe_set_signal(SIGCHLD, death);
 
 		if (!(pid = fork())) {
 			signrm();
@@ -1041,6 +1013,6 @@ void mpxdied(MPX *m)
 		/* do nothing */;
 	if (m->die)
 		m->die(m->dieobj);
-	m->func = 0;
+	m->func = NULL;
 	edupd(1);
 }

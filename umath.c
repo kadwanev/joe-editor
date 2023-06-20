@@ -9,7 +9,6 @@
 #include "types.h"
 
 #include <stdio.h>
-#include <signal.h>
 #include <string.h>
 
 #include "b.h"
@@ -25,7 +24,7 @@ static RETSIGTYPE fperr(int unused)
 	if (!merr) {
 		merr = "Float point exception";
 	}
-	signal(SIGFPE, fperr);
+	REINSTALL_SIGHANDLER(SIGFPE, fperr);
 }
 
 struct var {
@@ -33,7 +32,7 @@ struct var {
 	int set;
 	double val;
 	struct var *next;
-} *vars = 0;
+} *vars = NULL;
 
 static struct var *get(char *str)
 {
@@ -59,7 +58,7 @@ struct var *dumb;
 static double expr(int prec, struct var **rtv)
 {
 	double x = 0.0;
-	struct var *v = 0;
+	struct var *v = NULL;
 
 	while (*ptr == ' ' || *ptr == '\t') {
 		++ptr;
@@ -117,9 +116,10 @@ static double expr(int prec, struct var **rtv)
 	} else if (*ptr == '=' && 2 >= prec) {
 		++ptr;
 		x = expr(2, &dumb);
-		if (v)
-			v->val = x, v->set = 1;
-		else {
+		if (v) {
+			v->val = x;
+			v->set = 1;
+		} else {
 			if (!merr)
 				merr = "Left side of = is not an l-value";
 		}
@@ -203,11 +203,11 @@ static int domath(BW *bw, char *s, void *object, int *notify)
 	return 0;
 }
 
-B *mathhist = 0;
+B *mathhist = NULL;
 
 int umath(BW *bw)
 {
-	signal(SIGFPE, fperr);
+	joe_set_signal(SIGFPE, fperr);
 	if (wmkpw(bw->parent, "=", &mathhist, domath, "math", NULL, NULL, NULL, NULL)) {
 		return 0;
 	} else {

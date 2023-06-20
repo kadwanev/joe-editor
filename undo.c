@@ -65,9 +65,9 @@ UNDO *undomk(B *b)
 	UNDO *undo = (UNDO *) alitem(&frdos, sizeof(UNDO));
 
 	undo->nrecs = 0;
-	undo->ptr = 0;
-	undo->last = 0;
-	undo->first = 0;
+	undo->ptr = NULL;
+	undo->last = NULL;
+	undo->first = NULL;
 	undo->b = b;
 	izque(UNDOREC, link, &undo->recs);
 	enquef(UNDO, link, &undos, undo);
@@ -116,10 +116,10 @@ int uundo(BW *bw)
 	if (!undo->ptr) {
 		pgoto(bw->cursor, undo->recs.link.prev->where);
 		undo->ptr = &undo->recs;
-		/* If this return is uncommented, then uundo will jump to 
-		   where the undo
-		   is about to occur before actually undoing anything
-		   return 0; */
+		/* If this return is uncommented, then uundo will jump
+		   to where the undo is about to occur before actually
+		   undoing anything */
+		/* return 0; */
 	}
 	if (undo->ptr->link.prev == &undo->recs)
 		return -1;
@@ -210,7 +210,7 @@ void undomark(void)
 
 static void undoover(UNDO *undo)
 {
-	undo->ptr = 0;
+	undo->ptr = NULL;
 }
 
 void undoins(UNDO *undo, P *p, long size)
@@ -233,7 +233,7 @@ void undoins(UNDO *undo, P *p, long size)
 		undo->last = rec;
 		rec->where = p->byte;
 		rec->min = 1;
-		rec->unit = 0;
+		rec->unit = NULL;
 		rec->len = size;
 		rec->changed = undo->b->changed;
 		enqueb(UNDOREC, link, &undo->recs, rec);
@@ -293,8 +293,10 @@ static void yankdel(long where, B *b)
 			rec->len += size;
 			rec->where = where;
 		} else {
-			if (++nyanked == 100)
-				frrec(deque_f(UNDOREC, link, yanked.link.next)), --nyanked;
+			if (++nyanked == 100) {
+				frrec(deque_f(UNDOREC, link, yanked.link.next));
+				--nyanked;
+			}
 			rec = alrec();
 			if (size < SMALL) {
 				rec->small = (char *) joe_malloc(size);
@@ -379,7 +381,7 @@ void undodel(UNDO *undo, long where, B *b)
 		undo->last = rec;
 		rec->where = where;
 		rec->min = 1;
-		rec->unit = 0;
+		rec->unit = NULL;
 		rec->len = size;
 		rec->del = 1;
 		rec->changed = undo->b->changed;
@@ -387,7 +389,7 @@ void undodel(UNDO *undo, long where, B *b)
 	}
 }
 
-B *yankbuf = 0;
+B *yankbuf = NULL;
 long yankwhere = -1;
 
 int uyank(BW *bw)

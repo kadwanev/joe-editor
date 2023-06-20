@@ -29,10 +29,10 @@
 int smode = 0;			/* Decremented to zero by execmd */
 int csmode = 0;			/* Set for continued search mode */
 
-B *findhist = 0;		/* Search string history */
-B *replhist = 0;		/* Replacement string history */
+B *findhist = NULL;		/* Search string history */
+B *replhist = NULL;		/* Replacement string history */
 
-SRCH *globalsrch = 0;		/* Most recent completed search data */
+SRCH *globalsrch = NULL;	/* Most recent completed search data */
 
 SRCHREC fsr = { {&fsr, &fsr} };
 
@@ -70,12 +70,12 @@ static P *searchf(SRCH *srch, P *p)
 			prm(end);
 			return p;
 		}
-		if (pgetc(start) == MAXINT)
+		if (pgetc(start) == NO_MORE_DATA)
 			break;
 	}
 	prm(start);
 	prm(end);
-	return 0;
+	return NULL;
 }
 
 /* Search backwards.
@@ -117,7 +117,7 @@ static P *searchb(SRCH *srch, P *p)
 	}
 	prm(start);
 	prm(end);
-	return 0;
+	return NULL;
 }
 
 /* Make a search stucture */
@@ -130,12 +130,12 @@ static SRCH *setmark(SRCH *srch)
 	srch->markb = markb;
 	if (srch->markb)
 		srch->markb->owner = &srch->markb;
-	markb = 0;
+	markb = NULL;
 
 	srch->markk = markk;
 	if (srch->markk)
 		srch->markk->owner = &srch->markk;
-	markk = 0;
+	markk = NULL;
 
 	return srch;
 }
@@ -152,16 +152,16 @@ SRCH *mksrch(char *pattern, char *replacement, int ignore, int backwards, int re
 	srch->repeat = repeat;
 	srch->replace = replace;
 	srch->rest = rest;
-	srch->entire = 0;
+	srch->entire = NULL;
 	srch->flg = 0;
 	srch->addr = -1;
-	srch->markb = 0;
-	srch->markk = 0;
+	srch->markb = NULL;
+	srch->markk = NULL;
 	srch->valid = 0;
-	srch->restrict = 0;
+	srch->block_restrict = 0;
 	izque(SRCHREC, link, &srch->recs);
 	for (x = 0; x != 26; ++x)
-		srch->pieces[x] = 0;
+		srch->pieces[x] = NULL;
 	return srch;
 }
 
@@ -209,11 +209,13 @@ static P *insert(SRCH *srch, P *p, char *s, int len)
 			len -= x;
 			s += x;
 		} else if (len >= 2) {
-			if (s[1] == '\\')
-				binsc(p, '\\'), pgetc(p);
-			else if (s[1] == 'n')
-				binsc(p, '\n'), pgetc(p);
-			else if (((s[1] >= 'a' && s[1] <= 'z') || (s[1] >= 'A' && s[1] <= 'Z'))
+			if (s[1] == '\\') {
+				binsc(p, '\\');
+				pgetc(p);
+			} else if (s[1] == 'n') {
+				binsc(p, '\n');
+				pgetc(p);
+			} else if (((s[1] >= 'a' && s[1] <= 'z') || (s[1] >= 'A' && s[1] <= 'Z'))
 				 && srch->pieces[(s[1] & 0x1f) - 1]) {
 				binsm(p, sv(srch->pieces[(s[1] & 0x1f) - 1]));
 				pfwrd(p, (long) sLEN(srch->pieces[(s[1] & 0x1f) - 1]));
@@ -268,8 +270,8 @@ static int pfsave(BW *bw, SRCH *srch)
 			markk->owner = &markk;
 			markk->xcol = piscol(markk);
 		}
-		srch->markb = 0;
-		srch->markk = 0;
+		srch->markb = NULL;
+		srch->markk = NULL;
 
 		updall();
 	}
@@ -302,7 +304,7 @@ static int set_options(BW *bw, char *s, SRCH *srch, int *notify)
 			break;
 		case 'k':
 		case 'K':
-			srch->restrict = 1;
+			srch->block_restrict = 1;
 			break;
 		case '0':
 		case '1':
@@ -377,7 +379,7 @@ static int dofirst(BW *bw, int back, int repl)
 		p_goto_bol(bw->cursor);
 		if (byte == bw->cursor->byte)
 			prgetc(bw->cursor);
-		return urtn(bw, MAXINT);
+		return urtn((BASE *)bw, MAXINT);
 	}
 	srch = setmark(mksrch(NULL, NULL, 0, back, -1, repl, 0));
 	srch->addr = bw->cursor->byte;
@@ -480,7 +482,7 @@ static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
 		goback(srch, bw);
 		goback(srch, bw);
 		return dopfnext(bw, srch, notify);
-	} else if (c != MAXINT) {
+	} else if (c != MAXINT) {	/* FIXME: what's the meaning of MAXINT here? */
 		if (notify)
 			*notify = 1;
 		pfsave(bw, srch);
@@ -499,9 +501,9 @@ static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
  * 1 if we're done
  */
 
-static int restrict(BW *bw, SRCH *srch)
+static int restrict_to_block(BW *bw, SRCH *srch)
 {
-	if (!srch->valid || !srch->restrict)
+	if (!srch->valid || !srch->block_restrict)
 		return 0;
 	bw->cursor->xcol = piscol(bw->cursor);
 	if (srch->backwards)
@@ -559,7 +561,7 @@ static int fnext(BW *bw, SRCH *srch)
 		return 1;
 	} else if (srch->rest || (srch->repeat != -1 && srch->replace)) {
 		if (srch->valid)
-			switch (restrict(bw, srch)) {
+			switch (restrict_to_block(bw, srch)) {
 			case -1:
 				goto again;
 			case 1:
@@ -572,7 +574,7 @@ static int fnext(BW *bw, SRCH *srch)
 		goto next;
 	} else if (srch->repeat != -1) {
 		if (srch->valid)
-			switch (restrict(bw, srch)) {
+			switch (restrict_to_block(bw, srch)) {
 			case -1:
 				goto again;
 			case 1:
@@ -601,7 +603,7 @@ again:	switch (fnext(bw, srch)) {
 		break;
 	case 1:
 bye:		if (!srch->flg && !srch->rest) {
-			if (srch->valid && srch->restrict)
+			if (srch->valid && srch->block_restrict)
 				msgnw(bw->parent, "Not found (search restricted to marked block)");
 			else
 				msgnw(bw->parent, "Not found");
@@ -610,7 +612,7 @@ bye:		if (!srch->flg && !srch->rest) {
 		break;
 	case 2:
 		if (srch->valid)
-			switch (restrict(bw, srch)) {
+			switch (restrict_to_block(bw, srch)) {
 			case -1:
 				goto again;
 			case 1:

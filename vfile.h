@@ -116,7 +116,7 @@ void vflshf PARAMS((VFILE *vfile));
  * ever might want to is to implement your own version of valloc()).
  */
 
-char *vlock PARAMS((VFILE *vfile, long int addr));
+char *vlock PARAMS((VFILE *vfile, unsigned long addr));
 
 /* VPAGE *vheader(char *);
  * Return address of page header for given page
@@ -171,7 +171,7 @@ void vseek PARAMS(());
  * int vgetc(VFILE *);
  *
  * Get next character / Get previous character functions.
- * They return MAXINT for end of file / beginning of file.
+ * They return NO_MORE_DATA for end of file / beginning of file.
  */
 
 int _vgetc PARAMS(());
@@ -285,14 +285,14 @@ void vwrite PARAMS(());
 
 /* int rc(VFILE *vfile,long addr);
  *
- * Read character.  Returns MAXINT if past end of file.
+ * Read character.  Returns NO_MORE_DATA if past end of file.
  */
 
 int _rc();
 
 #define rc(v,a) \
 	( \
-	  (a)>=vsize(v) ? MAXINT : \
+	  (a)>=vsize(v) ? NO_MORE_DATA : \
 	    ( \
 	      (v)->addr==((a)&~(PGSIZE-1)) ? \
 	       (v)->vpage1[(a)&(PGSIZE-1)] \

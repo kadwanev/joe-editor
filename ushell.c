@@ -12,7 +12,9 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+#ifdef HAVE_SIGNAL_H
 #include <signal.h>
+#endif
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
@@ -64,10 +66,14 @@ static void cdata(BW *bw, char *dat, int siz)
 			if (y) {
 				--y;
 			} else if (piseof(bw->cursor)) {
-				pset(q, bw->cursor), prgetc(q), bdel(q, bw->cursor);
+				pset(q, bw->cursor);
+				prgetc(q);
+				bdel(q, bw->cursor);
 				bw->cursor->xcol = piscol(bw->cursor);
 			} else {
-				pset(q, r), prgetc(q), bdel(q, r);
+				pset(q, r);
+				prgetc(q);
+				bdel(q, r);
 			}
 		} else {
 			bf[y++] = dat[x];
@@ -149,7 +155,7 @@ static int dorun(BW *bw, char *s, void *object, int *notify)
 	return cstart(bw, "/bin/sh", a, NULL, notify);
 }
 
-B *runhist = 0;
+B *runhist = NULL;
 
 int urun(BW *bw)
 {

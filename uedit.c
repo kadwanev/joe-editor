@@ -72,7 +72,7 @@ int u_goto_eof(BW *bw)
  */
 int u_goto_left(BW *bw)
 {
-	if (prgetc(bw->cursor) != MAXINT)
+	if (prgetc(bw->cursor) != NO_MORE_DATA)
 		return 0;
 	else
 		return -1;
@@ -83,7 +83,7 @@ int u_goto_left(BW *bw)
  */
 int u_goto_right(BW *bw)
 {
-	if (pgetc(bw->cursor) != MAXINT)
+	if (pgetc(bw->cursor) != NO_MORE_DATA)
 		return 0;
 	else
 		return -1;
@@ -199,7 +199,7 @@ static int pisedge(P *p)
 
 int upedge(BW *bw)
 {
-	if (prgetc(bw->cursor) == MAXINT)
+	if (prgetc(bw->cursor) == NO_MORE_DATA)
 		return -1;
 	while (pisedge(bw->cursor) != -1)
 		prgetc(bw->cursor);
@@ -208,7 +208,7 @@ int upedge(BW *bw)
 
 int unedge(BW *bw)
 {
-	if (pgetc(bw->cursor) == MAXINT)
+	if (pgetc(bw->cursor) == NO_MORE_DATA)
 		return -1;
 	while (pisedge(bw->cursor) != 1)
 		pgetc(bw->cursor);
@@ -273,7 +273,7 @@ int utomatch(BW *bw)
 		P *p = pdup(bw->cursor);
 		int cnt = 0;	/* No. levels of delimiters we're in */
 
-		while (d = pgetc(p), d != MAXINT)
+		while ((d = pgetc(p)) != NO_MORE_DATA) {
 			if (d == c)
 				++cnt;
 			else if (d == f && !--cnt) {
@@ -281,12 +281,13 @@ int utomatch(BW *bw)
 				pset(bw->cursor, p);
 				break;
 			}
+		}
 		prm(p);
 	} else {
 		P *p = pdup(bw->cursor);
 		int cnt = 0;	/* No. levels of delimiters we're in */
 
-		while (d = prgetc(p), d != MAXINT)
+		while ((d = prgetc(p)) != NO_MORE_DATA) {
 			if (d == c)
 				++cnt;
 			else if (d == f)
@@ -294,9 +295,10 @@ int utomatch(BW *bw)
 					pset(bw->cursor, p);
 					break;
 				}
+		}
 		prm(p);
 	}
-	if (d == MAXINT)
+	if (d == NO_MORE_DATA)
 		return -1;
 	else
 		return 0;
@@ -489,7 +491,7 @@ int udnslide(BW *bw)
 
 /* Move cursor to specified line number */
 
-static B *linehist = 0;		/* History of previously entered line numbers */
+static B *linehist = NULL;	/* History of previously entered line numbers */
 
 static int doline(BW *bw, char *s, void *object, int *notify)
 {
@@ -527,7 +529,7 @@ int uline(BW *bw)
 
 /* Move cursor to specified column number */
 
-static B *colhist = 0;		/* History of previously entered column numbers */
+static B *colhist = NULL;	/* History of previously entered column numbers */
 
 static int docol(BW *bw, char *s, void *object, int *notify)
 {
@@ -563,7 +565,7 @@ int ucol(BW *bw)
 
 /* Move cursor to specified byte number */
 
-static B *bytehist = 0;		/* History of previously entered byte numbers */
+static B *bytehist = NULL;	/* History of previously entered byte numbers */
 
 static int dobyte(BW *bw, char *s, void *object, int *notify)
 {
@@ -635,9 +637,8 @@ int ubacks(BW *bw, int k)
 		if (pisbof(bw->cursor))
 			return -1;
 		p = pdup(bw->cursor);
-		if ((c = prgetc(bw->cursor)) != MAXINT)
-			if (!bw->o.overtype || c == '\t' || pisbol(p)
-			    || piseol(p))
+		if ((c = prgetc(bw->cursor)) != NO_MORE_DATA)
+			if (!bw->o.overtype || c == '\t' || pisbol(p) || piseol(p))
 				bdel(bw->cursor, p);
 		prm(p);
 	} else
@@ -658,10 +659,10 @@ int u_word_delete(BW *bw)
 	int c = brc(p);
 
 	if (isalnum_(c))
-		while (c = brc(p), isalnum_(c))
+		while (isalnum_(c = brc(p)))
 			pgetc(p);
 	else if (isspace(c))
-		while (c = brc(p), isspace(c))
+		while (isspace(c = brc(p)))
 			pgetc(p);
 	else
 		pgetc(p);
@@ -685,14 +686,14 @@ int ubackw(BW *bw)
 	int c = prgetc(bw->cursor);
 
 	if (isalnum_(c)) {
-		while (c = prgetc(bw->cursor), isalnum_(c))
+		while (isalnum_(c = prgetc(bw->cursor)))
 			/* do nothing */;
-		if (c != MAXINT)
+		if (c != NO_MORE_DATA)
 			pgetc(bw->cursor);
 	} else if (isspace(c)) {
-		while (c = prgetc(bw->cursor), isspace(c))
+		while (isspace(c = prgetc(bw->cursor)))
 			/* do nothing */;
-		if (c != MAXINT)
+		if (c != NO_MORE_DATA)
 			pgetc(bw->cursor);
 	}
 	if (bw->cursor->byte == p->byte) {
@@ -731,7 +732,7 @@ int udelbl(BW *bw)
 
 	if (p->byte == bw->cursor->byte) {
 		prm(p);
-		return ubacks(bw, MAXINT);
+		return ubacks(bw, MAXINT);	/* FIXME: MAXINT overloaded */
 	} else
 		bdel(p, bw->cursor);
 	prm(p);
@@ -785,13 +786,15 @@ int utypebw(BW *bw, int k)
 		int simple = 1;
 
 		if (pisblank(bw->cursor))
-			while (piscol(bw->cursor) < bw->o.lmargin)
-				binsc(bw->cursor, ' '), pgetc(bw->cursor);
+			while (piscol(bw->cursor) < bw->o.lmargin) {
+				binsc(bw->cursor, ' ');
+				pgetc(bw->cursor);
+			}
 		binsc(bw->cursor, k), pgetc(bw->cursor);
-		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !isblank(k))
-			wrapword(bw->cursor, (long) bw->o.lmargin, bw->o.french, NULL), simple = 0;
-		else if (bw->o.overtype && !piseol(bw->cursor)
-			 && k != '\t')
+		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !isblank(k)) {
+			wrapword(bw->cursor, (long) bw->o.lmargin, bw->o.french, NULL);
+			simple = 0;
+		} else if (bw->o.overtype && !piseol(bw->cursor) && k != '\t')
 			udelch(bw);
 		bw->cursor->xcol = piscol(bw->cursor);
 #ifndef __MSDOS__
@@ -862,8 +865,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 			else
 				return 0;
 		} else {
-			if ((c >= 0x40 && c <= 0x5F)
-			    || (c >= 'a' && c <= 'z'))
+			if ((c >= 0x40 && c <= 0x5F) || (c >= 'a' && c <= 'z'))
 				c &= 0x1F;
 			if (c == '?')
 				c = 127;
@@ -1022,9 +1024,10 @@ static int doctrl(BW *bw, int c, void *object, int *notify)
 	if (notify)
 		*notify = 1;
 	bw->o.overtype = 0;
-	if (bw->parent->huh == srchstr && c == '\n')
-		utypebw(bw, '\\'), utypebw(bw, 'n');
-	else
+	if (bw->parent->huh == srchstr && c == '\n') {
+		utypebw(bw, '\\');
+		utypebw(bw, 'n');
+	} else
 		utypebw(bw, c);
 	bw->o.overtype = org;
 	bw->cursor->xcol = piscol(bw->cursor);
@@ -1054,8 +1057,10 @@ int rtntw(BW *bw)
 		binsc(bw->cursor, '\n'), pgetc(bw->cursor);
 		if (bw->o.autoindent) {
 			p_goto_bol(p);
-			while (isspace(c = pgetc(p)) && c != 10)
-				binsc(bw->cursor, c), pgetc(bw->cursor);
+			while (isspace(c = pgetc(p)) && c != 10) {
+				binsc(bw->cursor, c);
+				pgetc(bw->cursor);
+			}
 		}
 		prm(p);
 		bw->cursor->xcol = piscol(bw->cursor);
@@ -1151,15 +1156,15 @@ static int dofwrdc(BW *bw, int k, void *object, int *notify)
 	}
 	q = pdup(bw->cursor);
 	if (dobkwdc) {
-		while ((c = prgetc(q)) != MAXINT)
+		while ((c = prgetc(q)) != NO_MORE_DATA)
 			if (c == k)
 				break;
 	} else {
-		while ((c = pgetc(q)) != MAXINT)
+		while ((c = pgetc(q)) != NO_MORE_DATA)
 			if (c == k)
 				break;
 	}
-	if (c == MAXINT) {
+	if (c == NO_MORE_DATA) {
 		msgnw(bw->parent, "Not found");
 		prm(q);
 		return -1;

@@ -12,6 +12,9 @@
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
 
 #include "b.h"
 #include "ublock.h"
@@ -32,7 +35,7 @@ int ucenter(BW *bw)
 		pgetc(p);
 		goto done;
 	}
-	if (c == MAXINT)
+	if (c == NO_MORE_DATA)
 		goto done;
 	pgetc(p);
 	endcol = piscol(p);
@@ -44,7 +47,7 @@ int ucenter(BW *bw)
 		prgetc(p);
 		goto done;
 	}
-	if (c == MAXINT)
+	if (c == NO_MORE_DATA)
 		goto done;
 	prgetc(p);
 	begcol = piscol(p);
@@ -74,8 +77,11 @@ int ucenter(BW *bw)
 static int cpara(int c)
 {
 	if (c == ' ' || c == '\t' || c == '\\' ||
-	    c == '>' || c == '|' || c == ':' || c == '*' || c == '/'
-	    || c == ',' || c == '.' || c == '?' || c == ';' || c == ']' || c == '}' || c == '=' || c == '+' || c == '-' || c == '_' || c == ')' || c == '&' || c == '^' || c == '%' || c == '$' || c == '#' || c == '@' || c == '!' || c == '~')
+	    c == '>' || c == '|' || c == ':' || c == '*' || c == '/' ||
+	    c == ',' || c == '.' || c == '?' || c == ';' || c == ']' ||
+	    c == '}' || c == '=' || c == '+' || c == '-' || c == '_' ||
+	    c == ')' || c == '&' || c == '^' || c == '%' || c == '$' ||
+	    c == '#' || c == '@' || c == '!' || c == '~')
 		return 1;
 	else
 		return 0;
@@ -325,17 +331,21 @@ void wrapword(P *p, long int indent, int french, char *indents)
 		prm(q);
 
 		/* Move word to beginning of next line */
-		binsc(p, '\n'), ++to;
+		binsc(p, '\n');
+		++to;
 		if (p->b->o.crlf)
 			++to;
 		pgetc(p);
 
 		/* Indent to left margin */
-		if (indents)
-			binss(p, indents), to += strlen(indents);
-		else
-			while (indent--)
-				binsc(p, ' '), ++to;
+		if (indents) {
+			binss(p, indents);
+			to += strlen(indents);
+		} else
+			while (indent--) {
+				binsc(p, ' ');
+				++to;
+			}
 
 		if (rmf)
 			joe_free(indents);
@@ -460,7 +470,7 @@ int uformat(BW *bw)
 	/* Do rest */
 
 	while (len > 0)
-		if (isspace(*b) || *b == '\r') {
+		if (isblank(*b) || *b == '\n' || *b == '\r') {
 			int f = 0;
 
 			/* Set f if there are two spaces after . ? or ! instead of one */
@@ -474,24 +484,28 @@ int uformat(BW *bw)
 			if (*b == '\r' && len) {
 				if (b - buf == curoff)
 					pset(bw->cursor, p);
-				++b, --len;
+				++b;
+				--len;
 			}
 
 			if (*b == '\n' && len) {
 				if (b - buf == curoff)
 					pset(bw->cursor, p);
-				++b, --len;
+				++b;
+				--len;
 				while (cpara(*b) && len) {
 					if (b - buf == curoff)
 						pset(bw->cursor, p);
-					++b, --len;
+					++b;
+					--len;
 				}
 			}
 
 			if (len && isblank(*b)) {
 				if (b - buf == curoff)
 					pset(bw->cursor, p);
-				++b, --len;
+				++b;
+				--len;
 				goto loop;
 			}
 

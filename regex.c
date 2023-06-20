@@ -59,26 +59,46 @@ static int escape(unsigned char **a, int *b)
 		case '6':
 		case '7':
 			c = *s - '0';
-			if (l > 1 && s[1] >= '0' && s[1] <= '7')
-				c = c * 8 + s[1] - '0', ++s, --l;
-			if (l > 1 && s[1] >= '0' && s[1] <= '7')
-				c = c * 8 + s[1] - '0', ++s, --l;
+			if (l > 1 && s[1] >= '0' && s[1] <= '7') {
+				c = c * 8 + s[1] - '0';
+				++s;
+				--l;
+			}
+			if (l > 1 && s[1] >= '0' && s[1] <= '7') {
+				c = c * 8 + s[1] - '0';
+				++s;
+				--l;
+			}
 			break;
 		case 'x':
 		case 'X':
 			c = 0;
-			if (l > 1 && s[1] >= '0' && s[1] <= '9')
-				c = c * 16 + s[1] - '0', ++s, --l;
-			else if (l > 1 && s[1] >= 'A' && s[1] <= 'F')
-				c = c * 16 + s[1] - 'A' + 10, ++s, --l;
-			else if (l > 1 && s[1] >= 'a' && s[1] <= 'f')
-				c = c * 16 + s[1] - 'a' + 10, ++s, --l;
-			if (l > 1 && s[1] >= '0' && s[1] <= '9')
-				c = c * 16 + s[1] - '0', ++s, --l;
-			else if (l > 1 && s[1] >= 'A' && s[1] <= 'F')
-				c = c * 16 + s[1] - 'A' + 10, ++s, --l;
-			else if (l > 1 && s[1] >= 'a' && s[1] <= 'f')
-				c = c * 16 + s[1] - 'a' + 10, ++s, --l;
+			if (l > 1 && s[1] >= '0' && s[1] <= '9') {
+				c = c * 16 + s[1] - '0';
+				++s;
+				--l;
+			} else if (l > 1 && s[1] >= 'A' && s[1] <= 'F') {
+				c = c * 16 + s[1] - 'A' + 10;
+				++s;
+				--l;
+			} else if (l > 1 && s[1] >= 'a' && s[1] <= 'f') {
+				c = c * 16 + s[1] - 'a' + 10;
+				++s;
+				--l;
+			}
+			if (l > 1 && s[1] >= '0' && s[1] <= '9') {
+				c = c * 16 + s[1] - '0';
+				++s;
+				--l;
+			} else if (l > 1 && s[1] >= 'A' && s[1] <= 'F') {
+				c = c * 16 + s[1] - 'A' + 10;
+				++s;
+				--l;
+			} else if (l > 1 && s[1] >= 'a' && s[1] <= 'f') {
+				c = c * 16 + s[1] - 'a' + 10;
+				++s;
+				--l;
+			}
 			break;
 		default:
 			c = *s;
@@ -86,8 +106,10 @@ static int escape(unsigned char **a, int *b)
 		}
 		++s;
 		--l;
-	} else
-		(c = *s++), --l;
+	} else {
+		c = *s++;
+		--l;
+	}
 	*a = s;
 	*b = l;
 	return c;
@@ -102,8 +124,11 @@ static int brack(unsigned char **a, int *la, unsigned char c)
 
 	if (!l)
 		return 0;
-	if (*s == '^' || *s == '*')
-		inverse = 1, ++s, --l;
+	if (*s == '^' || *s == '*') {
+		inverse = 1;
+		++s;
+		--l;
+	}
 	if (l && *s == ']') {
 		++s;
 		--l;
@@ -138,7 +163,7 @@ static int brack(unsigned char **a, int *la, unsigned char c)
 
 static void savec(char **pieces, int n, char c)
 {
-	char *s = 0;
+	char *s = NULL;
 
 	if (pieces[n])
 		vsrm(pieces[n]);
@@ -148,7 +173,7 @@ static void savec(char **pieces, int n, char c)
 
 static void saves(char **pieces, int n, P *p, long int szz)
 {
-	if (szz >= MAXINT - 31)
+	if (szz >= MAXINT - 31)		/* FIXME: why MAXINT - 31 ? */
 		pieces[n] = vstrunc(pieces[n], 0);
 	else {
 		pieces[n] = vstrunc(pieces[n], (int) szz);
@@ -156,6 +181,8 @@ static void saves(char **pieces, int n, P *p, long int szz)
 	}
 }
 
+/* FIXME: overloaded meaning of MAXINT below (MAXINT - 1) */
+/*        what's the meaning of this? */
 static int skip_special(P *p)
 {
 	int to, s;
@@ -163,15 +190,19 @@ static int skip_special(P *p)
 	switch (s = pgetc(p)) {
 	case '"':
 		do {
-			if ((s = pgetc(p)) == '\\')
-				pgetc(p), s = pgetc(p);
-		} while (s != MAXINT && s != '\"');
-		if (s == '\"')
+			if ((s = pgetc(p)) == '\\') {
+				pgetc(p);
+				s = pgetc(p);
+			}
+		} while (s != NO_MORE_DATA && s != '"');
+		if (s == '"')
 			return MAXINT - 1;
 		break;
 	case '\'':
-		if ((s = pgetc(p)) == '\\')
-			s = pgetc(p), s = pgetc(p);
+		if ((s = pgetc(p)) == '\\') {
+			s = pgetc(p);
+			s = pgetc(p);
+		}
 		if (s == '\'')
 			return MAXINT - 1;
 		if ((s = pgetc(p)) == '\'')
@@ -190,7 +221,7 @@ static int skip_special(P *p)
 skip:
 		do {
 			s = skip_special(p);
-		} while (s != to && s != MAXINT);
+		} while (s != to && s != NO_MORE_DATA);
 		if (s == to)
 			return MAXINT - 1;
 		break;
@@ -202,8 +233,8 @@ skip:
 				while (s == '*')
 					if ((s = pgetc(p)) == '/')
 						return MAXINT - 1;
-			} while (s != MAXINT);
-		else if (s != MAXINT)
+			} while (s != NO_MORE_DATA);
+		else if (s != NO_MORE_DATA)
 			s = prgetc(p);
 		else
 			s = '/';
@@ -216,7 +247,7 @@ int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 {
 	int c, d;
 	P *q = pdup(p);
-	P *o = 0;
+	P *o = NULL;
 
 	while (len--)
 		switch (c = *regex++) {
@@ -226,7 +257,7 @@ int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 			switch (c = *regex++) {
 			case '?':
 				d = pgetc(p);
-				if (d == MAXINT)
+				if (d == NO_MORE_DATA)
 					goto fail;
 				savec(pieces, n++, (char) d);
 				break;
@@ -265,7 +296,7 @@ int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 						goto succeed;
 					}
 					c = pgetc(p);
-				} while (c != MAXINT && c != '\n');
+				} while (c != NO_MORE_DATA && c != '\n');
 				goto fail;
 			case 'c':
 				o = pdup(p);
@@ -276,11 +307,11 @@ int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 						saves(pieces, n, o, pb - o->byte);
 						goto succeed;
 					}
-				} while (skip_special(p) != MAXINT);
+				} while (skip_special(p) != NO_MORE_DATA);
 				goto fail;
 			case '[':
 				d = pgetc(p);
-				if (d == MAXINT)
+				if (d == NO_MORE_DATA)
 					goto fail;
 				if (!brack(&regex, &len, d))
 					goto fail;
@@ -288,24 +319,31 @@ int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 				break;
 			case '+':
 				{
-					char *oregex = regex;	/* Point to character to skip */
+					unsigned char *oregex = regex;	/* Point to character to skip */
 					int olen = len;
 
 					unsigned char *tregex;
 					int tlen;
 
-					P *r = 0;
+					int match;
+
+					P *r = NULL;
 
 					o = pdup(p);
 
 					/* Advance over character to skip */
-					if (len >= 2 && regex[0] == '\\' && regex[1] == '[') {
-						regex += 2;
-						len -= 2;
-						brack(&regex, &len, 0);
-					} else if (len >= 1)
-						--len, ++regex;
-					else
+					if (len >= 2 && regex[0] == '\\') {
+						if (regex[1] == '[') {
+							regex += 2;
+							len -= 2;
+							brack(&regex, &len, 0);
+						} else {
+							escape(&regex, &len);
+						}
+					} else if (len >= 1) {
+						--len;
+						++regex;
+					} else
 						goto done;
 
 					/* Now oregex/olen point to character to skip over and
@@ -323,12 +361,28 @@ int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 						pset(p, z);
 						prm(z);
 						c = pgetc(p);
-					} while (c != MAXINT && (*oregex == '\\' ? (tregex = oregex + 2, tlen = olen - 2, brack(&tregex, &tlen, c))
-							       : (icase ? toupper(c) == toupper(*oregex) : c == *oregex)));
+						tregex = oregex;
+						tlen = olen;
+						if (*oregex == '\\') {
+							if (oregex[1] == '[') {
+								tregex += 2;
+								tlen -= 2;
+								match = brack(&tregex, &tlen, c);
+							} else
+								match = (escape(&tregex, &tlen) == c);
+						} else {
+							if(icase)
+								match = (toupper(c) == toupper(*tregex));
+							else
+								match = (c == *tregex);
+						}
+					} while (c != NO_MORE_DATA && match);
 
 				      done:
-					if (r)
-						pset(p, r), prm(r);
+					if (r) {
+						pset(p, r);
+						prm(r);
+					}
 					if (r)
 						goto succeed;
 					else

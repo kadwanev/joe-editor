@@ -44,11 +44,14 @@ static void disppw(BW *bw, int flg)
 		}
 	} else {
 		if (piscol(bw->cursor) < w->w - pw->promptlen) {
-			pw->promptofst = 0, bw->offset = 0;
+			pw->promptofst = 0;
+			bw->offset = 0;
 		} else if (piscol(bw->cursor) >= w->w) {
-			pw->promptofst = pw->promptlen, bw->offset = piscol(bw->cursor) - (w->w - 1);
+			pw->promptofst = pw->promptlen;
+			bw->offset = piscol(bw->cursor) - (w->w - 1);
 		} else {
-			pw->promptofst = pw->promptlen - (w->w - piscol(bw->cursor) - 1), bw->offset = piscol(bw->cursor) - (w->w - (pw->promptlen - pw->promptofst) - 1);
+			pw->promptofst = pw->promptlen - (w->w - piscol(bw->cursor) - 1);
+			bw->offset = piscol(bw->cursor) - (w->w - (pw->promptlen - pw->promptofst) - 1);
 		}
 	}
 
@@ -117,7 +120,7 @@ static int rtnpw(BW *bw)
 	bwrm(bw);
 	joe_free(pw->prompt);
 	joe_free(pw);
-	w->object = 0;
+	w->object = NULL;
 	notify = w->notify;
 	w->notify = 0;
 	wabort(w);
@@ -179,8 +182,8 @@ static WATOM watompw = {
 	abortpw,
 	rtnpw,
 	utypebw,
-	0,
-	0,
+	NULL,
+	NULL,
 	inspw,
 	delpw,
 	TYPEPW
@@ -199,7 +202,7 @@ BW *wmkpw(W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt
 		if (notify) {
 			*notify = 1;
 		}
-		return 0;
+		return NULL;
 	}
 	wfit(new->t);
 	new->object = (void *) (bw = bwmk(new, bmk(NULL), 1));
@@ -222,7 +225,7 @@ BW *wmkpw(W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt
 		p_goto_eof(bw->top);
 		p_goto_bol(bw->top);
 	} else {
-		pw->hist = 0;
+		pw->hist = NULL;
 	}
 	w->t->curwin = new;
 	return bw;

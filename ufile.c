@@ -55,8 +55,8 @@
 #include "w.h"
 
 extern int orphan;
-char *backpath = 0;		/* Place to store backup files */
-static B *filehist = 0;		/* History of file names */
+char *backpath = NULL;		/* Place to store backup files */
+static B *filehist = NULL;	/* History of file names */
 int nobackups = 0;
 int exask = 0;
 
@@ -151,13 +151,13 @@ static int cp(char *from, char *to)
 	if (fstat(f, &sbuf) < 0) {
 		return -1;
 	}
-	g = creat(to, sbuf.st_mode);
+	g = creat(to, sbuf.st_mode & ~(S_ISUID | S_ISGID));
 	if (g < 0) {
 		close(f);
 		return -1;
 	}
 	while ((amnt = read(f, stdbuf, stdsiz)) > 0) {
-		if (amnt != write(g, stdbuf, amnt)) {
+		if (amnt != joe_write(g, stdbuf, amnt)) {
 			break;
 		}
 	}
@@ -202,8 +202,7 @@ static int backup(BW *bw)
 		}
 
 		for (x = strlen(name); name[--x] != '.';) {
-			if (name[x] == '\\' || (name[x] == ':' && x == 1)
-			    || x == 0) {
+			if (name[x] == '\\' || (name[x] == ':' && x == 1) || x == 0) {
 				x = strlen(name);
 				break;
 			}
@@ -281,7 +280,8 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 		*notify = 1;
 	}
 	if (bw->b->er == -1 && bw->o.msnew) {
-		exemac(bw->o.msnew), bw->b->er = -3;
+		exemac(bw->o.msnew);
+		bw->b->er = -3;
 	}
 	if (bw->b->er == 0 && bw->o.msold) {
 		exemac(bw->o.msold);
@@ -775,7 +775,7 @@ static int dobuf(MENU *m, int x, char **s)
 
 	m->parent->notify = 0;
 	name = vsdup(s[x]);
-	uabort(m, MAXINT);
+	wabort(m->parent);
 	return dorepl(bw, name, NULL, notify);
 }
 

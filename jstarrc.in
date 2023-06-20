@@ -176,7 +176,7 @@
 {Programs
 \i   Help Screen    turn off with ^J     prev. screen ^[,    next screen ^[.     \i
 \i \iGOTO                INDENT    COMPILING                                      \i \i
-\i \i^Q[ Mathcing ( [ {  ^K. more  ^[C Compile and parse errors                   \i \i
+\i \i^Q[ Matching ( [ {  ^K. more  ^[C Compile and parse errors                   \i \i
 \i \i^QP Previous place  ^K, less  ^[E Parse errors                               \i \i
 \i \i^K= Next place                ^[= Goto next error                            \i \i
 \i \i^K; Tags file srch            ^[- Goto previous error                        \i \i
@@ -405,6 +405,7 @@ eof		^Q C		Go to end of file
 eof		^Q ^C
 eof		^Q c
 eol		.kH		Go to end of line
+eol		.@7
 eol		^[ [ F
 eol		^[ [ 4 ~
 eol		^Q D

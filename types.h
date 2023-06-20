@@ -84,9 +84,9 @@ struct point {
 
 	long	byte;		/* ??? */
 	long	line;		/* ??? */
-	long	col;		/* ??? */
+	long	col;		/* current column */
 	long	xcol;		/* ??? */
-	int	valcol;		/* ??? */
+	int	valcol;		/* bool: is col valid? */
 	int	end;		/* ??? */
 
 	P	**owner;	/* ??? */
@@ -183,6 +183,7 @@ struct help {
 	unsigned int	lines;		/* number of lines */
 	struct help	*prev;		/* previous help screen */
 	struct help	*next;		/* nex help screen */
+	unsigned char	*name;		/* context name for context sensitive help */
 };
 
 /* A key binding */
@@ -576,7 +577,7 @@ struct search {
 	P	*markb, *markk;	/* Original marks */
 	int	valid;		/* Set if original marks are a valid block */
 	long	addr;		/* Addr of last replacement or -1 for none */
-	int	restrict;	/* Search restricted to marked block */
+	int	block_restrict;	/* Search restricted to marked block */
 };
 
 

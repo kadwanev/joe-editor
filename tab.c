@@ -105,9 +105,12 @@ static void insnam(BW *bw, char *path, char *nam)
 	p_goto_eol(bw->cursor);
 	bdel(p, bw->cursor);
 	if (sLEN(path)) {
-		binsm(bw->cursor, sv(path)), p_goto_eol(bw->cursor);
-		if (path[sLEN(path) - 1] != '/')
-			binsm(bw->cursor, sc("/")), p_goto_eol(bw->cursor);
+		binsm(bw->cursor, sv(path));
+		p_goto_eol(bw->cursor);
+		if (path[sLEN(path) - 1] != '/') {
+			binsm(bw->cursor, sc("/"));
+			p_goto_eol(bw->cursor);
+		}
 	}
 	binsm(bw->cursor, sv(nam));
 	p_goto_eol(bw->cursor);
@@ -185,8 +188,7 @@ static int tabrtn(MENU *m, int cursor, TAB *tab)
 		char *e = endprt(tab->path);
 
 		if (!strcmp(tab->files[cursor], "..") && sLEN(e)
-		    && !(e[0] == '.' && e[1] == '.' && (!e[2]
-							|| e[2] == '/')))
+		    && !(e[0] == '.' && e[1] == '.' && (!e[2] || e[2] == '/')))
 			tab->path = begprt(tab->path);
 		else {
 			tab->path = vsncpy(NULL, 0, sv(tab->path));
@@ -211,8 +213,8 @@ static int tabrtn(MENU *m, int cursor, TAB *tab)
 
 		insnam(bw, tab->path, tab->files[cursor]);
 		rmtab(tab);
-		m->object = 0;
-		m->abrt = 0;
+		m->object = NULL;
+		m->abrt = NULL;
 		wabort(m->parent);
 		return 0;
 	}
@@ -273,9 +275,9 @@ int cmplt(BW *bw)
 		return -1;
 	}
 
-	tab->files = 0;
-	tab->type = 0;
-	tab->list = 0;
+	tab->files = NULL;
+	tab->type = NULL;
+	tab->list = NULL;
 	tab->prv = 0;
 	tab->len = 0;
 

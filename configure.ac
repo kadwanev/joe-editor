@@ -1,29 +1,39 @@
 # Process this file with autoconf to produce a configure script.
-AC_PREREQ(2.52)
 
-# Init automake
-AC_INIT
+# We need AC_PROG_EGREP
+AC_PREREQ(2.54)
+
+#### Here's the only place where to change version number ####
+AC_INIT(joe, 2.9.8)
 AC_CONFIG_SRCDIR([b.c])
+
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
-#### Here's the only place where to change version number ####
-AM_INIT_AUTOMAKE(joe, 2.9.8-pre1)
-
+# Init automake
+AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE
 AM_CONFIG_HEADER(autoconf.h)
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CPP
+AC_PROG_EGREP
 AC_PROG_INSTALL
 AC_PROG_LN_S
 
+case "$host" in
+	*-*-solaris*)
+		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
+		LDFLAGS="$LDFLAGS -L/usr/local/lib -R/usr/local/lib"
+		;;
+	*)	;;
+esac
+
 # Checks for libraries.
 AC_SEARCH_LIBS(tgetflag, ncurses curses termcap, AC_DEFINE_UNQUOTED(TERMINFO, 1, [If we have newer terminfo/termcap capabilities]))
-# AC_CHECK_LIB([ncurses], [tgetstr])
-
+AC_SEARCH_LIBS(snprintf, snprintf)
 
 # Checks for header files.
 AC_HEADER_DIRENT
@@ -40,7 +50,7 @@ AC_HEADER_TIOCGWINSZ
 AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
 AC_CHECK_HEADERS([ncurses.h curses.h sys/dirent.h time.h pwd.h paths.h])
-AC_CHECK_HEADERS([term.h sys/types.h sys/stat.h sys/wait.h limits.h])
+AC_CHECK_HEADERS([term.h sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_PROTOTYPES
@@ -53,12 +63,17 @@ AC_CHECK_SIZEOF(short, 2)
 AC_CHECK_SIZEOF(int, 4)
 AC_CHECK_SIZEOF(long, 4)
 AC_CHECK_SIZEOF(void *, 4)
-
+AC_CHECK_TYPE([sighandler_t],
+	[AC_DEFINE([HAVE_SIGHANDLER_T], 1, [Define if you have the `sighandler_t' type.])],
+	,
+	[/* if you have signal.h header, include it */
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>
+#endif])
 
 # Checks for library functions.
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_LSTAT
-AC_FUNC_MALLOC
 joe_SETPGRP
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
@@ -78,21 +93,22 @@ if test x"$ac_cv_func_isblank" = xyes; then
 	joe_ISBLANK
 fi
 AC_CHECK_FUNCS([alarm mkdir mkstemp setlocale strchr strdup utime setpgid])
-AC_CHECK_FUNCS([setitimer siginterrupt sigprocmask])
+AC_CHECK_FUNC([snprintf],, AC_MSG_ERROR([snprintf not available: I won't build for this ancient system]))
+AC_CHECK_FUNCS([setitimer sigaction sigvec siginterrupt sigprocmask])
 
+joe_REINSTALL_SIGHANDLERS
 
 dnl not yet :-)
 dnl AM_GNU_GETTEXT
 
 AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 #ifndef PARAMS
-#  if PROTOTYPES
+#  ifdef PROTOTYPES
 #    define PARAMS(protos) protos
 #  else
 #    define PARAMS(protos) ()
 #  endif
-#endif
-])
+#endif])
 
 AC_CONFIG_FILES([Makefile joe.1 joerc jmacsrc jstarrc rjoerc jpicorc])
 AC_OUTPUT

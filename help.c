@@ -15,6 +15,7 @@
 #include "blocks.h"
 #include "scrn.h"
 #include "utils.h"
+#include "vs.h"
 #include "w.h"
 
 #define NOT_ENOUGH_MEMORY -11
@@ -36,7 +37,7 @@ int help_init(char *filename)
 	struct help *tmp;
 	unsigned int bfl;				/* buffer length */
 	unsigned int hlpsiz, hlpbsz;			/* number of used/allocated bytes for tmp->text */
-	char *tempbuf;
+	unsigned char *tempbuf;
 
 	if (!(fd = fopen(filename, "r")))		/* open the help file */
 		return -1;				/* return if we couldn't open the file */
@@ -54,12 +55,13 @@ int help_init(char *filename)
 			tmp->lines = 0;
 			hlpsiz = 0;
 			hlpbsz = 0;
+			tmp->name = vsncpy(NULL, 0, sz(buf + 1) - 1);
 
 			while ((fgets(buf, sizeof(buf), fd)) && (buf[0] != '}')) {
 				bfl = strlen(buf);
 				if (hlpsiz + bfl > hlpbsz) {
 					if (tmp->text) {
-						tempbuf = (char *) joe_realloc(tmp->text, hlpbsz + bfl + 1024);
+						tempbuf = (unsigned char *) joe_realloc(tmp->text, hlpbsz + bfl + 1024);
 						if (!tempbuf) {
 							joe_free(tmp->text);
 							joe_free(tmp);
@@ -68,7 +70,7 @@ int help_init(char *filename)
 							tmp->text = tempbuf;
 						}
 					} else {
-						tmp->text = (char *) joe_malloc(bfl + 1024);
+						tmp->text = (unsigned char *) joe_malloc(bfl + 1024);
 						if (!tmp->text) {
 							joe_free(tmp);
 							return NOT_ENOUGH_MEMORY;
@@ -121,11 +123,28 @@ int help_init(char *filename)
 }
 
 /*
+ * Find context help - find help entry with the same name
+ */
+
+struct help *find_context_help(unsigned char *name)
+{
+	struct help *tmp = help_actual;
+
+	while (tmp->prev != NULL)	/* find the first help entry */
+		tmp = tmp->prev;
+
+	while (tmp != NULL && strcmp(tmp->name, name) != 0)
+		tmp = tmp->next;
+
+	return tmp;
+}
+
+/*
  * Display help text
  */
 void help_display(SCREEN *t)
 {
-	char *str;
+	unsigned char *str;
 	int y, x, c;
 	int atr = 0;
 
@@ -181,10 +200,10 @@ void help_display(SCREEN *t)
 							--x;
 							continue;
 						default:
-							c = (unsigned char) *str++;
+							c = *str++;
 						}
 					} else {
-						c = (unsigned char) *str++;
+						c = *str++;
 					}
 					outatr(t->t, t->t->scrn + x + y * t->w, x, y, c, atr);
 				}
@@ -237,7 +256,15 @@ static void help_off(SCREEN *t)
 int u_help(BASE *base)
 {
 	W *w = base->parent;
+	struct help *new_help;
 
+	if (w->huh && (new_help = find_context_help(w->huh)) != NULL) {
+		if (help_actual != new_help) {
+			if (w->t->wind != skiptop)
+				help_off(w->t);
+			help_actual = new_help;		/* prepare context help */
+		}
+	}
 	if (w->t->wind == skiptop) {
 		return help_on(w->t);			/* help screen is hidden, so show the actual one */
 	} else {
@@ -253,11 +280,11 @@ int u_help_next(BASE *base)
 {
 	W *w = base->parent;
 
-	if (help_actual && help_actual->next) {		/* is there any previous help screen? */
+	if (help_actual && help_actual->next) {		/* is there any next help screen? */
 		if (w->t->wind != skiptop) {
 			help_off(w->t);			/* if help screen was visible, then hide it */
 		}
-		help_actual = help_actual->next;	/* change to previous help screen */
+		help_actual = help_actual->next;	/* change to next help screen */
 		return help_on(w->t);			/* show actual help screen */
 	} else {
 		return -1;

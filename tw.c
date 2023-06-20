@@ -26,7 +26,6 @@
 #include "vs.h"
 #include "w.h"
 
-char *ctime(const time_t *);
 extern char *exmsg;
 extern int square;
 int staen = 0;
@@ -76,7 +75,7 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 			switch (*++s) {
 			case 't':
 				{
-					long n = time(NULL);
+					time_t n = time(NULL);
 					int l;
 					char *d = ctime(&n);
 
@@ -92,7 +91,7 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 				break;
 			case 'u':
 				{
-					long n = time(NULL);
+					time_t n = time(NULL);
 					char *d = ctime(&n);
 
 					stalin = vsncpy(sv(stalin), d + 11, 5);
@@ -214,14 +213,18 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 						for (i = 0; i != w->kbd->x; ++i) {
 							int c = w->kbd->seq[i] & 127;
 
-							if (c < 32)
-								cpos[0] = '^', cpos[1]
-								    = c + '@', cpos += 2;
-							else if (c == 127)
-								cpos[0] = '^', cpos[1]
-								    = '?', cpos += 2;
-							else
-								cpos[0] = c, cpos += 1;
+							if (c < 32) {
+								cpos[0] = '^';
+								cpos[1] = c + '@';
+								cpos += 2;
+							} else if (c == 127) {
+								cpos[0] = '^';
+								cpos[1] = '?';
+								cpos += 2;
+							} else {
+								cpos[0] = c;
+								cpos += 1;
+							}
 						}
 					*cpos++ = fill;
 					while (cpos - buf < 4)
@@ -276,8 +279,7 @@ static void disptw(BW *bw, int flg)
 		tw->stalin = stagen(tw->stalin, bw, bw->o.lmsg, fill);
 		tw->staright = stagen(tw->staright, bw, bw->o.rmsg, fill);
 		if (fmtlen(tw->staright) < w->w) {
-			int x = fmtpos(tw->stalin,
-				       w->w - fmtlen(tw->staright));
+			int x = fmtpos(tw->stalin, w->w - fmtlen(tw->staright));
 
 			if (x > sLEN(tw->stalin))
 				tw->stalin = vsfill(sv(tw->stalin), fill, x - sLEN(tw->stalin));
@@ -296,8 +298,8 @@ static void disptw(BW *bw, int flg)
 
 static void iztw(TW *tw, int y)
 {
-	tw->stalin = 0;
-	tw->staright = 0;
+	tw->stalin = NULL;
+	tw->staright = NULL;
 	tw->changed = -1;
 	tw->prevline = -1;
 	tw->staon = (!staen || y);
@@ -387,7 +389,7 @@ static int naborttw(BW *bw, int k, void *object, int *notify)
 	bwrm(bw);
 	vsrm(tw->stalin);
 	joe_free(tw);
-	w->object = 0;
+	w->object = NULL;
 	wabort(w);		/* Eliminate this window and it's children */
 	return 0;
 }
@@ -408,7 +410,7 @@ static WATOM watomtw = {
 	"main",
 	disptw,
 	bwfllw,
-	0,
+	NULL,
 	rtntw,
 	utypebw,
 	resizetw,
@@ -502,7 +504,8 @@ int utw1(BASE *b)
 				msgnw(bw->parent, "Process running in this window");
 				return -1;
 			}
-			utw0((BASE *)bw), yn = 1;
+			utw0((BASE *)bw);
+			yn = 1;
 			goto loop;
 		}
 	} while (yn);

@@ -1,3 +1,222 @@
+Mon May  5 2003  Vitezslav Samel <samel@mail.cz>
+	*** Release joe-2.9.8 ***
+
+	* NEWS, configure.ac, main.c:
+	update NEWS; bump up version; update copyright year
+	
+Sat May  3 2003  Vitezslav Samel <samel@mail.cz>
+	* README:
+	delete untrue statements and mention the new build system;
+	this file needs some more work
+
+Sat Mar 22 2003  Vitezslav Samel <samel@mail.cz>
+	* jstarrc.in, rc.c:
+	fix typos (patch by Jesse McGrew)
+
+Sat Mar 22 2003  Vitezslav Samel <samel@mail.cz>
+	* cmd.c:
+	fix memleak in docmd() (patch by Jesse McGrew)
+
+Sat Mar 22 2003  Vitezslav Samel <samel@mail.cz>
+	* path.c:
+	use O_EXCL when creating temporary file
+
+Sun Mar  2 2003  Vitezslav Samel <samel@mail.cz>
+	* bw.c, cmd.c, hash.c, kbd.c, macro.c, main.c, menu.c, path.c,
+	poshist.c, pw.c, qw.c, rc.c, regex.c, scrn.c, tab.c, termcap.c, tty.c,
+	tw.c, ublock.c, uedit.c, uerror.c, ufile.c, uisrch.c, umath.c, undo.c,
+	usearch.c, ushell.c, utag.c, vfile.c, vs.c, w.c:
+	change 0 to NULL where we're talking about pointers
+
+Sun Mar  2 2003  Vitezslav Samel <samel@mail.cz>
+	* vs.c, vs.h:
+	make vsrm() and slen() of type sELEMENT *
+
+Sat Feb 22 2003  Vitezslav Samel <samel@mail.cz>
+	* configure.ac:
+	remove AC_FUNC_MALLOC check; this fixes problem with compilation
+	on alpha; we should check for size == 0 in joe_malloc()
+
+Wed Feb 19 2003  Vitezslav Samel <samel@mail.cz>
+	* b.c, b.h, cmd.c, cmd.h, help.c, kbd.c, kbd.h, macro.c, macro.h,
+	main.c, rc.c, rc.h, regex.c, uisrch.c:
+	change type of variables holding string to unsigned char *
+
+Wed Feb 19 2003  Vitezslav Samel <samel@mail.cz>
+	* b.c, tw.c:
+	change type of variables holding time values to time_t
+
+Sat Feb 15 2003  Vitezslav Samel <samel@mail.cz>
+	* b.c, b.h, bw.c, config.h, macro.c, regex.c, tty.c, ublock.c, uedit.c,
+	uerror.c, uformat.c, uisrch.c, usearch.c, utag.c, utils.c, utils.h,
+	vfile.c, vfile.h:
+	fix segafults in isalpha(): replace MAXINT with NO_MORE_DATA symbol
+	which has value of EOF (-1); that value is permitted to pass into
+	isalpha() type functions
+
+Sun Jan  5 2003  Vitezslav Samel <samel@mail.cz>
+	* configure.ac:
+	newer versions (>= 2.54) of autoconf need AC_PROG_EGREP to prevent
+	lockup when running configure; this change require autoconf-2.54
+	at least to properly build joe from CVS
+
+Wed Jan  1 2003  Vitezslav Samel <samel@mail.cz>
+	* rc.c:
+	eliminate "expr, expr" to make sources more readable;
+	change "magic number" to the sizeof()
+
+Wed Jan  1 2003  Vitezslav Samel <samel@mail.cz>
+	* b.c:
+	pisbow() should match the beginning of file and piseow() should match
+	the end of file
+
+Sat Dec  7 2002  Vitezslav Samel <samel@mail.cz>
+	* kbd.c:
+	don't expect all archs have "char == signed char" by default
+
+Sat Dec  7 2002  Vitezslav Samel <samel@mail.cz>
+	* blocks.c, vfile.c:
+	64bit arch fixes: don't expect pointer fits into int (now we assume
+	it fits into unsigned long)
+
+Sat Dec  7 2002  Vitezslav Samel <samel@mail.cz>
+	* types.h, usearch.c:
+	rename restrict() and restrict member of struct search to make
+	joe compile under HPUX with HP C compiler
+
+Mon Aug  5 2002  Vitezslav Samel <samel@mail.cz>
+	*** SECURITY ***
+	* ufile.c:
+	drop suid and sgid bits (if set) when creating backup files
+
+Sat Jul 27 2002  Vitezslav Samel <samel@mail.cz>
+	* jmacsrc.in, jpicorc.in, jstarrc.in:
+	use .@7 terminfo entry for "End" key
+
+Wed Jun 26 2002  Vitezslav Samel <samel@mail.cz>
+	* bw.c, rc.c, rc.h, w.c:
+	rename getcontext() to kmap_getcontext() to prevent conflict with glibc
+	(from Debian patches)
+
+Mon Jun 17 2002  Vitezslav Samel <samel@mail.cz>
+	* ublock.c:
+	insert braces to make if() block evident
+
+Sun Jun  9 2002  Vitezslav Samel <samel@mail.cz>
+	* b.c, bw.c, cmd.c, hash.c, kbd.c, macro.c, main.c, rc.c, regex.c,
+	termcap.c, tty.c, ublock.c, umath.c, vfile.c:
+	change "expr, expr" to "expr; expr" where appropriate to make sources
+	more readable (should have no impact on code) (take 2)
+
+Sun Jun  9 2002  Vitezslav Samel <samel@mail.cz>
+	* hash.c, hash.h:
+	move hnext() definition into hash.c
+
+Sun Jun  9 2002  Vitezslav Samel <samel@mail.cz>
+	* bw.c, rc.c, termcap.c, ufile.c, usearch.c:
+	kill some warnings when compiled with -Wall
+
+Sat Jun  8 2002  Vitezslav Samel <samel@mail.cz>
+	* cmd.c:
+	unwrap array elements in initialization of cmds[]
+
+Sat Jun  8 2002  Vitezslav Samel <samel@mail.cz>
+	* va.c, va.h:
+	change aELEMENT #define to typedef
+
+Sat Jun  8 2002  Vitezslav Samel <samel@mail.cz>
+	* ufile.c:
+	change write() to joe_write() to avoid partly copied files
+
+Sat Jun  8 2002  Vitezslav Samel <samel@mail.cz>
+	* termcap.c:
+	strcmp() can return values other than -1/0/+1
+
+Sat Jun  8 2002  Vitezslav Samel <samel@mail.cz>
+	* b.c, bw.c, macro.c, path.c, pw.c, queue.h, rc.c, regex.c, scrn.c,
+	scrn.h, tab.c, termcap.c, termidx.c, tty.c, tw.c, ublock.c, uedit.c,
+	uerror.c, ufile.c, uformat.c, undo.c, usearch.c, ushell.c, vfile.c,
+	vs.c, w.c:
+	change "expr, expr" to "expr; expr" where appropriate to make sources
+	more readable (should have no impact on code)
+
+Tue Jun  4 2002  Vitezslav Samel <samel@mail.cz>
+	* scrn.c:
+	don't clear screen when nonzero skiptop is given (part 2)
+
+Mon Jun  3 2002  Vitezslav Samel <samel@mail.cz>
+	* scrn.c:
+	don't clear screen when nonzero skiptop is given
+
+Sat Jun  1 2002  Vitezslav Samel <samel@mail.cz>
+	* configure.ac, utils.c:
+	kill warnings when compilling with -Wundef
+
+Tue May 21 2002  Vitezslav Samel <samel@mail.cz>
+	* poshist.c, scrn.c, uformat.c:
+	include some headers which are needed to compile without warnings about
+	implicit function declarations
+
+Sun May  5 2002  Vitezslav Samel <samel@mail.cz>
+	* NEWS:
+	change wrong version for the last entry
+
+Sun May  5 2002  Vitezslav Samel <samel@mail.cz>
+	* configure.ac:
+	solaris compile fix; check for snprintf - if not available, kick out
+
+Sun Mar 10 2002  Vitezslav Samel <samel@mail.cz>
+	* uformat.c:
+	remove deadlock when reformating paragraph (badly converted whitel()
+	to isspace() from removed zstr.c in joe-2.9.2)
+
+Wed Jan 30 2002  Vitezslav Samel <samel@mail.cz>
+	* b.c:
+	use GCHAR macro - clean up the source
+
+Wed Jan 30 2002  Vitezslav Samel <samel@mail.cz>
+	* b.c:
+	change 0 to NULL when used as pointer
+
+Wed Jan 30 2002  Vitezslav Samel <samel@mail.cz>
+	* b.c:
+	change "expr, expr" to "expr; expr"
+
+Wed Jan 30 2002  Vitezslav Samel <samel@mail.cz>
+	* b.c, b.h, types.h:
+	cosmetic cleanup: add comments - this patch doesn't touch code
+
+Fri Jan 25 2002  Vitezslav Samel <samel@mail.cz>
+	* termcap.c:
+	strcmp() can return values other than -1/0/+1 (fix supplied by
+	Schermann Gabor <gaborsch@mailbox.hu>)
+
+Sat Jan 19 2002  Vitezslav Samel <samel@mail.cz>
+	* ublock.c:
+	don't use markb and markk after they are freed (fixes segfault)
+
+Sun Jan 13 2002  Vitezslav Samel <samel@mail.cz>
+	* regex.c:
+	fix char escaping in \+ case
+
+Sat Jan 12 2002  Vitezslav Samel <samel@mail.cz>
+	* help.c, types.h:
+	get back context help (vanished in cleaning patch to help by marx_sk)
+	(context help is now only used in search prompt window)
+
+Tue Jan  8 2002  Vitezslav Samel <samel@mail.cz>
+	* vs.c, vs.h:
+	change sELEMENT #define to typedef
+
+Mon Jan  7 2002  Vitezslav Samel <samel@mail.cz>
+	* acinclude.m4, configure.ac, tty.c, umath.c, ushell.c, utils.c,
+	utils.h:
+	cleanup signals handling (sigaction() / sigvec() / signal())
+
+Sun Jan  6 2002  Vitezslav Samel <samel@mail.cz>
+	* cmd.c:
+	correct "negated macro" for nbuf/pbuf macros
+
 Fri Dec 14 2001  Vitezslav Samel <samel@mail.cz>
 	*** Release joe-2.9.8-pre1 ***
 

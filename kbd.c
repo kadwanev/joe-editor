@@ -38,7 +38,7 @@ void rmkbd(KBD *k)
 
 void *dokey(KBD *kbd, int n)
 {
-	void *bind = 0;
+	void *bind = NULL;
 
 	/* If we were passed a negative character */
 	if (n < 0)
@@ -114,7 +114,7 @@ static char *range(char *seq, int *vv, int *ww)
 	v = keyval(seq);	/* Get key */
 	w = v;
 	if (w < 0)
-		return 0;
+		return NULL;
 	seq[x] = c;		/* Restore the space or 0 */
 	for (seq += x; *seq == ' '; ++seq) ;	/* Skip over spaces */
 
@@ -126,13 +126,13 @@ static char *range(char *seq, int *vv, int *ww)
 		seq[x] = 0;	/* Zero terminate the string */
 		w = keyval(seq);	/* Get key */
 		if (w < 0)
-			return 0;
+			return NULL;
 		seq[x] = c;	/* Restore the space or 0 */
 		for (seq += x; *seq == ' '; ++seq) ;	/* Skip over spaces */
 	}
 
 	if (v > w)
-		return 0;
+		return NULL;
 
 	*vv = v;
 	*ww = w;
@@ -147,52 +147,73 @@ static KMAP *kbuild(CAP *cap, KMAP *kmap, char *seq, void *bind, int *err, char 
 
 	if (!seql && seq[0] == '.' && seq[1]) {
 		int x, c;
-		char *s;
+		unsigned char *s;
 
 		for (x = 0; seq[x] && seq[x] != ' '; ++x) ;
 		c = seq[x];
 		seq[x] = 0;
 #ifdef __MSDOS__
-		if (!strcmp(seq + 1, "ku"))
-			capseq = "\0H", seql = 2;
-		else if (!strcmp(seq + 1, "kd"))
-			capseq = "\0P", seql = 2;
-		else if (!strcmp(seq + 1, "kl"))
-			capseq = "\0K", seql = 2;
-		else if (!strcmp(seq + 1, "kr"))
-			capseq = "\0M", seql = 2;
-		else if (!strcmp(seq + 1, "kI"))
-			capseq = "\0R", seql = 2;
-		else if (!strcmp(seq + 1, "kD"))
-			capseq = "\0S", seql = 2;
-		else if (!strcmp(seq + 1, "kh"))
-			capseq = "\0G", seql = 2;
-		else if (!strcmp(seq + 1, "kH"))
-			capseq = "\0O", seql = 2;
-		else if (!strcmp(seq + 1, "kP"))
-			capseq = "\0I", seql = 2;
-		else if (!strcmp(seq + 1, "kN"))
-			capseq = "\0Q", seql = 2;
-		else if (!strcmp(seq + 1, "k1"))
-			capseq = "\0;", seql = 2;
-		else if (!strcmp(seq + 1, "k2"))
-			capseq = "\0<", seql = 2;
-		else if (!strcmp(seq + 1, "k3"))
-			capseq = "\0=", seql = 2;
-		else if (!strcmp(seq + 1, "k4"))
-			capseq = "\0>", seql = 2;
-		else if (!strcmp(seq + 1, "k5"))
-			capseq = "\0?", seql = 2;
-		else if (!strcmp(seq + 1, "k6"))
-			capseq = "\0@", seql = 2;
-		else if (!strcmp(seq + 1, "k7"))
-			capseq = "\0A", seql = 2;
-		else if (!strcmp(seq + 1, "k8"))
-			capseq = "\0B", seql = 2;
-		else if (!strcmp(seq + 1, "k9"))
-			capseq = "\0C", seql = 2;
-		else if (!strcmp(seq + 1, "k0"))
-			capseq = "\0D", seql = 2;
+		if (!strcmp(seq + 1, "ku")) {
+			capseq = "\0H";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kd")) {
+			capseq = "\0P";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kl")) {
+			capseq = "\0K";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kr")) {
+			capseq = "\0M";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kI")) {
+			capseq = "\0R";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kD")) {
+			capseq = "\0S";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kh")) {
+			capseq = "\0G";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kH")) {
+			capseq = "\0O";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kP")) {
+			capseq = "\0I";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "kN")) {
+			capseq = "\0Q";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k1")) {
+			capseq = "\0;";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k2")) {
+			capseq = "\0<";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k3")) {
+			capseq = "\0=";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k4")) {
+			capseq = "\0>";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k5")) {
+			capseq = "\0?";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k6")) {
+			capseq = "\0@";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k7")) {
+			capseq = "\0A";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k8")) {
+			capseq = "\0B";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k9")) {
+			capseq = "\0C";
+			seql = 2;
+		} else if (!strcmp(seq + 1, "k0")) {
+			capseq = "\0D";
+			seql = 2;
+		}
 		seq[x] = c;
 		if (seql) {
 			for (seq += x; *seq == ' '; ++seq) ;
@@ -201,7 +222,7 @@ static KMAP *kbuild(CAP *cap, KMAP *kmap, char *seq, void *bind, int *err, char 
 		s = jgetstr(cap, seq + 1);
 		seq[x] = c;
 		if (s && (s = tcompile(cap, s, 0, 0, 0, 0))
-		    && (sLEN(s) > 1 || s[0] < 0)) {
+		    && (sLEN(s) > 1 || (signed char)s[0] < 0)) {
 			capseq = s;
 			seql = sLEN(s);
 			for (seq += x; *seq == ' '; ++seq) ;
@@ -231,7 +252,7 @@ static KMAP *kbuild(CAP *cap, KMAP *kmap, char *seq, void *bind, int *err, char 
 	while (v <= w) {
 		if (*seq || seql) {
 			if (kmap->keys[v].k == 0)
-				kmap->keys[v].value.submap = 0;
+				kmap->keys[v].value.submap = NULL;
 			kmap->keys[v].k = 1;
 			kmap->keys[v].value.submap = kbuild(cap, kmap->keys[v].value.bind, seq, bind, err, capseq, seql);
 		} else {
@@ -247,7 +268,7 @@ static KMAP *kbuild(CAP *cap, KMAP *kmap, char *seq, void *bind, int *err, char 
 	return kmap;
 }
 
-int kadd(CAP *cap, KMAP *kmap, char *seq, void *bind)
+int kadd(CAP *cap, KMAP *kmap, unsigned char *seq, void *bind)
 {
 	int err = 0;
 
@@ -276,7 +297,7 @@ void kcpy(KMAP *dest, KMAP *src)
 
 /* Remove a binding from a keymap */
 
-int kdel(KMAP *kmap, char *seq)
+int kdel(KMAP *kmap, unsigned char *seq)
 {
 	int err = 1;
 	int v, w;
@@ -298,7 +319,7 @@ int kdel(KMAP *kmap, char *seq)
 			if (kmap->keys[v].k == 1)
 				rmkmap(kmap->keys[v].value.submap);
 			kmap->keys[v].k = 0;
-			kmap->keys[v].value.bind = 0;
+			kmap->keys[v].value.bind = NULL;
 			if (err != -1)
 				err = 0;
 		}

@@ -37,8 +37,8 @@ extern int marking;
 
 /* Global variables */
 
-P *markb = 0;			/* Beginning and end of block */
-P *markk = 0;
+P *markb = NULL;		/* Beginning and end of block */
+P *markk = NULL;
 
 /* Push markb & markk */
 
@@ -46,11 +46,7 @@ typedef struct marksav MARKSAV;
 struct marksav {
 	LINK(MARKSAV) link;
 	P *markb, *markk;
-} markstack = {
-
-	{
-	&markstack, &markstack}
-};
+} markstack = { { &markstack, &markstack} };
 MARKSAV markfree = { {&markfree, &markfree} };
 int nstack = 0;
 
@@ -180,7 +176,7 @@ void pclrrect(P *org, long int height, long int right, int usetabs)
 }
 
 /* int ptabrect(P *org,long height,long right)
- * Check if there are any TABs in a rectange
+ * Check if there are any TABs in a rectangle
  */
 
 int ptabrect(P *org, long int height, long int right)
@@ -191,12 +187,13 @@ int ptabrect(P *org, long int height, long int right)
 		int c;
 
 		pcol(p, org->xcol);
-		while (c = pgetc(p), c != MAXINT && c != '\n')
+		while ((c = pgetc(p)) != NO_MORE_DATA && c != '\n') {
 			if (c == '\t') {
 				prm(p);
 				return 1;
 			} else if (piscol(p) > right)
 				break;
+		}
 		if (c != '\n')
 			pnextl(p);
 	}
@@ -223,9 +220,11 @@ void pinsrect(P *cur, B *tmp, long int width, int usetabs)
 				pfill(p, cur->xcol + width, usetabs);
 			if (piseol(p))
 				pbackws(p);
-			if (!pnextl(p))
-				binsc(p, '\n'), pgetc(p);
-			if (pgetc(q) == MAXINT)
+			if (!pnextl(p)) {
+				binsc(p, '\n');
+				pgetc(p);
+			}
+			if (pgetc(q) == NO_MORE_DATA)
 				break;
 		}
 	prm(p);
@@ -398,15 +397,18 @@ int ublkmove(BW *bw)
 			int usetabs = ptabrect(markb, height, markk->xcol);
 			long ocol = piscol(bw->cursor);
 			B *tmp = pextrect(markb, height, markk->xcol);
+			int update_xcol = (bw->cursor->xcol >= markk->xcol && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line);
 
 			ublkdel(bw);
+			/* now we can't use markb and markk until we set them again */
+			/* ublkdel() frees them */
 			if (bw->o.overtype) {
 				/* If cursor was in block, blkdel moves it to left edge of block, so fix it
 				 * back to its original place here */
 				pcol(bw->cursor, ocol);
 				pfill(bw->cursor, ocol, 0);
 				pdelrect(bw->cursor, height, piscol(bw->cursor) + width);
-			} else if (bw->cursor->xcol >= markk->xcol && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line)
+			} else if (update_xcol)
 				/* If cursor was to right of block, xcol was not properly updated */
 				bw->cursor->xcol -= width;
 			pinsrect(bw->cursor, tmp, width, usetabs);
@@ -445,7 +447,7 @@ int ublkmove(BW *bw)
 
 int ublkcpy(BW *bw)
 {
-	if (markv(1))
+	if (markv(1)) {
 		if (square) {
 			long height = markk->line - markb->line + 1;
 			long width = markk->xcol - markb->xcol;
@@ -479,6 +481,7 @@ int ublkcpy(BW *bw)
 			}
 			updall();
 			return 0;
+		}
 	} else {
 		msgnw(bw->parent, "No block");
 		return -1;
@@ -492,7 +495,7 @@ int dowrite(BW *bw, char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
-	if (markv(1))
+	if (markv(1)) {
 		if (square) {
 			int fl;
 			int ret = 0;
@@ -500,8 +503,10 @@ int dowrite(BW *bw, char *s, void *object, int *notify)
 					  markk->line - markb->line + 1,
 					  markk->xcol);
 
-			if ((fl = bsave(tmp->bof, s, tmp->eof->byte)) != 0)
-				msgnw(bw->parent, msgs[5 + fl]), ret = -1;
+			if ((fl = bsave(tmp->bof, s, tmp->eof->byte)) != 0) {
+				msgnw(bw->parent, msgs[5 + fl]);
+				ret = -1;
+			}
 			brm(tmp);
 			if (lightoff)
 				unmark(bw);
@@ -511,12 +516,15 @@ int dowrite(BW *bw, char *s, void *object, int *notify)
 			int fl;
 			int ret = 0;
 
-			if ((fl = bsave(markb, s, markk->byte - markb->byte)) != 0)
-				msgnw(bw->parent, msgs[5 + fl]), ret = -1;
+			if ((fl = bsave(markb, s, markk->byte - markb->byte)) != 0) {
+				msgnw(bw->parent, msgs[5 + fl]);
+				ret = -1;
+			}
 			if (lightoff)
 				unmark(bw);
 			vsrm(s);
 			return ret;
+		}
 	} else {
 		vsrm(s);
 		msgnw(bw->parent, "No block");
@@ -590,8 +598,10 @@ int urindent(BW *bw)
 			while (p->byte < markk->byte) {
 				p_goto_bol(p);
 				if (!piseol(p))
-					while (piscol(p) < bw->o.istep)
-						binsc(p, bw->o.indentc), pgetc(p);
+					while (piscol(p) < bw->o.istep) {
+						binsc(p, bw->o.indentc);
+						pgetc(p);
+					}
 				pnextl(p);
 			}
 			prm(p);
@@ -717,9 +727,10 @@ int doinsf(BW *bw, char *s, void *object, int *notify)
 		int ret = 0;
 		B *tmp = bload(s);
 
-		if (error)
-			msgnw(bw->parent, msgs[error + 5]), brm(tmp), ret = -1;
-		else
+		if (error) {
+			msgnw(bw->parent, msgs[error + 5]), brm(tmp);
+			ret = -1;
+		} else
 			binsb(bw->cursor, tmp);
 		vsrm(s);
 		bw->cursor->xcol = piscol(bw->cursor);
@@ -833,7 +844,7 @@ static int dofilt(BW *bw, char *s, void *object, int *notify)
 	return 0;
 }
 
-static B *filthist = 0;
+static B *filthist = NULL;
 
 static void markall(BW *bw)
 {
@@ -850,7 +861,8 @@ static int checkmark(BW *bw)
 		if (square)
 			return 2;
 		else {
-			markall(bw), filtflg = 1;
+			markall(bw);
+			filtflg = 1;
 			return 1;
 	} else {
 		filtflg = 0;

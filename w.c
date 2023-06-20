@@ -132,9 +132,10 @@ int demotegroup(W *w)
 
 	for (w = top; w != bot; w = next) {
 		next = w->link.next;
-		if (w == w->t->topwin)
-			flg = 1, w->t->topwin = next;
-		else
+		if (w == w->t->topwin) {
+			flg = 1;
+			w->t->topwin = next;
+		} else
 			demote(W, link, w->t->topwin, w);
 		w->y = -1;
 	}
@@ -167,8 +168,8 @@ SCREEN *screate(SCRN *scrn)
 	t->t = scrn;
 	t->w = scrn->co;
 	t->h = scrn->li;
-	t->topwin = 0;
-	t->curwin = 0;
+	t->topwin = NULL;
+	t->curwin = NULL;
 	t->wind = skiptop;
 	scr = t;
 	return t;
@@ -187,8 +188,10 @@ void sresize(SCREEN *t)
 		t->wind = 0;
 	w = t->topwin;
 	do {
-		w->y = -1, w->w = t->w - 1;
-	} while (w = w->link.next, w != t->topwin);
+		w->y = -1;
+		w->w = t->w - 1;
+		w = w->link.next;
+	} while (w != t->topwin);
 	wfit(t);
 	updall();
 }
@@ -211,7 +214,8 @@ void scrins(B *b, long l, long n, int flg)
 				if (w->object && w->watom->ins)
 					w->watom->ins(w->object, b, l, n, flg);
 			}
-		} while (w = w->link.next, w != scr->topwin);
+		w = w->link.next;
+		} while (w != scr->topwin);
 	}
 }
 
@@ -225,7 +229,8 @@ void scrdel(B *b, long l, long n, int flg)
 				if (w->object && w->watom->del)
 					w->watom->del(w->object, b, l, n, flg);
 			}
-		} while (w = w->link.next, w != scr->topwin);
+		w = w->link.next;
+		} while (w != scr->topwin);
 	}
 }
 
@@ -255,13 +260,14 @@ void wfit(SCREEN *t)
       tryagain:
 	y = t->wind;
 	left = t->h - y;
-	pw = 0;
+	pw = NULL;
 
 	w = t->topwin;
 	do {
 		w->ny = -1;
 		w->nh = geth(w);
-	} while ((w = w->link.next) != t->topwin);
+		w = w->link.next;
+	} while (w != t->topwin);
 
 	/* Fit a group of windows on the screen */
 	w = t->topwin;
@@ -275,8 +281,10 @@ void wfit(SCREEN *t)
 		/* Fit a family of windows on the screen */
 		do {
 			w->ny = y;	/* Set window's y position */
-			if (!w->win)
-				pw = w, w->nh -= adj;	/* Adjust main window of the group */
+			if (!w->win) {
+				pw = w;
+				w->nh -= adj;	/* Adjust main window of the group */
+			}
 			if (!w->win && w->nh < 2)
 				while (w->nh < 2)
 					w->nh += doabort(w->link.next, &ret);
@@ -365,7 +373,8 @@ void wfit(SCREEN *t)
 			w->y = -1;
 		w->h = w->nh;
 		w->reqh = 0;
-	} while (w = w->link.next, w != t->topwin);
+		w = w->link.next;
+	} while (w != t->topwin);
 }
 
 /* Goto next window */
@@ -469,7 +478,8 @@ void wshowall(SCREEN *t)
 	do {
 		if (!w->win)
 			++n;
-	} while (w = w->link.next, w != t->topwin);
+		w = w->link.next;
+	} while (w != t->topwin);
 
 	/* Compute size to set each window */
 	if ((set = (t->h - t->wind) / n) < FITHEIGHT)
@@ -485,9 +495,10 @@ void wshowall(SCREEN *t)
 				seth(w, 2);
 			else
 				seth(w, set - (h - 2));
-			w->orgwin = 0;
+			w->orgwin = NULL;
 		}
-	} while (w = w->link.next, w != t->topwin);
+		w = w->link.next;
+	} while (w != t->topwin);
 
 	/* Do it */
 	wfit(t);
@@ -501,7 +512,8 @@ static void wspread(SCREEN *t)
 	do {
 		if (w->y >= 0 && !w->win)
 			++n;
-	} while (w = w->link.next, w != t->topwin);
+		w = w->link.next;
+	} while (w != t->topwin);
 	if (!n) {
 		wfit(t);
 		return;
@@ -519,9 +531,10 @@ static void wspread(SCREEN *t)
 				seth(w, 2);
 			else
 				seth(w, n - (h - 2));
-			w->orgwin = 0;
+			w->orgwin = NULL;
 		}
-	} while (w = w->link.next, w != t->topwin);
+		w = w->link.next;
+	} while (w != t->topwin);
 	wfit(t);
 }
 
@@ -534,9 +547,10 @@ void wshowone(W *w)
 	do {
 		if (!q->win) {
 			seth(q, w->t->h - w->t->wind - (getminh(q) - 2));
-			q->orgwin = 0;
+			q->orgwin = NULL;
 		}
-	} while (q = q->link.next, q != w->t->topwin);
+		q = q->link.next;
+	} while (q != w->t->topwin);
 	wfit(w->t);
 }
 
@@ -547,7 +561,7 @@ W *wcreate(SCREEN *t, WATOM *watom, W *where, W *target, W *original, int height
 	W *new;
 
 	if (height < 1)
-		return 0;
+		return NULL;
 
 	/* Create the window */
 	new = (W *) joe_malloc(sizeof(W));
@@ -563,9 +577,9 @@ W *wcreate(SCREEN *t, WATOM *watom, W *where, W *target, W *original, int height
 	new->huh = huh;
 	new->orgwin = original;
 	new->watom = watom;
-	new->object = 0;
-	new->msgb = 0;
-	new->msgt = 0;
+	new->object = NULL;
+	new->msgb = NULL;
+	new->msgt = NULL;
 	/* Set window's target and family */
 /* was:	if (new->win = target) {	which may be mistyped == */
 	if ((new->win = target) != NULL) {	/* A subwindow */
@@ -581,16 +595,16 @@ W *wcreate(SCREEN *t, WATOM *watom, W *where, W *target, W *original, int height
 		if (original->h - height <= 2) {
 			/* Not enough space for window */
 			joe_free(new);
-			return 0;
+			return NULL;
 		} else
 			seth(original, original->h - height);
 	}
 
 	/* Create new keyboard handler for window */
 	if (watom->context)
-		new->kbd = mkkbd(getcontext(watom->context));
+		new->kbd = mkkbd(kmap_getcontext(watom->context));
 	else
-		new->kbd = 0;
+		new->kbd = NULL;
 
 	/* Put window on the screen */
 	if (where)
@@ -598,8 +612,10 @@ W *wcreate(SCREEN *t, WATOM *watom, W *where, W *target, W *original, int height
 	else {
 		if (t->topwin)
 			enqueb(W, link, t->topwin, new);
-		else
-			izque(W, link, new), t->curwin = t->topwin = new;
+		else {
+			izque(W, link, new);
+			t->curwin = t->topwin = new;
+		}
 	}
 
 	return new;
@@ -619,7 +635,7 @@ static int doabort(W *w, int *ret)
 	z = w->t->topwin;
 	do {
 		if (z->orgwin == w)
-			z->orgwin = 0;
+			z->orgwin = NULL;
 		if ((z->win == w || z->main == w) && z->y != -2) {
 			amnt += doabort(z, ret);
 			goto loop;

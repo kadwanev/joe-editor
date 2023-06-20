@@ -19,9 +19,9 @@
 #include "vs.h"
 
 extern int smode;
-struct isrch *lastisrch = 0;	/* Previous search */
+struct isrch *lastisrch = NULL;	/* Previous search */
 
-char *lastpat = 0;		/* Previous pattern */
+unsigned char *lastpat = NULL;	/* Previous pattern */
 
 IREC fri = { {&fri, &fri} };	/* Free-list of irecs */
 
@@ -50,7 +50,7 @@ static int iabrt(BW *bw, struct isrch *isrch)
 	return -1;
 }
 
-static void iappend(BW *bw, struct isrch *isrch, char *s, int len)
+static void iappend(BW *bw, struct isrch *isrch, unsigned char *s, int len)
 {				/* Append text and search */
 	/* Append char and search */
 	IREC *i = alirec();
@@ -113,7 +113,7 @@ static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 				enqueb(IREC, link, &isrch->irecs, i);
 			}
 		}
-	} else if ((c < 32 || c >= 256) && c != MAXINT) {
+	} else if ((c < 32 || c >= 256) && c != MAXINT) {	/* FIXME: overloaded MAXINT */
 		/* Done */
 		nungetc(c);
 		if (notify) {
@@ -127,7 +127,7 @@ static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 		}
 		lastisrch = isrch;
 		return 0;
-	} else if (c != MAXINT) {
+	} else if (c != MAXINT) {	/* FIXME: overloaded MAXINT */
 		/* Search */
 		unsigned char k;
 

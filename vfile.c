@@ -28,12 +28,12 @@
 #include "vs.h"
 
 static VFILE vfiles = { {&vfiles, &vfiles} };	/* Known vfiles */
-static VPAGE *freepages = 0;	/* Linked list of free pages */
+static VPAGE *freepages = NULL;	/* Linked list of free pages */
 static VPAGE *htab[HTSIZE];	/* Hash table of page headers */
 static long curvalloc = 0;	/* Amount of memory in use */
 static long maxvalloc = ILIMIT;	/* Maximum allowed */
 char *vbase;			/* Data first entry in vheader refers to */
-VPAGE **vheaders = 0;		/* Array of header addresses */
+VPAGE **vheaders = NULL;	/* Array of header addresses */
 static int vheadsz = 0;		/* No. entries allocated to vheaders */
 
 void vflsh(void)
@@ -49,11 +49,13 @@ void vflsh(void)
 		last = -1;
 	      loop:
 		addr = MAXLONG;
-		vlowest = 0;
+		vlowest = NULL;
 		for (x = 0; x != HTSIZE; x++)
 			for (vp = htab[x]; vp; vp = vp->next)
-				if (vp->addr < addr && vp->addr > last && vp->vfile == vfile && (vp->addr >= vfile->size || (vp->dirty && !vp->count)))
-					addr = vp->addr, vlowest = vp;
+				if (vp->addr < addr && vp->addr > last && vp->vfile == vfile && (vp->addr >= vfile->size || (vp->dirty && !vp->count))) {
+					addr = vp->addr;
+					vlowest = vp;
+				}
 		if (vlowest) {
 			if (!vfile->name)
 				vfile->name = mktmp(NULL);
@@ -84,11 +86,13 @@ void vflshf(VFILE *vfile)
 
       loop:
 	addr = MAXLONG;
-	vlowest = 0;
+	vlowest = NULL;
 	for (x = 0; x != HTSIZE; x++)
 		for (vp = htab[x]; vp; vp = vp->next)
-			if (vp->addr < addr && vp->dirty && vp->vfile == vfile && !vp->count)
-				addr = vp->addr, vlowest = vp;
+			if (vp->addr < addr && vp->dirty && vp->vfile == vfile && !vp->count) {
+				addr = vp->addr;
+				vlowest = vp;
+			}
 	if (vlowest) {
 		if (!vfile->name)
 			vfile->name = mktmp(NULL);
@@ -116,7 +120,7 @@ static char *mema(int align, int size)
 	return z + align - physical(z) % align;
 }
 
-char *vlock(VFILE *vfile, long int addr)
+char *vlock(VFILE *vfile, unsigned long addr)
 {
 	VPAGE *vp, *pp;
 	int x, y;
@@ -124,9 +128,11 @@ char *vlock(VFILE *vfile, long int addr)
 
 	addr -= ofst;
 
-	for (vp = htab[((addr >> LPGSIZE) + (int) vfile) & (HTSIZE - 1)]; vp; vp = vp->next)
-		if (vp->vfile == vfile && vp->addr == addr)
-			return ++vp->count, vp->data + ofst;
+	for (vp = htab[((addr >> LPGSIZE) + (unsigned long) vfile) & (HTSIZE - 1)]; vp; vp = vp->next)
+		if (vp->vfile == vfile && vp->addr == addr) {
+			++vp->count;
+			return vp->data + ofst;
+		}
 
 	if (freepages) {
 		vp = freepages;
@@ -142,16 +148,14 @@ char *vlock(VFILE *vfile, long int addr)
 				int q;
 
 				curvalloc += PGSIZE * INC;
-				if (!vheaders)
-					vheaders = (VPAGE **)
-					    joe_malloc((vheadsz = INC)
-						   * sizeof(VPAGE *)), vbase = vp->data;
-				else if (physical(vp->data) < physical(vbase)) {
+				if (!vheaders) {
+					vheaders = (VPAGE **) joe_malloc((vheadsz = INC) * sizeof(VPAGE *));
+					vbase = vp->data;
+				} else if (physical(vp->data) < physical(vbase)) {
 					VPAGE **t = vheaders;
 					int amnt = (physical(vbase) - physical(vp->data)) >> LPGSIZE;
 
-					vheaders = (VPAGE **)
-					    joe_malloc((amnt + vheadsz) * sizeof(VPAGE *));
+					vheaders = (VPAGE **) joe_malloc((amnt + vheadsz) * sizeof(VPAGE *));
 					mmove(vheaders + amnt, t, vheadsz * sizeof(VPAGE *));
 					vheadsz += amnt;
 					vbase = vp->data;
@@ -170,7 +174,7 @@ char *vlock(VFILE *vfile, long int addr)
 				goto gotit;
 			}
 			joe_free(vp);
-			vp = 0;
+			vp = NULL;
 		}
 	}
 
@@ -195,8 +199,8 @@ char *vlock(VFILE *vfile, long int addr)
 	vp->vfile = vfile;
 	vp->dirty = 0;
 	vp->count = 1;
-	vp->next = htab[((addr >> LPGSIZE) + (int) vfile) & (HTSIZE - 1)];
-	htab[((addr >> LPGSIZE) + (int) vfile) & (HTSIZE - 1)] = vp;
+	vp->next = htab[((addr >> LPGSIZE) + (unsigned long)vfile) & (HTSIZE - 1)];
+	htab[((addr >> LPGSIZE) + (unsigned long)vfile) & (HTSIZE - 1)] = vp;
 
 	if (addr < vfile->size) {
 		if (!vfile->fd) {
@@ -219,14 +223,14 @@ VFILE *vtmp(void)
 	VFILE *new = (VFILE *) joe_malloc(sizeof(VFILE));
 
 	new->fd = 0;
-	new->name = 0;
+	new->name = NULL;
 	new->alloc = 0;
 	new->size = 0;
 	new->left = 0;
 	new->lv = 0;
-	new->vpage = 0;
+	new->vpage = NULL;
 	new->flags = 1;
-	new->vpage1 = 0;
+	new->vpage1 = NULL;
 	new->addr = -1;
 	return enqueb_f(VFILE, link, &vfiles, new);
 }
@@ -244,16 +248,16 @@ char *name;
 	if (!new->fd) {
 		fprintf(stderr, "Couldn\'t open file \'%s\'\n", name);
 		joe_free(new);
-		return 0;
+		return NULL;
 	}
 	fstat(new->fd, &buf);
 	new->size = buf.st_size;
 	new->alloc = new->size;
 	new->left = 0;
 	new->lv = 0;
-	new->vpage = 0;
+	new->vpage = NULL;
 	new->flags = 0;
-	new->vpage1 = 0;
+	new->vpage1 = NULL;
 	new->addr = -1;
 	return enqueb_f(VFILE, link, &vfiles, new);
 }
@@ -286,8 +290,10 @@ void vclose(VFILE *vfile)
 				vp->next = freepages;
 				freepages = vp;
 				vp = pp->next;
-			} else
-				pp = vp, vp = vp->next;
+			} else {
+				pp = vp;
+				vp = vp->next;
+			}
 }
 
 #ifdef junk
@@ -378,7 +384,7 @@ int _vrgetc(vfile)
 VFILE *vfile;
 {
 	if (vtell(vfile) == 0)
-		return MAXINT;
+		return NO_MORE_DATA;
 	vseek(vfile, vtell(vfile) - 1);
 	++vfile->bufp;
 	--vfile->left;
@@ -389,7 +395,7 @@ int _vgetc(vfile)
 VFILE *vfile;
 {
 	if (vtell(vfile) == vsize(vfile))
-		return MAXINT;
+		return NO_MORE_DATA;
 	vseek(vfile, vtell(vfile));
 	return vgetc(vfile);
 }
@@ -595,8 +601,10 @@ void vputs(v, s)
 VFILE *v;
 char *s;
 {
-	while (*s)
-		vputc(v, *s), ++s;
+	while (*s) {
+		vputc(v, *s);
+		++s;
+	}
 }
 
 /* Read a line from a file.  Remove '\n' if there was any */
@@ -611,7 +619,7 @@ char *s;
 	/* Return with NULL if at end of file */
 	if (vtell(v) == vsize(v)) {
 		vsrm(s);
-		return 0;
+		return NULL;
 	}
 
 	/* Create string if it doesn't exist */
@@ -731,7 +739,8 @@ char *s;
 		} while (a += 16, b += 16, (cnt -= 16) >= 16);
 
 /*
-	x = a, y = b;
+	x = a;
+	y = b;
 	a += cnt - 15;
 	b += cnt - 15;
 	switch(cnt) {
@@ -751,7 +760,8 @@ char *s;
 	case 2:		if((b[13]=a[13])=='\n'){ a+=14; b+=14; goto zif; }
 	case 1:		if((b[14]=a[14])=='\n'){ a+=15; b+=15; goto zif; }
 	}
-	a = x + cnt, b = y + cnt;
+	a = x + cnt;
+	b = y + cnt;
 	cnt=0;
 	goto ovr;
 zif:	cnt -= a - x - 1;

@@ -38,7 +38,7 @@ extern char *joeterm;
 int help = 0;			/* Set to have help on when starting */
 int nonotice = 0;		/* Set to prevent copyright notice */
 int orphan = 0;
-char *exmsg = 0;		/* Message to display when exiting the editor */
+char *exmsg = NULL;		/* Message to display when exiting the editor */
 
 SCREEN *maint;			/* Main edit screen */
 
@@ -65,8 +65,10 @@ void edupd(int flg)
 	W *w;
 	int wid, hei;
 
-	if (dostaupd)
-		staupd = 1, dostaupd = 0;
+	if (dostaupd) {
+		staupd = 1;
+		dostaupd = 0;
+	}
 	ttgtsz(&wid, &hei);
 	if ((wid >= 2 && wid != maint->w) || (hei >= 1 && hei != maint->h)) {
 		nresize(maint->t, wid, hei);
@@ -119,14 +121,15 @@ int edloop(int flg)
 
 		if (exmsg && !flg) {
 			vsrm(exmsg);
-			exmsg = 0;
+			exmsg = NULL;
 		}
 		edupd(1);
 		if (!ahead && !have)
 			ahead = 1;
-		if (ungot)
-			c = ungotc, ungot = 0;
-		else
+		if (ungot) {
+			c = ungotc;
+			ungot = 0;
+		} else
 			c = ttgetc();
 		if (!ahead && c == 10)
 			c = 13;
@@ -157,7 +160,7 @@ char **mainenv;
 int main(int argc, char **argv, char **envv)
 {
 	CAP *cap;
-	char *s;
+	unsigned char *s;
 	char *run;
 #ifdef __MSDOS__
 	char *rundir;
@@ -320,7 +323,7 @@ int main(int argc, char **argv, char **envv)
 				++c;
 		} else {
 			B *b = bfind(argv[c]);
-			BW *bw = 0;
+			BW *bw = NULL;
 			int er = error;
 
 			if (!orphan || !opened) {
@@ -376,7 +379,7 @@ int main(int argc, char **argv, char **envv)
 		help_on(maint);
 	}
 	if (!nonotice)
-		msgnw(((BASE *)lastw(maint)->object)->parent, "\\i** Joe's Own Editor v" VERSION " ** Copyright (C) 2001 **\\i");
+		msgnw(((BASE *)lastw(maint)->object)->parent, "\\i** Joe's Own Editor v" VERSION " ** Copyright (C) 2003 **\\i");
 	edloop(0);
 	vclose(vmem);
 	nclose(n);

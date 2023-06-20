@@ -8,6 +8,10 @@
 #include "config.h"
 #include "types.h"
 
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
 #include "b.h"
 #include "queue.h"
 #include "w.h"
@@ -29,7 +33,7 @@ static void markpos(W *w, P *p)
 {
 	POS *new = alitem(&frpos, sizeof(POS));
 
-	new->p = 0;
+	new->p = NULL;
 	pdupown(p, &new->p);
 	poffline(new->p);
 	new->w = w;
@@ -66,7 +70,7 @@ void windie(W *w)
 
 	for (n = pos.link.prev; n != &pos; n = n->link.prev) {
 		if (n->w == w) {
-			n->w = 0;
+			n->w = NULL;
 		}
 	}
 }

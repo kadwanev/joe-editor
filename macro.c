@@ -28,7 +28,7 @@
 #include "vs.h"
 #include "w.h"
 
-MACRO *freemacros = 0;
+MACRO *freemacros = NULL;
 
 /* Create a macro */
 
@@ -40,12 +40,14 @@ MACRO *mkmacro(int k, int arg, int n, CMD *cmd)
 		int x;
 
 		macro = (MACRO *) joe_malloc(sizeof(MACRO) * 64);
-		for (x = 0; x != 64; ++x)	/* FIXME: why limit to 64? */
-			macro[x].steps = (MACRO **) freemacros, freemacros = macro + x;
+		for (x = 0; x != 64; ++x) {	/* FIXME: why limit to 64? */
+			macro[x].steps = (MACRO **) freemacros;
+			freemacros = macro + x;
+		}
 	}
 	macro = freemacros;
 	freemacros = (MACRO *) macro->steps;
-	macro->steps = 0;
+	macro->steps = NULL;
 	macro->size = 0;
 	macro->arg = arg;
 	macro->n = n;
@@ -122,7 +124,7 @@ MACRO *macsta(MACRO *m, int a)
  *                 -2 for need more input
  */
 
-MACRO *mparse(MACRO *m, char *buf, int *sta)
+MACRO *mparse(MACRO *m, unsigned char *buf, int *sta)
 {
 	int y, c, x = 0;
 
@@ -215,7 +217,7 @@ MACRO *mparse(MACRO *m, char *buf, int *sta)
 			cmd = findcmd(buf + x);
 			if (!cmd) {
 				*sta = -1;
-				return 0;
+				return NULL;
 			} else if (m) {
 				if (!m->steps) {
 					MACRO *macro = m;
@@ -258,11 +260,14 @@ static int instr;
 
 static char *unescape(char *ptr, int c)
 {
-	if (c == '"')
-		*ptr++ = '\\', *ptr++ = '"';
-	else if (c == '\'')
-		*ptr++ = '\\', *ptr++ = '\'';
-	else if (c < 32 || c > 126) {
+	if (c == '"') {
+		*ptr++ = '\\';
+		*ptr++ = '"';
+	} else if (c == '\'') {
+		*ptr++ = '\\';
+		*ptr++ = '\'';
+	} else if (c < 32 || c > 126) {
+		/* FIXME: what if c > 256 or c < 0 ? */
 		*ptr++ = '\\';
 		*ptr++ = 'x';
 		*ptr++ = "0123456789ABCDEF"[c >> 4];
@@ -282,15 +287,19 @@ static void domtext(MACRO *m)
 		for (x = 0; x != m->n; ++x)
 			domtext(m->steps[x]);
 	else {
-		if (instr && strcmp(m->cmd->name, "type"))
-			*ptr++ = '\"', instr = 0;
+		if (instr && strcmp(m->cmd->name, "type")) {
+			*ptr++ = '\"';
+			instr = 0;
+		}
 		if (first)
 			first = 0;
 		else if (!instr)
 			*ptr++ = ',';
 		if (!strcmp(m->cmd->name, "type")) {
-			if (!instr)
-				*ptr++ = '\"', instr = 1;
+			if (!instr) {
+				*ptr++ = '\"';
+				instr = 1;
+			}
 			ptr = unescape(ptr, m->k);
 		} else {
 			for (x = 0; m->cmd->name[x]; ++x)
@@ -322,7 +331,7 @@ char *mtext(char *s, MACRO *m)
 static MACRO *kbdmacro[10];
 static int playmode[10];
 
-struct recmac *recmac = 0;
+struct recmac *recmac = NULL;
 
 static void unmac(void)
 {
@@ -349,7 +358,7 @@ int uquery(BW *bw)
 	int ret;
 	struct recmac *tmp = recmac;
 
-	recmac = 0;
+	recmac = NULL;
 	ret = edloop(1);
 	recmac = tmp;
 	return ret;
@@ -357,7 +366,7 @@ int uquery(BW *bw)
 
 /* Macro execution */
 
-MACRO *curmacro = 0;		/* Set if we're in a macro */
+MACRO *curmacro = NULL;		/* Set if we're in a macro */
 static int macroptr;
 static int arg = 0;		/* Repeat argument */
 static int argset = 0;		/* Set if 'arg' is set */
@@ -374,8 +383,10 @@ int exmacro(MACRO *m, int u)
 		larg = arg;
 		arg = 0;
 		argset = 0;
-		if (larg < 0)
-			negarg = 1, larg = -larg;
+		if (larg < 0) {
+			negarg = 1;
+			larg = -larg;
+		}
 		if (m->steps)
 			negarg = 0;
 		else {

@@ -56,27 +56,30 @@ char *msgs[] = {
 };
 
 /* Get size of gap (amount of free space) */
-
-#define GGAPSZ(hdr) ((hdr)->ehole-(hdr)->hole)
+#define GGAPSZ(hdr) ((hdr)->ehole - (hdr)->hole)
 
 /* Get number of characters in gap buffer */
+#define GSIZE(hdr) (SEGSIZ - GGAPSZ(hdr))
 
-#define GSIZE(hdr) (SEGSIZ-GGAPSZ(hdr))
+/* Get char from buffer (with jumping around the gap) */
+#define GCHAR(p) ((p)->ofst >= (p)->hdr->hole ? (p)->ptr[(p)->ofst + GGAPSZ((p)->hdr)] \
+					      : (p)->ptr[(p)->ofst])
 
 /* Set position of gap */
-
 static void gstgap(H *hdr, char *ptr, int ofst)
 {
-	if (ofst > hdr->hole)
-		mmove(ptr + hdr->hole, ptr + hdr->ehole, ofst - hdr->hole), vchanged(ptr);
-	else if (ofst < hdr->hole)
-		mmove(ptr + hdr->ehole - (hdr->hole - ofst), ptr + ofst, hdr->hole - ofst), vchanged(ptr);
+	if (ofst > hdr->hole) {
+		mmove(ptr + hdr->hole, ptr + hdr->ehole, ofst - hdr->hole);
+		vchanged(ptr);
+	} else if (ofst < hdr->hole) {
+		mmove(ptr + hdr->ehole - (hdr->hole - ofst), ptr + ofst, hdr->hole - ofst);
+		vchanged(ptr);
+	}
 	hdr->ehole = ofst + hdr->ehole - hdr->hole;
 	hdr->hole = ofst;
 }
 
 /* Insert a block */
-
 static void ginsm(H *hdr, char *ptr, int ofst, char *blk, int size)
 {
 	if (ofst != hdr->hole)
@@ -87,23 +90,23 @@ static void ginsm(H *hdr, char *ptr, int ofst, char *blk, int size)
 }
 
 /* Read block */
-
 static void grmem(H *hdr, char *ptr, int ofst, char *blk, int size)
 {
 	if (ofst < hdr->hole)
-		if (size > hdr->hole - ofst)
-			mmove(blk, ptr + ofst, hdr->hole - ofst), mmove(blk + hdr->hole - ofst, ptr + hdr->ehole, size - (hdr->hole - ofst));
-		else
+		if (size > hdr->hole - ofst) {
+			mmove(blk, ptr + ofst, hdr->hole - ofst);
+			mmove(blk + hdr->hole - ofst, ptr + hdr->ehole, size - (hdr->hole - ofst));
+		} else
 			mmove(blk, ptr + ofst, size);
 	else
 		mmove(blk, ptr + ofst + hdr->ehole - hdr->hole, size);
 }
 
-/* Header allocation */
 
 static H nhdrs = { {&nhdrs, &nhdrs} };
 static H ohdrs = { {&ohdrs, &ohdrs} };
 
+/* Header allocation */
 static H *halloc(void)
 {
 	H *h;
@@ -130,10 +133,10 @@ static void hfreechn(H *h)
 	splicef(H, link, &ohdrs, h);
 }
 
-/* Pointer allocation */
 
 static P frptrs = { {&frptrs, &frptrs} };
 
+/* Pointer allocation */
 static P *palloc(void)
 {
 	return alitem(&frptrs, sizeof(P));
@@ -145,7 +148,6 @@ static void pfree(P *p)
 }
 
 /* Doubly linked list of buffers and free buffer structures */
-
 static B bufs = { {&bufs, &bufs} };
 static B frebufs = { {&frebufs, &frebufs} };
 
@@ -174,7 +176,6 @@ B *bprev(void)
 }
 
 /* Make a buffer out of a chain */
-
 static B *bmkchn(H *chn, B *prop, long amnt, long nlines)
 {
 	B *b = alitem(&frebufs, sizeof(B));
@@ -187,19 +188,19 @@ static B *bmkchn(H *chn, B *prop, long amnt, long nlines)
 	mset(b->marks, 0, sizeof(b->marks));
 	b->rdonly = 0;
 	b->orphan = 0;
-	b->oldcur = 0;
-	b->oldtop = 0;
+	b->oldcur = NULL;
+	b->oldtop = NULL;
 	b->backup = 1;
 	b->internal = 1;
 	b->changed = 0;
 	b->count = 1;
-	b->name = 0;
+	b->name = NULL;
 	b->er = -3;
 	b->bof = palloc();
 	izque(P, link, b->bof);
 	b->bof->end = 0;
 	b->bof->b = b;
-	b->bof->owner = 0;
+	b->bof->owner = NULL;
 	b->bof->hdr = chn;
 	b->bof->ptr = vlock(vmem, b->bof->hdr->seg);
 	b->bof->ofst = 0;
@@ -224,23 +225,22 @@ static B *bmkchn(H *chn, B *prop, long amnt, long nlines)
 }
 
 /* Create an empty buffer */
-
 B *bmk(B *prop)
 {
 	return bmkchn(halloc(), prop, 0L, 0L);
 }
 
-/* Eliminate a buffer */
 
 extern B *errbuf;
 
+/* Eliminate a buffer */
 void brm(B *b)
 {
 	if (b && !--b->count) {
 		if (b->changed)
 			abrerr(b->name);
 		if (b == errbuf)
-			errbuf = 0;
+			errbuf = NULL;
 		if (b->undo)
 			undorm(b->undo);
 		hfreechn(b->eof->hdr);
@@ -257,7 +257,7 @@ P *poffline(P *p)
 {
 	if (p->ptr) {
 		vunlock(p->ptr);
-		p->ptr = 0;
+		p->ptr = NULL;
 	}
 	return p;
 }
@@ -294,8 +294,8 @@ P *pdup(P *p)
 	P *n = palloc();
 
 	n->end = 0;
-	n->ptr = 0;
-	n->owner = 0;
+	n->ptr = NULL;
+	n->owner = NULL;
 	enquef(P, link, p, n);
 	return pset(n, p);
 }
@@ -305,7 +305,7 @@ P *pdupown(P *p, P **o)
 	P *n = palloc();
 
 	n->end = 0;
-	n->ptr = 0;
+	n->ptr = NULL;
 	n->owner = o;
 	enquef(P, link, p, n);
 	pset(n, p);
@@ -320,7 +320,7 @@ void prm(P *p)
 	if (!p)
 		return;
 	if (p->owner)
-		*p->owner = 0;
+		*p->owner = NULL;
 	if (p->ptr)
 		vunlock(p->ptr);
 	pfree(deque_f(P, link, p));
@@ -357,16 +357,19 @@ P *p_goto_eof(P *p)
 	return pset(p, p->b->eof);
 }
 
+/* is p at the beginning of file? */
 int pisbof(P *p)
 {
 	return p->hdr == p->b->bof->hdr && !p->ofst;
 }
 
+/* is p at the end of file? */
 int piseof(P *p)
 {
 	return p->ofst == GSIZE(p->hdr);
 }
 
+/* is p at the end of line? */
 int piseol(P *p)
 {
 	int c;
@@ -390,6 +393,7 @@ int piseol(P *p)
 	return 0;
 }
 
+/* is p at the beginning of line? */
 int pisbol(P *p)
 {
 	char c;
@@ -401,6 +405,7 @@ int pisbol(P *p)
 	return c == '\n';
 }
 
+/* is p at the beginning of word? */
 int pisbow(P *p)
 {
 	P *q = pdup(p);
@@ -408,12 +413,13 @@ int pisbow(P *p)
 	int d = prgetc(q);
 
 	prm(q);
-	if (isalnum_(c) && !isalnum_(d))
+	if (isalnum_(c) && (!isalnum_(d) || pisbof(p)))
 		return 1;
 	else
 		return 0;
 }
 
+/* is p at the end of word? */
 int piseow(P *p)
 {
 	P *q = pdup(p);
@@ -421,12 +427,13 @@ int piseow(P *p)
 	int c = prgetc(q);
 
 	prm(q);
-	if (isalnum_(c) && !isalnum_(d))
+	if (isalnum_(c) && (!isalnum_(d) || piseof(p)))
 		return 1;
 	else
 		return 0;
 }
 
+/* is p on the blank line (ie. full of spaces/tabs)? */
 int pisblank(P *p)
 {
 	P *q = pdup(p);
@@ -443,6 +450,7 @@ int pisblank(P *p)
 	}
 }
 
+/* return column of first nonblank character */
 long pisindent(P *p)
 {
 	P *q = pdup(p);
@@ -482,16 +490,14 @@ int pprev(P *p)
 	return 1;
 }
 
+/* return current character and move p to the next character */
 int pgetc(P *p)
 {
 	unsigned char c;
 
 	if (p->ofst == GSIZE(p->hdr))
-		return MAXINT;
-	if (p->ofst >= p->hdr->hole)
-		c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-	else
-		c = p->ptr[p->ofst];
+		return NO_MORE_DATA;
+	c = GCHAR(p);
 	if (++p->ofst == GSIZE(p->hdr))
 		pnext(p);
 	++p->byte;
@@ -514,6 +520,7 @@ int pgetc(P *p)
 	return c;
 }
 
+/* move p n characters forward */
 P *pfwrd(P *p, long n)
 {
 	if (!n)
@@ -522,15 +529,15 @@ P *pfwrd(P *p, long n)
 	do {
 		if (p->ofst == GSIZE(p->hdr))
 			do {
-				if (!p->ofst)
-					p->byte += GSIZE(p->hdr), n -= GSIZE(p->hdr), p->line += p->hdr->nlines;
+				if (!p->ofst) {
+					p->byte += GSIZE(p->hdr);
+					n -= GSIZE(p->hdr);
+					p->line += p->hdr->nlines;
+				}
 				if (!pnext(p))
-					return 0;
+					return NULL;
 			} while (n > GSIZE(p->hdr));
-		if (p->ofst >= p->hdr->hole) {
-			if (p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole] == '\n')
-				++p->line;
-		} else if (p->ptr[p->ofst] == '\n')
+		if (GCHAR(p) == '\n')
 			++p->line;
 		++p->byte;
 		++p->ofst;
@@ -546,16 +553,14 @@ static int prgetc1(P *p)
 
 	if (!p->ofst)
 		if (!pprev(p))
-			return MAXINT;
+			return NO_MORE_DATA;
 	--p->ofst;
-	if (p->ofst >= p->hdr->hole)
-		c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-	else
-		c = p->ptr[p->ofst];
+	c = GCHAR(p);
 	--p->byte;
-	if (c == '\n')
-		--p->line, p->valcol = 0;
-	else {
+	if (c == '\n') {
+		--p->line;
+		p->valcol = 0;
+	} else {
 		if (c == '\t')
 			p->valcol = 0;
 		--p->col;
@@ -563,6 +568,7 @@ static int prgetc1(P *p)
 	return c;
 }
 
+/* move p to the previous character */
 int prgetc(P *p)
 {
 	int c = prgetc1(p);
@@ -571,13 +577,14 @@ int prgetc(P *p)
 		c = prgetc1(p);
 		if (c == '\r')
 			return '\n';
-		if (c != MAXINT)
+		if (c != NO_MORE_DATA)
 			pgetc(p);
 		c = '\n';
 	}
 	return c;
 }
 
+/* move p n characters backwards */
 P *pbkwd(P *p, long n)
 {
 	if (!n)
@@ -586,22 +593,23 @@ P *pbkwd(P *p, long n)
 	do {
 		if (!p->ofst)
 			do {
-				if (p->ofst)
-					p->byte -= p->ofst, n -= p->ofst, p->line -= p->hdr->nlines;
+				if (p->ofst) {
+					p->byte -= p->ofst;
+					n -= p->ofst;
+					p->line -= p->hdr->nlines;
+				}
 				if (!pprev(p))
-					return 0;
+					return NULL;
 			} while (n > GSIZE(p->hdr));
 		--p->ofst;
 		--p->byte;
-		if (p->ofst >= p->hdr->hole) {
-			if (p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole] == '\n')
-				--p->line;
-		} else if (p->ptr[p->ofst] == '\n')
+		if (GCHAR(p) == '\n')
 			--p->line;
 	} while (--n);
 	return p;
 }
 
+/* move p n characters forwards/backwards according to loc */
 P *pgoto(P *p, long loc)
 {
 	if (loc > p->byte)
@@ -611,6 +619,7 @@ P *pgoto(P *p, long loc)
 	return p;
 }
 
+/* make p->col valid */
 P *pfcol(P *p)
 {
 	H *hdr = p->hdr;
@@ -622,6 +631,7 @@ P *pfcol(P *p)
 	return p;
 }
 
+/* move p to the beginning of line */
 P *p_goto_bol(P *p)
 {
 	if (pprevl(p))
@@ -631,6 +641,7 @@ P *p_goto_bol(P *p)
 	return p;
 }
 
+/* move p to the end of line */
 P *p_goto_eol(P *p)
 {
 	if (p->b->o.crlf)
@@ -640,10 +651,7 @@ P *p_goto_eol(P *p)
 		while (p->ofst != GSIZE(p->hdr)) {
 			unsigned char c;
 
-			if (p->ofst >= p->hdr->hole)
-				c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-			else
-				c = p->ptr[p->ofst];
+			c = GCHAR(p);
 			if (c == '\n')
 				break;
 			else {
@@ -660,6 +668,7 @@ P *p_goto_eol(P *p)
 	return p;
 }
 
+/* move p to the beginning of next line */
 P *pnextl(P *p)
 {
 	char c;
@@ -669,12 +678,9 @@ P *pnextl(P *p)
 			do {
 				p->byte += GSIZE(p->hdr) - p->ofst;
 				if (!pnext(p))
-					return 0;
+					return NULL;
 			} while (!p->hdr->nlines);
-		if (p->ofst >= p->hdr->hole)
-			c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-		else
-			c = p->ptr[p->ofst];
+		c = GCHAR(p);
 		++p->byte;
 		++p->ofst;
 	} while (c != '\n');
@@ -686,6 +692,7 @@ P *pnextl(P *p)
 	return p;
 }
 
+/* move p to the end of previous line */
 P *pprevl(P *p)
 {
 	char c;
@@ -696,25 +703,23 @@ P *pprevl(P *p)
 			do {
 				p->byte -= p->ofst;
 				if (!pprev(p))
-					return 0;
+					return NULL;
 			} while (!p->hdr->nlines);
 		--p->ofst;
 		--p->byte;
-		if (p->ofst >= p->hdr->hole)
-			c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-		else
-			c = p->ptr[p->ofst];
+		c = GCHAR(p);
 	} while (c != '\n');
 	--p->line;
 	if (p->b->o.crlf && c == '\n') {
 		int k = prgetc1(p);
 
-		if (k != '\r' && k != MAXINT)
+		if (k != '\r' && k != NO_MORE_DATA)
 			pgetc(p);
 	}
 	return p;
 }
 
+/* move p to the given 'line' line */
 P *pline(P *p, long line)
 {
 	if (line > p->b->eof->line) {
@@ -739,6 +744,7 @@ P *pline(P *p, long line)
 	return p;
 }
 
+/* move p to the given 'goalcol' column */
 P *pcol(P *p, long goalcol)
 {
 	p_goto_bol(p);
@@ -748,10 +754,7 @@ P *pcol(P *p, long goalcol)
 
 		if (p->ofst == GSIZE(p->hdr))
 			break;
-		if (p->ofst >= p->hdr->hole)
-			c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-		else
-			c = p->ptr[p->ofst];
+		c = GCHAR(p);
 		if (c == '\n')
 			break;
 		if (p->b->o.crlf && c == '\r' && piseol(p))
@@ -770,6 +773,7 @@ P *pcol(P *p, long goalcol)
 	return p;
 }
 
+/* move p into given given 'goalcol' column (even within whitespaces) */
 P *pcolwse(P *p, long goalcol)
 {
 	int c;
@@ -778,11 +782,12 @@ P *pcolwse(P *p, long goalcol)
 	do {
 		c = prgetc(p);
 	} while (c == ' ' || c == '\t');
-	if (c != MAXINT)
+	if (c != NO_MORE_DATA)
 		pgetc(p);
 	return p;
 }
 
+/* FIXME: whats the differnce between pcol() and pcoli() ??? */
 P *pcoli(P *p, long goalcol)
 {
 	p_goto_bol(p);
@@ -791,10 +796,7 @@ P *pcoli(P *p, long goalcol)
 
 		if (p->ofst == GSIZE(p->hdr))
 			break;
-		if (p->ofst >= p->hdr->hole)
-			c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-		else
-			c = p->ptr[p->ofst];
+		c = GCHAR(p);
 		if (c == '\n')
 			break;
 #ifdef __MSDOS
@@ -812,20 +814,27 @@ P *pcoli(P *p, long goalcol)
 	return p;
 }
 
+/* fill space between curent column and 'to' column with tabs/spaces */
 void pfill(P *p, long to, int usetabs)
 {
 	piscol(p);
 	if (usetabs)
 		while (p->col < to)
-			if (p->col + p->b->o.tab - p->col % p->b->o.tab <= to)
-				binsc(p, '\t'), pgetc(p);
-			else
-				binsc(p, ' '), pgetc(p);
+			if (p->col + p->b->o.tab - p->col % p->b->o.tab <= to) {
+				binsc(p, '\t');
+				pgetc(p);
+			} else {
+				binsc(p, ' ');
+				pgetc(p);
+			}
 	else
-		while (p->col < to)
-			binsc(p, ' '), pgetc(p);
+		while (p->col < to) {
+			binsc(p, ' ');
+			pgetc(p);
+		}
 }
 
+/* delete sequence of whitespaces - backwards */
 void pbackws(P *p)
 {
 	int c;
@@ -834,7 +843,7 @@ void pbackws(P *p)
 	do {
 		c = prgetc(q);
 	} while (c == ' ' || c == '\t');
-	if (c != MAXINT)
+	if (c != NO_MORE_DATA)
 		pgetc(q);
 	bdel(q, p);
 	prm(q);
@@ -845,10 +854,7 @@ static char frgetc(P *p)
 	if (!p->ofst)
 		pprev(p);
 	--p->ofst;
-	if (p->ofst >= p->hdr->hole)
-		return p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-	else
-		return p->ptr[p->ofst];
+	return GCHAR(p);
 }
 
 static void ffwrd(P *p, int n)
@@ -862,6 +868,7 @@ static void ffwrd(P *p, int n)
 		pnext(p);
 }
 
+/* forward find pattern 's' in text pointed by 'p' (Boyer-Moore algorithm) */
 static P *ffind(P *p, unsigned char *s, int len)
 {
 	long amnt = p->b->eof->byte - p->byte;
@@ -869,7 +876,7 @@ static P *ffind(P *p, unsigned char *s, int len)
 	unsigned char table[256], c;
 
 	if (len > amnt)
-		return 0;
+		return NULL;
 	if (!len)
 		return p;
 	p->valcol = 0;
@@ -881,14 +888,18 @@ static P *ffind(P *p, unsigned char *s, int len)
 	x = len;
 	do {
 		if ((c = frgetc(p)) != s[--x]) {
-			if (table[c] == 255)
-				ffwrd(p, len + 1), amnt -= x + 1;
-			else if (x <= table[c])
-				ffwrd(p, len - x + 1), --amnt;
-			else
-				ffwrd(p, len - table[c]), amnt -= x - table[c];
+			if (table[c] == 255) {
+				ffwrd(p, len + 1);
+				amnt -= x + 1;
+			} else if (x <= table[c]) {
+				ffwrd(p, len - x + 1);
+				--amnt;
+			} else {
+				ffwrd(p, len - table[c]);
+				amnt -= x - table[c];
+			}
 			if (amnt < 0)
-				return 0;
+				return NULL;
 			else
 				x = len;
 		}
@@ -896,6 +907,7 @@ static P *ffind(P *p, unsigned char *s, int len)
 	return p;
 }
 
+/* forward find (case insensitive) pattern 's' in text pointed by 'p' (Boyer-Moore algorithm) */
 static P *fifind(P *p, unsigned char *s, int len)
 {
 	long amnt = p->b->eof->byte - p->byte;
@@ -903,7 +915,7 @@ static P *fifind(P *p, unsigned char *s, int len)
 	unsigned char table[256], c;
 
 	if (len > amnt)
-		return 0;
+		return NULL;
 	if (!len)
 		return p;
 	p->valcol = 0;
@@ -915,14 +927,18 @@ static P *fifind(P *p, unsigned char *s, int len)
 	x = len;
 	do {
 		if ((c = toupper(frgetc(p))) != s[--x]) {
-			if (table[c] == 255)
-				ffwrd(p, len + 1), amnt -= x + 1;
-			else if (x <= table[c])
-				ffwrd(p, len - x + 1), --amnt;
-			else
-				ffwrd(p, len - table[c]), amnt -= x - table[c];
+			if (table[c] == 255) {
+				ffwrd(p, len + 1);
+				amnt -= x + 1;
+			} else if (x <= table[c]) {
+				ffwrd(p, len - x + 1);
+				--amnt;
+			} else {
+				ffwrd(p, len - table[c]);
+				amnt -= x - table[c];
+			}
 			if (amnt < 0)
-				return 0;
+				return NULL;
 			else
 				x = len;
 		}
@@ -930,27 +946,28 @@ static P *fifind(P *p, unsigned char *s, int len)
 	return p;
 }
 
+/* move cursor p to q's position and set p's col, line, ofst, byte etc. accordingly */
+/* same as rgetto() but p is before q */
 static P *getto(P *p, P *q)
 {
 	while (p->hdr != q->hdr || p->ofst != q->ofst) {
-		if (p->ofst >= p->hdr->hole) {
-			if (p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole] == '\n')
-				++p->line;
-		} else if (p->ptr[p->ofst] == '\n')
+		if (GCHAR(p) == '\n')
 			++p->line;
 		++p->byte;
 		++p->ofst;
 		if (p->ofst == GSIZE(p->hdr))
 			pnext(p);
 		while (!p->ofst && p->hdr != q->hdr) {
-			p->byte += GSIZE(p->hdr), p->line += p->hdr->nlines;
+			p->byte += GSIZE(p->hdr);
+			p->line += p->hdr->nlines;
 			pnext(p);
 		}
 	}
 	return p;
 }
 
-P *pfind(P *p, char *s, int len)
+/* find forward substring s in text pointed by p and set p after found substring */
+P *pfind(P *p, unsigned char *s, int len)
 {
 	P *q = pdup(p);
 
@@ -960,11 +977,12 @@ P *pfind(P *p, char *s, int len)
 		return p;
 	} else {
 		prm(q);
-		return 0;
+		return NULL;
 	}
 }
 
-P *pifind(P *p, char *s, int len)
+/* same as pfind() but case insensitive */
+P *pifind(P *p, unsigned char *s, int len)
 {
 	P *q = pdup(p);
 
@@ -974,7 +992,7 @@ P *pifind(P *p, char *s, int len)
 		return p;
 	} else {
 		prm(q);
-		return 0;
+		return NULL;
 	}
 }
 
@@ -996,16 +1014,14 @@ static int fpgetc(P *p)
 	char c;
 
 	if (p->ofst == GSIZE(p->hdr))
-		return MAXINT;
-	if (p->ofst >= p->hdr->hole)
-		c = p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-	else
-		c = p->ptr[p->ofst];
+		return NO_MORE_DATA;
+	c = GCHAR(p);
 	if (++p->ofst == GSIZE(p->hdr))
 		pnext(p);
 	return c;
 }
 
+/* backward find pattern 's' in text pointed by 'p' (Boyer-Moore algorithm) */
 static P *frfind(P *p, unsigned char *s, int len)
 {
 	long amnt = p->byte;
@@ -1015,7 +1031,7 @@ static P *frfind(P *p, unsigned char *s, int len)
 	if (len > p->b->eof->byte - p->byte) {
 		x = len - (p->b->eof->byte - p->byte);
 		if (amnt < x)
-			return 0;
+			return NULL;
 		amnt -= x;
 		fbkwd(p, x);
 	}
@@ -1027,14 +1043,18 @@ static P *frfind(P *p, unsigned char *s, int len)
 	x = 0;
 	do {
 		if ((c = fpgetc(p)) != s[x++]) {
-			if (table[c] == 255)
-				fbkwd(p, len + 1), amnt -= len - x + 1;
-			else if (len - table[c] <= x)
-				fbkwd(p, x + 1), --amnt;
-			else
-				fbkwd(p, len - table[c]), amnt -= len - table[c] - x;
+			if (table[c] == 255) {
+				fbkwd(p, len + 1);
+				amnt -= len - x + 1;
+			} else if (len - table[c] <= x) {
+				fbkwd(p, x + 1);
+				--amnt;
+			} else {
+				fbkwd(p, len - table[c]);
+				amnt -= len - table[c] - x;
+			}
 			if (amnt < 0)
-				return 0;
+				return NULL;
 			else
 				x = 0;
 		}
@@ -1043,6 +1063,7 @@ static P *frfind(P *p, unsigned char *s, int len)
 	return p;
 }
 
+/* backward find (case insensitive) pattern 's' in text pointed by 'p' (Boyer-Moore algorithm) */
 static P *frifind(P *p, unsigned char *s, int len)
 {
 	long amnt = p->byte;
@@ -1052,7 +1073,7 @@ static P *frifind(P *p, unsigned char *s, int len)
 	if (len > p->b->eof->byte - p->byte) {
 		x = len - (p->b->eof->byte - p->byte);
 		if (amnt < x)
-			return 0;
+			return NULL;
 		amnt -= x;
 		fbkwd(p, x);
 	}
@@ -1064,14 +1085,18 @@ static P *frifind(P *p, unsigned char *s, int len)
 	x = 0;
 	do {
 		if ((c = toupper(fpgetc(p))) != s[x++]) {
-			if (table[c] == 255)
-				fbkwd(p, len + 1), amnt -= len - x + 1;
-			else if (len - table[c] <= x)
-				fbkwd(p, x + 1), --amnt;
-			else
-				fbkwd(p, len - table[c]), amnt -= len - table[c] - x;
+			if (table[c] == 255) {
+				fbkwd(p, len + 1);
+				amnt -= len - x + 1;
+			} else if (len - table[c] <= x) {
+				fbkwd(p, x + 1);
+				--amnt;
+			} else {
+				fbkwd(p, len - table[c]);
+				amnt -= len - table[c] - x;
+			}
 			if (amnt < 0)
-				return 0;
+				return NULL;
 			else
 				x = 0;
 		}
@@ -1080,27 +1105,29 @@ static P *frifind(P *p, unsigned char *s, int len)
 	return p;
 }
 
+/* move cursor p to q's position and set p's col, line, ofst, byte etc. accordingly */
+/* same as getto() but q is before p */
 static P *rgetto(P *p, P *q)
 {
 	while (p->hdr != q->hdr || p->ofst != q->ofst) {
 		if (!p->ofst)
 			do {
-				if (p->ofst)
-					p->byte -= p->ofst, p->line -= p->hdr->nlines;
+				if (p->ofst) {
+					p->byte -= p->ofst;
+					p->line -= p->hdr->nlines;
+				}
 				pprev(p);
 			} while (p->hdr != q->hdr);
 		--p->ofst;
 		--p->byte;
-		if (p->ofst >= p->hdr->hole) {
-			if (p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole] == '\n')
-				--p->line;
-		} else if (p->ptr[p->ofst] == '\n')
+		if (GCHAR(p) == '\n')
 			--p->line;
 	}
 	return p;
 }
 
-P *prfind(P *p, char *s, int len)
+/* find backward substring s in text pointed by p and set p on the first of found substring */
+P *prfind(P *p, unsigned char *s, int len)
 {
 	P *q = pdup(p);
 
@@ -1110,11 +1137,12 @@ P *prfind(P *p, char *s, int len)
 		return p;
 	} else {
 		prm(q);
-		return 0;
+		return NULL;
 	}
 }
 
-P *prifind(P *p, char *s, int len)
+/* same as prfind() but case insensitive */
+P *prifind(P *p, unsigned char *s, int len)
 {
 	P *q = pdup(p);
 
@@ -1124,10 +1152,11 @@ P *prifind(P *p, char *s, int len)
 		return p;
 	} else {
 		prm(q);
-		return 0;
+		return NULL;
 	}
 }
 
+/* copy text between 'from' and 'to' into new buffer */
 B *bcpy(P *from, P *to)
 {
 	H anchor, *l;
@@ -1194,7 +1223,6 @@ B *bcpy(P *from, P *to)
 }
 
 /* Coalesce small blocks into a single larger one */
-
 void pcoalesce(P *p)
 {
 	if (p->hdr != p->b->eof->hdr && GSIZE(p->hdr) + GSIZE(p->hdr->link.next) <= SEGSIZ - SEGSIZ / 4) {
@@ -1273,7 +1301,7 @@ static B *bcut(P *from, P *to)
 	int bofmove = 0;	/* Set if bof got deleted */
 
 	if (!(amnt = to->byte - from->byte))
-		return 0;	/* ...nothing to delete */
+		return NULL;	/* ...nothing to delete */
 
 	nlines = to->line - from->line;
 
@@ -1323,8 +1351,9 @@ static B *bcut(P *from, P *to)
 
 		/* Delete end of from */
 		if (!from->ofst) {
-			/* ..unless from needs to be deleted too */
-			a = from->hdr->link.prev, h = 0;
+			/* ... unless from needs to be deleted too */
+			a = from->hdr->link.prev;
+			h = NULL;
 			if (a == from->b->eof->hdr)
 				bofmove = 1;
 		} else {
@@ -1426,7 +1455,6 @@ static B *bcut(P *from, P *to)
 	pcoalesce(from);
 
 	/* Make buffer out of deleted text and return it */
-
 	return bmkchn(h, from->b, amnt, nlines);
 }
 
@@ -1447,7 +1475,6 @@ void bdel(P *from, P *to)
 /* p is placed in the new block such that it points to the same text but with
  * p->ofst==0
  */
-
 static void bsplit(P *p)
 {
 	if (p->ofst) {
@@ -1488,9 +1515,7 @@ static void bsplit(P *p)
 	}
 }
 
-/* Make a chain out of a block of memory */
-/* The block must not be empty */
-
+/* Make a chain out of a block of memory (the block must not be empty) */
 static H *bldchn(char *blk, int size, long *nlines)
 {
 	H anchor, *l;
@@ -1521,9 +1546,7 @@ static H *bldchn(char *blk, int size, long *nlines)
 	return l;
 }
 
-/* Insert a chain into a buffer */
-/* This does not update pointers */
-
+/* Insert a chain into a buffer (this does not update pointers) */
 static void inschn(P *p, H *a)
 {
 	if (!p->b->eof->byte) {	/* P's buffer is empty: replace the empty segment in p with a */
@@ -1590,9 +1613,7 @@ static void fixupins(P *p, long amnt, long nlines, H *hdr, int hdramnt)
 	p->b->changed = 1;
 }
 
-/* Insert a buffer at pointer position */
-/* The buffer goes away */
-
+/* Insert a buffer at pointer position (the buffer goes away) */
 P *binsb(P *p, B *b)
 {
 	if (b->eof->byte) {
@@ -1608,10 +1629,11 @@ P *binsb(P *p, B *b)
 	return p;
 }
 
+/* insert memory block 'blk' at 'p' */
 P *binsm(P *p, char *blk, int amnt)
 {
 	long nlines;
-	H *h = 0;
+	H *h = NULL;
 	int hdramnt;
 	P *q;
 
@@ -1638,6 +1660,7 @@ P *binsm(P *p, char *blk, int amnt)
 	return p;
 }
 
+/* insert char 'c' at 'p' */
 P *binsc(P *p, char c)
 {
 	if (p->b->o.crlf && c == '\n')
@@ -1646,6 +1669,7 @@ P *binsc(P *p, char c)
 		return binsm(p, &c, 1);
 }
 
+/* insert zero-terminated string 's' at 'p' */
 P *binss(P *p, char *s)
 {
 	return binsm(p, s, strlen(s));
@@ -1655,7 +1679,6 @@ P *binss(P *p, char *s)
  * when requested size has been read or when end of file condition occurs.
  * Returns with -2 in error for read error or 0 in error for success.
  */
-
 static int bkread(int fi, char *buff, int size)
 {
 	int a, b;
@@ -1674,7 +1697,6 @@ static int bkread(int fi, char *buff, int size)
 
 /* Read up to 'max' bytes from a file into a buffer */
 /* Returns with 0 in error or -2 in error for read error */
-
 B *bread(int fi, long int max)
 {
 	H anchor, *l;
@@ -1710,7 +1732,6 @@ B *bread(int fi, long int max)
  *
  * Returns new variable length string.
  */
-
 char *parsens(char *s, long int *skip, long int *amnt)
 {
 	char *n = vsncpy(NULL, 0, sz(s));
@@ -1783,7 +1804,6 @@ char *parsens(char *s, long int *skip, long int *amnt)
  * -3 for seek error
  * -4 for open error
  */
-
 B *bload(char *s)
 {
 	char buffer[SEGSIZ];
@@ -1863,7 +1883,7 @@ B *bload(char *s)
 	b->rdonly = b->o.readonly;
 
 	/* Close stream */
-      err:;
+err:
 #ifndef __MSDOS__
 	if (s[0] == '!')
 		pclose(fi);
@@ -1872,20 +1892,26 @@ B *bload(char *s)
 	if (strcmp(n, "-"))
 		fclose(fi);
 
-      opnerr:;
-	if (s[0] == '!')
-		ttopnn(), nreturn(maint->t);
+opnerr:
+	if (s[0] == '!') {
+		ttopnn();
+		nreturn(maint->t);
+	}
 
 	/* Set name */
 	b->name = joesep(strdup(s));
 
 	/* Set flags */
-	if (error || s[0] == '!' || skip || amnt != MAXLONG)
-		b->backup = 1, b->changed = 0;
-	else if (!strcmp(n, "-"))
-		b->backup = 1, b->changed = 1;
-	else
-		b->backup = 0, b->changed = 0;
+	if (error || s[0] == '!' || skip || amnt != MAXLONG) {
+		b->backup = 1;
+		b->changed = 0;
+	} else if (!strcmp(n, "-")) {
+		b->backup = 1;
+		b->changed = 1;
+	} else {
+		b->backup = 0;
+		b->changed = 0;
+	}
 	if (nowrite)
 		b->rdonly = b->o.readonly = 1;
 
@@ -1897,7 +1923,6 @@ B *bload(char *s)
 }
 
 /* Find already loaded buffer or load file into new buffer */
-
 B *bfind(char *s)
 {
 	B *b;
@@ -1938,7 +1963,6 @@ char **getbufs(void)
 }
 
 /* Find an orphaned buffer */
-
 B *borphan(void)
 {
 	B *b;
@@ -1948,7 +1972,7 @@ B *borphan(void)
 			b->orphan = 0;
 			return b;
 		}
-	return 0;
+	return NULL;
 }
 
 /* Write 'size' bytes from file beginning at 'p' to open file 'fd'.
@@ -1956,7 +1980,6 @@ B *borphan(void)
  * error is set to -5 for write error or 0 for success.
  * Don't attempt to write past the end of the file
  */
-
 int bsavefd(P *p, int fd, long int size)
 {
 	P *np = pdup(p);
@@ -1991,13 +2014,12 @@ int bsavefd(P *p, int fd, long int size)
 	}
 	prm(np);
 	return error = 0;
-      err:;
+err:
 	prm(np);
 	return error = 5;
 }
 
 /* Save 'size' bytes beginning at 'p' in file 's' */
-
 int bsave(P *p, char *s, long int size)
 {
 	FILE *f;
@@ -2050,7 +2072,7 @@ int bsave(P *p, char *s, long int size)
 		prm(q);
 	}
 
-      err:;
+err:
 #ifndef __MSDOS__
 	if (s[0] == '!')
 		pclose(f);
@@ -2061,20 +2083,19 @@ int bsave(P *p, char *s, long int size)
 	else
 		fflush(f);
 
-      opnerr:;
-	if (s[0] == '!' || !strcmp(s, "-"))
-		ttopnn(), nreturn(maint->t);
+opnerr:
+	if (s[0] == '!' || !strcmp(s, "-")) {
+		ttopnn();
+		nreturn(maint->t);
+	}
 	return error;
 }
 
 int brc(P *p)
 {
 	if (p->ofst == GSIZE(p->hdr))
-		return MAXINT;
-	if (p->ofst >= p->hdr->hole)
-		return p->ptr[p->ofst + p->hdr->ehole - p->hdr->hole];
-	else
-		return p->ptr[p->ofst];
+		return NO_MORE_DATA;
+	return GCHAR(p);
 }
 
 char *brmem(P *p, char *blk, int size)
@@ -2113,11 +2134,9 @@ char *brvs(P *p, int size)
 
 /* Save edit buffers when editor dies */
 
-extern char *ctime(const time_t *);
-
 RETSIGTYPE ttsig(int sig)
 {
-	long tim = time(0);
+	time_t tim = time(NULL);
 	B *b;
 	FILE *f;
 	int tmpfd;

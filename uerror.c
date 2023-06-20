@@ -31,14 +31,10 @@ struct error {
 	char *file;		/* Target file name */
 	long src;		/* Error-file line number */
 	char *msg;		/* The message */
-} errors = {
-
-	{
-	&errors, &errors}
-};
+} errors = { { &errors, &errors} };
 ERROR *errptr = &errors;	/* Current error row */
 
-B *errbuf = 0;			/* Buffer with error messages */
+B *errbuf = NULL;		/* Buffer with error messages */
 
 /* Insert and delete notices */
 
@@ -99,8 +95,7 @@ void saverr(char *name)
 }
 
 /* Pool of free error nodes */
-ERROR errnodes = { {&errnodes, &errnodes}
-};
+ERROR errnodes = { {&errnodes, &errnodes} };
 
 /* Free an error node */
 
@@ -125,7 +120,7 @@ static void freeall(void)
 static int parseit(char *s, long int row)
 {
 	int x, y;
-	char *name = 0;
+	char *name = NULL;
 	long line = -1;
 	ERROR *err;
 
@@ -186,7 +181,7 @@ static long parserr(B *b)
 			nerrs += parseit(s, q->line);
 			vsrm(s);
 		}
-	} while (pgetc(p) != MAXINT);
+	} while (pgetc(p) != NO_MORE_DATA);
 	prm(p);
 	prm(q);
 	return nerrs;
