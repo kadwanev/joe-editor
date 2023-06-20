@@ -4,10 +4,10 @@
 #define _Iconfig 1
 
 /* Uncomment to use TERMINFO database*/
-/* #define TERMINFO 1 */
+#define TERMINFO 1
 
 /* Path where main.c tries to open rc file */
-#define JOERC "/usr/local/lib/"
+#define JOERC "/usr/lib/"
 
 
 /* Uncomment the tty type.  Leave all uncommented for BSD */
@@ -54,7 +54,9 @@
 #define HTSIZE 2048
 
 char *getenv();
+#ifndef __alpha__
 long time();
+#endif
 void *malloc();
 void free();
 void *calloc();
