@@ -700,6 +700,7 @@ static int tomatch_char_or_word(BW *bw,int word_delimiter,int c,int f,const char
 				int set0 = utf8_decode_string(set);
 				if (d == set0) {
 					/* ifdef hack */
+					len = 0;
 					if (!joe_isalnum_(p->b->o.charmap, d)) { /* If it's a # in #ifdef, allow spaces after it */
 						sod = p->byte;
 						while ((d = pgetc(p))!=NO_MORE_DATA) {
@@ -708,9 +709,9 @@ static int tomatch_char_or_word(BW *bw,int word_delimiter,int c,int f,const char
 								break;
 							sod = p->byte;
 						}
+						buf[0] = set0;
+						len=1;
 					}
-					buf[0] = set0;
-					len=1;
 					if (joe_isalnum_(p->b->o.charmap, d))
 						goto doit;
 					if (d!=NO_MORE_DATA) {
@@ -726,9 +727,10 @@ static int tomatch_char_or_word(BW *bw,int word_delimiter,int c,int f,const char
 						d=pgetc(p);
 						++col;
 					}
-					if (d!=NO_MORE_DATA)
+					if (d!=NO_MORE_DATA) {
 						prgetc(p);
-					--col;
+						--col;
+					}
 					buf[len]=0;
 					if (is_in_group(set,buf)) {
 						++cnt;
@@ -946,7 +948,7 @@ int utomatch(W *w, int k)
 	if (joe_isalnum_(bw->cursor->b->o.charmap, c)) {
 		P *p;
 		int buf[MAX_WORD_SIZE+1];
-		char utf8_buf[MAX_WORD_SIZE * 6 + 1]; /* Possibly UTF-8 version of buf */
+		char *utf8_buf = vsmk(MAX_WORD_SIZE * 6 + 1); /* Possibly UTF-8 version of buf */
 		int buf1[MAX_WORD_SIZE+1];
 		const char *list = bw->b->o.text_delimiters;
 		const char *set;
@@ -985,9 +987,9 @@ int utomatch(W *w, int k)
 
 		/* We don't know the word, so start a search */
 		if (bw->b->o.charmap->type) {
-			Ztoutf8(utf8_buf, SIZEOF(utf8_buf), buf);
+			utf8_buf = Ztoutf8(utf8_buf, buf);
 		} else {
-			Ztoz(utf8_buf, SIZEOF(utf8_buf), buf);
+			utf8_buf = Ztoz(utf8_buf, buf);
 		}
 		return dofirst(bw, 0, 0, utf8_buf);
 	}
@@ -1323,11 +1325,11 @@ int upgup(W *w, int k)
 	BW *bw;
 	WIND_BW(bw, w);
 	if (menu_above) {
-		if (w->link.prev->watom == &watommenu) {
+		if (w->link.prev->watom == &watommenu && w->link.prev->win == w) {
 			return umpgup(w->link.prev, 0);
 		}
 	} else {
-		if (w->link.next->watom == &watommenu) {
+		if (w->link.next->watom == &watommenu && w->link.next->win == w) {
 			return umpgup(w->link.next, 0);
 		}
 	}
@@ -1351,11 +1353,11 @@ int upgdn(W *w, int k)
 	BW *bw;
 	WIND_BW(bw, w);
 	if (menu_above) {
-		if (w->link.prev->watom == &watommenu) {
+		if (w->link.prev->watom == &watommenu && w->link.prev->win == w) {
 			return umpgdn(w->link.prev, 0);
 		}
 	} else {
-		if (w->link.next->watom == &watommenu) {
+		if (w->link.next->watom == &watommenu && w->link.next->win == w) {
 			return umpgdn(w->link.next, 0);
 		}
 	}
@@ -1423,13 +1425,13 @@ int uline(W *w, int k)
 	
 	WIND_BW(bw, w);
 	
-	s = ask(w, joe_gettext(_("Go to line (^C to abort): ")), &linehist,
+	s = ask(w, joe_gettext(_("Go to line (%{abort} to abort): ")), &linehist,
 	        NULL, NULL, utf8_map, 0, 0, NULL);
 
 	if (!s)
 		return -1;
 
-	num = calc(bw, s, 1);
+	num = (off_t)calc(bw, s, 1);
 
 	if (num >= 1 && !merr) {
 		int tmp = opt_mid;
@@ -1462,8 +1464,8 @@ int ucol(W *w, int k)
 	
 	WIND_BW(bw, w);
 
-	s = ask(w, joe_gettext(_("Go to column (^C to abort): ")), &colhist,
-	        NULL, NULL, utf8_map, 0, 0, NULL);
+	s = ask(w, joe_gettext(_("Go to column (%{abort} to abort): ")), &colhist,
+	        NULL, math_cmplt, utf8_map, 0, 0, NULL);
 
 	if (!s)
 		return -1;
@@ -1499,8 +1501,8 @@ int ubyte(W *w, int k)
 	
 	WIND_BW(bw, w);
 
-	s = ask(w, joe_gettext(_("Go to byte (^C to abort): ")), &bytehist,
-	        NULL, NULL, utf8_map, 0, 0, NULL);
+	s = ask(w, joe_gettext(_("Go to byte (%{abort} to abort): ")), &bytehist,
+	        NULL, math_cmplt, utf8_map, 0, 0, NULL);
 	
 	if (!s)
 		return -1;
@@ -2010,7 +2012,7 @@ int uquote(W *w, int k)
 				goto again;
 		} else if (c == 'x' || c == 'X') {
 			if (bw->b->o.charmap->type) {
-				char *s = ask(w, joe_gettext(_("Unicode (ISO-10646) character in hex (^C to abort): ")), &unicodehist, NULL, utypebw, locale_map, 0, 0, NULL);
+				char *s = ask(w, joe_gettext(_("Unicode (ISO-10646) character in hex (%{abort} to abort): ")), &unicodehist, NULL, utypebw, locale_map, 0, 0, NULL);
 				if (s) {
 					int num;
 					sscanf((char *)s,"%x",(unsigned *)&num);
@@ -2367,7 +2369,7 @@ int ubkwdc(W *w, int k)
 int umsg(W *w, int k)
 {
 	char *s;
-	s = ask(w, joe_gettext(_("Message (^C to abort): ")), NULL,
+	s = ask(w, joe_gettext(_("Message (%{abort} to abort): ")), NULL,
 	        NULL, NULL, locale_map, 0, 0, NULL);
 
 	if (!s)
@@ -2387,7 +2389,7 @@ int utxt(W *w, int k)
 	
 	WIND_BW(bw, w);
 
-	s = ask(w, joe_gettext(_("Insert (^C to abort): ")),
+	s = ask(w, joe_gettext(_("Insert (%{abort} to abort): ")),
 	        NULL, NULL, utypebw, bw->b->o.charmap, 0, 0, NULL);
 
 	if (!s) {

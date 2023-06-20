@@ -64,12 +64,12 @@ CMD cmds[] = {
 	{"defm3down", TYPETW+TYPEPW, udefm3down, 0, 0, 0 },
 	{"defm3up", TYPETW+TYPEPW, udefm3up, 0, 0, 0 },
 	{"defm3drag", TYPETW+TYPEPW, udefm3drag, 0, 0, 0 },
+	{"defmiddledown", TYPETW+TYPEPW, udefmiddledown, 0, 0, 0 },
+	{"defmiddleup", TYPETW+TYPEPW, udefmiddleup, 0, 0, 0 },
+	{"defmiddledrag", TYPETW+TYPEPW, udefmiddledrag, 0, 0, 0 },
 	{"defmrdown", TYPETW+TYPEPW, udefmrdown, 0, 0, 0 },
 	{"defmrup", TYPETW+TYPEPW, udefmrup, 0, 0, 0 },
 	{"defmrdrag", TYPETW+TYPEPW, udefmrdrag, 0, 0, 0 },
-	{"defmmdown", TYPETW+TYPEPW, udefmmdown, 0, 0, 0 },
-	{"defmmup", TYPETW+TYPEPW, udefmmup, 0, 0, 0 },
-	{"defmmdrag", TYPETW+TYPEPW, udefmmdrag, 0, 0, 0 },
 	{"delbol", TYPETW + TYPEPW + EFIXXCOL + EKILL + EMOD, udelbl, NULL, 1, "deleol"},
 	{"delch", TYPETW + TYPEPW + ECHKXCOL + EFIXXCOL + EMINOR + EKILL + EMOD, udelch, NULL, 1, "backs"},
 	{"deleol", TYPETW + TYPEPW + EKILL + EMOD, udelel, NULL, 1, "delbol"}, 
@@ -294,7 +294,7 @@ int modify_logic(BW *bw,B *b)
 	if (last_time > b->check_time + CHECK_INTERVAL) {
 		b->check_time = last_time;
 		if (!nomodcheck && !b->gave_notice && check_mod(b)) {
-			int c = query(bw->parent, sz(joe_gettext(_("Notice: File on disk changed! (hit ^C to continue)  "))), QW_NOMACRO); /* Should not take macro input */
+			int c = query(bw->parent, sz(joe_gettext(_("Notice: File on disk changed! (hit %{abort} to continue)  "))), QW_NOMACRO); /* Should not take macro input */
 			if (c != -1)
 				b->gave_notice = 1;
 			return 0;
@@ -449,7 +449,7 @@ int execmd(CMD *cmd, int k)
 
       skip:
 
-	/* Make dislayed cursor column equal the actual cursor column
+	/* Make displayed cursor column equal the actual cursor column
 	 * for commands which arn't simple vertical movements */
 	if ((cmd->flag & EFIXXCOL) && (maint->curwin->watom->what & (TYPETW | TYPEPW)))
 		bw->cursor->xcol = piscol(bw->cursor);
@@ -470,18 +470,18 @@ int execmd(CMD *cmd, int k)
 
 void do_auto_scroll()
 {
-	static CMD *scrup = 0;
-	static CMD *scrdn = 0;
+	static CMD *myscrup = 0;
+	static CMD *myscrdn = 0;
 	static CMD *drag = 0;
-	if (!scrup) {
-		scrup = findcmd("upslide");
-		scrdn = findcmd("dnslide");
+	if (!myscrup) {
+		myscrup = findcmd("upslide");
+		myscrdn = findcmd("dnslide");
 		drag = findcmd("defmdrag");
 	}
 	if (auto_scroll > 0)
-		execmd(scrdn,0);
+		execmd(myscrdn,0);
 	else if (auto_scroll < 0)
-		execmd(scrup,0);
+		execmd(myscrup,0);
 
 	execmd(drag,0);
 		

@@ -45,9 +45,9 @@ static void menudisp(W *w, int flg)
 			if (y < m->lines)
 				for (x = 0; x < ((y + m->top) >= cut ? m->perline - 1 : m->perline) ; ++x) {
 					int atr;
-					ptrdiff_t index = x * m->lines + y + m->top;
+					ptrdiff_t ndx = x * m->lines + y + m->top;
 			
-					if (index == m->cursor && m->t->curwin == m->parent)
+					if (ndx == m->cursor && m->t->curwin == m->parent)
 						atr = INVERSE|BG_COLOR(bg_menu);
 					else
 						atr = BG_COLOR(bg_menu);
@@ -62,8 +62,8 @@ static void menudisp(W *w, int flg)
 						 m->x + col,
 						 m->y + y,
 						 0,
-						 m->list[index],
-						 zlen(m->list[index]),
+						 m->list[ndx],
+						 zlen(m->list[ndx]),
 						 atr,
 						 m->width,
 						 0,NULL);
@@ -79,9 +79,9 @@ static void menudisp(W *w, int flg)
 		} else {
 			for (x = 0; x != m->perline && y * m->perline + x + m->top < m->nitems; ++x) {
 				int atr;
-				ptrdiff_t index = x + y * m->perline + m->top;
+				ptrdiff_t ndx = x + y * m->perline + m->top;
 		
-				if (index == m->cursor && m->t->curwin==m->parent)
+				if (ndx == m->cursor && m->t->curwin==m->parent)
 					atr = INVERSE|BG_COLOR(bg_menu);
 				else
 					atr = BG_COLOR(bg_menu);
@@ -96,8 +96,8 @@ static void menudisp(W *w, int flg)
 					 m->x + col,
 					 m->y + y,
 					 0,
-					 m->list[index],
-					 zlen(m->list[index]),
+					 m->list[ndx],
+					 zlen(m->list[ndx]),
 					 atr,
 					 m->width,
 					 0,NULL);
@@ -661,6 +661,7 @@ MENU *mkmenu(W *w, W *targ, char **s, int (*func)(MENU *m, ptrdiff_t cursor, voi
 	if (!neww) {
 		return NULL;
 	}
+	w->t->curwin = neww;
 	wfit(neww->t);
 	neww->object = (void *) (m = (MENU *) joe_malloc(SIZEOF(MENU)));
 	m->parent = neww;
@@ -675,7 +676,6 @@ MENU *mkmenu(W *w, W *targ, char **s, int (*func)(MENU *m, ptrdiff_t cursor, voi
 	m->y = neww->y;
 	m->top = 0;
 	ldmenu(m, s, cursor);
-	w->t->curwin = neww;
 	return m;
 }
 

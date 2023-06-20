@@ -19,7 +19,7 @@ static void movetw(W *w, ptrdiff_t x, ptrdiff_t y)
 	BW *bw = (BW *)w->object;
 	TW *tw = (TW *)bw->object;
 
-	if (y || !staen) {
+	if ((y || !staen) && w->h > 1) {
 		if (!tw->staon) {	/* Scroll down and shrink */
 			nscrldn(bw->parent->t->t, y, bw->parent->nh + y, 1);
 		}
@@ -39,13 +39,66 @@ static void movetw(W *w, ptrdiff_t x, ptrdiff_t y)
 static void resizetw(W *w, ptrdiff_t wi, ptrdiff_t he)
 {
 	BW *bw = (BW *)w->object;
-	if (bw->parent->ny || !staen)
+	if ((bw->parent->ny || !staen) && he > 1)
 		bwresz(bw, wi - (bw->o.linums ? LINCOLS : 0), he - 1);
 	else
 		bwresz(bw, wi - (bw->o.linums ? LINCOLS : 0), he);
 }
 
 /* Get current context */
+
+/* Use context.jsf to determine context.  The advantage of this vs.  the old
+ * method is that the line attribute cache will help find context line
+ * quickly in large files.
+ */
+
+static struct high_syntax *context_syntax;
+
+static const int *get_context(BW *bw)
+{
+	static int buf1[SAVED_SIZE*2]; /* Double size because we replace \ with \\ */
+	const int *src;
+	P *p;
+	struct lattr_db *db;
+	HIGHLIGHT_STATE st;
+	clear_state(&st);
+	p = pdup(bw->cursor, "get_context");
+	p_goto_bol(p);
+	if (!context_syntax)
+		context_syntax = load_syntax("context");
+	if (context_syntax) {
+		db = find_lattr_db(bw->b, context_syntax);
+		if (db) {
+			st = lattr_get(db, context_syntax, p, p->line + 1);
+			/* Handles last line better */
+			/* st = parse(context_syntax, p, st, p->b->o.charmap); */
+		}
+	}
+	prm(p);
+	src = st.saved_s;
+	buf1[0] = 0;
+	if (src) {
+		ptrdiff_t i, j, spc;
+		/* replace tabs to spaces and remove adjoining spaces */
+		for (i=0,j=0,spc=0; src[i] && j < SAVED_SIZE-1; i++) {
+			if (src[i]=='\t' || src[i]==' ') {
+				if (spc) continue;
+				spc = 1;
+			}
+			else spc = 0;
+			if (src[i]=='\t')
+				buf1[j++] = ' ';
+			else if (src[i]=='\\') {
+				buf1[j++] = '\\';
+				buf1[j++] = '\\';
+			} else if (src[i] != '\r') {
+				buf1[j++] = src[i];
+			}
+		}
+		buf1[j]= '\0';
+	}
+	return buf1;
+}
 
 /* Find first line (going backwards) which has 0 indentation level
  * and is not a comment, blank, or block structuring line.  This is
@@ -68,6 +121,7 @@ static void resizetw(W *w, ptrdiff_t wi, ptrdiff_t he)
  *
  */
 
+#if 0
 static char *get_context(BW *bw)
 {
 	P *p = pdup(bw->cursor, "get_context");
@@ -135,8 +189,9 @@ static char *get_context(BW *bw)
 
 	return buf1;
 }
+#endif
 
-static char *duplicate_backslashes(char *s, ptrdiff_t len)
+char *duplicate_backslashes(const char *s, ptrdiff_t len)
 {
 	char *m;
 	ptrdiff_t x, count;
@@ -152,7 +207,7 @@ static char *duplicate_backslashes(char *s, ptrdiff_t len)
 	return m;
 }
 
-/* static */char *stagen(char *stalin, BW *bw, const char *s, char fill)
+char *stagen(char *stalin, BW *bw, const char *s, char fill)
 {
 	char buf[80];
 	int x;
@@ -173,12 +228,23 @@ static char *duplicate_backslashes(char *s, ptrdiff_t len)
 				++s;
 			}
 			switch (*s) {
+			case 'v': /* Version of JOE */
+				{
+					joe_snprintf_1(buf, SIZEOF(buf), "%s", VERSION);
+					stalin = vsncpy(sv(stalin), sz(buf));
+				}
+				break;
+
 			case 'x': /* Context (but only if autoindent is enabled) */
 				{
-					if ( bw->o.autoindent) {
-						char *ts = get_context(bw);
-						char *t = my_iconv(NULL,locale_map,ts,bw->o.charmap);
-						stalin = vscat(stalin, sv(t));
+					if (bw->o.title) {
+						const int *ts = get_context(bw);
+						if (ts) {
+							/* We need to translate between file's character set to
+							   locale */
+							char *t = my_iconv1(NULL, locale_map, ts);
+							stalin = vscat(stalin, sv(t));
+						}
 					}
 				}
 				break;
@@ -449,7 +515,7 @@ static char *duplicate_backslashes(char *s, ptrdiff_t len)
 			case 'k':
 				{
 					ptrdiff_t i;
-					char *cpos = buf;
+					char *mycpos = buf;
 
 					buf[0] = 0;
 					if (w->kbd->x && w->kbd->seq[0])
@@ -457,22 +523,22 @@ static char *duplicate_backslashes(char *s, ptrdiff_t len)
 							char c = w->kbd->seq[i] & 127;
 
 							if (c < 32) {
-								cpos[0] = '^';
-								cpos[1] = (char)(c + '@');
-								cpos += 2;
+								mycpos[0] = '^';
+								mycpos[1] = (char)(c + '@');
+								mycpos += 2;
 							} else if (c == 127) {
-								cpos[0] = '^';
-								cpos[1] = '?';
-								cpos += 2;
+								mycpos[0] = '^';
+								mycpos[1] = '?';
+								mycpos += 2;
 							} else {
-								cpos[0] = c;
-								cpos += 1;
+								mycpos[0] = c;
+								mycpos += 1;
 							}
 						}
-					*cpos++ = fill;
-					while (cpos - buf < 4)
-						*cpos++ = fill;
-					stalin = vsncpy(sv(stalin), buf, cpos - buf);
+					*mycpos++ = fill;
+					while (mycpos - buf < 4)
+						*mycpos++ = fill;
+					stalin = vsncpy(sv(stalin), buf, mycpos - buf);
 				}
 				break;
 			case 'S':
@@ -487,6 +553,9 @@ static char *duplicate_backslashes(char *s, ptrdiff_t len)
 				break;
 			case 'e':
 				stalin = vsncpy(sv(stalin), sz(bw->b->o.charmap->name));
+				break;
+			case 'b':
+				stalin = vsncpy(sv(stalin), sz(locale_map->name));
 				break;
 			case 'w':
 				if (!piseof(bw->cursor)) {
@@ -524,7 +593,7 @@ static void disptw(W *w, int flg)
 		w->curx = TO_DIFF_OK(bw->cursor->xcol - bw->offset + (bw->o.linums ? LINCOLS : 0));
 	}
 
-	if ((staupd || keepup || bw->cursor->line != tw->prevline || bw->b->changed != tw->changed || bw->b != tw->prev_b) && (w->y || !staen)) {
+	if ((staupd || keepup || bw->cursor->line != tw->prevline || bw->b->changed != tw->changed || bw->b != tw->prev_b) && (w->y || !staen) && w->h > 1) {
 		char fill;
 
 		tw->prevline = bw->cursor->line;
@@ -740,6 +809,12 @@ int uabort(W *w, int k)
 	if (w->watom != &watomtw)
 		return wabort(w);
 	WIND_BW(bw, w);
+	if (markv(0) && markb->b == bw->b) {
+		prm(markk);
+		markk = 0;
+		updall();
+		return 0;
+	}
 	if (bw->parent->bstack) {
 		int rtn;
 		B *b = wpop(bw);
@@ -752,7 +827,7 @@ int uabort(W *w, int k)
 	if (bw->b->pid && bw->b->count==1)
 		return ukillpid(bw->parent, 0);
 	if (bw->b->changed && bw->b->count == 1 && !bw->b->scratch) {
-		int c = query(w, sz(joe_gettext(_("Lose changes to this file (y,n,^C)? "))), 0);
+		int c = query(w, sz(joe_gettext(_("Lose changes to this file (y,n,%{abort})? "))), 0);
 		if (!yncheck(yes_key, c))
 			return -1;
 	}
@@ -783,7 +858,7 @@ int uabort1(W *w, int k)
 	if (bw->b->pid && bw->b->count==1)
 		return ukillpid(bw->parent, 0);
 	if (bw->b->changed && bw->b->count == 1 && !bw->b->scratch) {
-		int c = query(w, sz(joe_gettext(_("Lose changes to this file (y,n,^C)? "))), 0);
+		int c = query(w, sz(joe_gettext(_("Lose changes to this file (y,n,%{abort})? "))), 0);
 		if (!yncheck(yes_key, c))
 			return -1;
 	}
@@ -845,20 +920,20 @@ int utw1(W *w, int k)
 	W *starting = w;
 	W *mainw = starting->main;
 	Screen *t = mainw->t;
-	int yn;
+	int myyn;
 
 	do {
-		yn = 0;
+		myyn = 0;
 	      loop:
 		do {
 			wnext(t);
 		} while (t->curwin->main == mainw && t->curwin != starting);
 		if (t->curwin->main != mainw) {
 			utw0(t->curwin->main, 0);
-			yn = 1;
+			myyn = 1;
 			goto loop;
 		}
-	} while (yn);
+	} while (myyn);
 	return 0;
 }
 

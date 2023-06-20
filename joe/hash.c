@@ -118,6 +118,30 @@ void *htfind(HASH *ht, const char *name)
 	return NULL;
 }
 
+/* Interned strings / aka atoms */
+
+HASH *atom_table;
+
+const char *atom_add(const char *name)
+{
+	char *s;
+	if (!atom_table)
+		atom_table = htmk(256);
+	s = (char *)htfind(atom_table, name);
+	if (!s) {
+		s = zdup(name);
+		htadd(atom_table, s, s);
+	}
+	return s;
+}
+
+const char *atom_noadd(const char *name)
+{
+	if (!atom_table)
+		atom_table = htmk(256);
+	return (char *)htfind(atom_table, name);
+}
+
 static ZHENTRY *zfreentry = NULL;
 
 ptrdiff_t zhash(const int *s)
@@ -224,3 +248,28 @@ void *Zhtfind(ZHASH *ht, const int *name)
 	}
 	return NULL;
 }
+
+/* Interned Z-strings / aka Zatoms */
+
+ZHASH *Zatom_table;
+
+const int *Zatom_add(const int *name)
+{
+	int *s;
+	if (!Zatom_table)
+		Zatom_table = Zhtmk(256);
+	s = (int *)Zhtfind(Zatom_table, name);
+	if (!s) {
+		s = Zdup(name);
+		Zhtadd(Zatom_table, s, s);
+	}
+	return s;
+}
+
+const int *Zatom_noadd(const int *name)
+{
+	if (!Zatom_table)
+		Zatom_table = Zhtmk(256);
+	return (int *)Zhtfind(Zatom_table, name);
+}
+

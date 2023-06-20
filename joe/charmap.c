@@ -35,7 +35,7 @@ static int map_name_cmp(const char *a, const char *b);
 /* nl_langinfo(CODESET) is broken on many systems.  If HAVE_SETLOCALE is undefined,
    JOE uses a limited internal version instead */
 
-/* Convert from byte code to unicode.  Returns -1 for unknown. */
+/* Convert from byte code to Unicode.  Returns -1 for unknown. */
 
 int to_uni(struct charmap *cset, int c)
 {
@@ -54,7 +54,7 @@ void to_utf8(struct charmap *map,char *s,int c)
 		utf8_encode(s,d);
 }
 
-/* Convert from unicode to byte code.  Returns -1 for unknown. */
+/* Convert from Unicode to byte code.  Returns -1 for unknown. */
 
 int from_uni(struct charmap *cset, int c)
 {
@@ -64,7 +64,7 @@ int from_uni(struct charmap *cset, int c)
 		c += 256;
 
 	x = 0;
-	y = cset->from_size-1;
+	y = cset->from_size;
 	z = -1;
 	while (z != (x + y) / 2) {
 		z = (x + y) / 2;
@@ -143,11 +143,6 @@ static struct alias_table_s alias_table[] = {
 };
 
 /* I took all the ISO-8859- ones, plus any ones referenced by a locale */
-
-struct builtin_charmap {
-	const char *name;
-	int to_uni[256];
-};
 
 static struct builtin_charmap builtin_charmaps[]=
 {
@@ -1490,10 +1485,10 @@ static struct builtin_charmap *parse_charmap(const char *name,FILE *f)
 		} else if (in_map && bf1[0]=='<' && bf1[1]=='U') {
 			int uni;
 			int byt;
-			uni = ztoi(bf1 + 2);
+			uni = zhtoi(bf1 + 2);
 			parse_ws(&p, comment_char);
 			parse_tows(&p, &bf1);
-			byt = ztoi(bf1 + 2);
+			byt = zhtoi(bf1 + 2);
 			b->to_uni[byt]=uni;
 		}
 	}
@@ -1516,7 +1511,7 @@ static struct builtin_charmap *parse_charmap(const char *name,FILE *f)
 	return b;
 }
 
-/* Byte wide character map to unicode conversion */
+/* Byte wide character map to Unicode conversion */
 
 /* Compare character map names.  Ignores '-'s and terminates string on '.' */
 /* Chicken and egg problem here.. */
@@ -1683,7 +1678,6 @@ char **get_encodings()
 	if (p) {
 #ifndef JOEWIN
 		buf = vsfmt(buf, 0, "%s/.joe/charmaps",p);
-		if (!chpwd(buf) && (t = rexpnd("*"))) {
 #else
 		buf = vsfmt(buf, 0, "%s\\charmaps",p);
 #endif
@@ -1793,8 +1787,12 @@ static const char *joe_getcodeset(char *l)
       }
     }
 
-    if (zstr(l, "KOI8-R")) return "KOI8-R";
-    if (zstr(l, "KOI8-U")) return "KOI8-U";
+    if (zstr(l, "KOI8-R") || zstr(l, "KOI8R") ||
+        zstr(l, "koi8-r") || zstr(l, "koi8r")) return "KOI8-R";
+
+    if (zstr(l, "KOI8-U") || zstr(l, "KOI8U") ||
+        zstr(l, "koi8-u") || zstr(l, "koi8u")) return "KOI8-U";
+
     if (zstr(l, "620")) return "TIS-620";
     if (zstr(l, "1251")) return "CP1251";
     if (zstr(l, "2312")) return "GB2312";
@@ -2006,6 +2004,27 @@ char *my_iconv(char *dest, struct charmap *dest_map,
 			}
 		}
 	}
+	return dest;
+}
+
+char *my_iconv1(char *dest, struct charmap *dest_map, const int *src)
+{
+	/* src is UTF-8 */
+	if (dest_map->type) {
+		/* Unicode to UTF-8? */
+		dest = Ztoutf8(dest, src);
+	} else {
+		/* UTF-8 to non-UTF-8 */
+		dest = vsensure(dest, Zlen(src));
+		while (*src) {
+			int d = from_uni(dest_map, *src++);
+			if (d >= 0)
+				dest = vsadd(dest, TO_CHAR_OK(d));
+			else
+				dest = vsadd(dest, '?');
+		}
+	}
+
 	return dest;
 }
 

@@ -53,6 +53,8 @@
  -help_is_utf8	Set if help text is in UTF-8 format.  Leave clear if it's a raw 8-bit format.
 
 -mid		Cursor is recentered when scrolling is necessary
+ -left nn	Amount to jump left when scrolling is necessary (-1 for 1/4 width)
+ -right nn	Amount to jump right when scrolling is necessary (-1 for 1/4 width)
 -marking	Text between ^KB and cursor is highlighted
 -lightoff	Turn off highlighting after block copy or move
  -asis		Characters 128 - 255 shown as-is
@@ -96,7 +98,7 @@
  -lines nnn	Set no. screen lines
  -baud 19200	Set baud rate for terminal optimizations
  -columns nnn	Set no. screen columns
- -help		Start with help on
+ -helpon	Start with help on
  -skiptop nnn	Don't use top nnn lines of the screen
 
 -notite         Don't send terminal initialization and termination strings: prevents
@@ -234,6 +236,11 @@
 -rmsg  %S Row %4r Col %3c %t  ^X^H for help
 -smsg ** Line %r Col %c Offset %o(0x%O) %e %a(0x%A) Width %w ** 
 -zmsg ** Line %r Col %c Offset %o(0x%O) ** 
+-xmsg \i Joe's Own Editor for Windows %v (%b) ** Type \b^X ^C\b to exit or \b^X ^H\b for help **\i
+
+ Key sequence hints which are displayed in various prompts.
+-aborthint ^G
+-helphint ^X ^H
 
 
  SECOND SECTION: File name dependant local option settings:
@@ -409,6 +416,7 @@ mode,"asis",rtn	% % Meta chars as-is
 mode,"language",rtn	V Language
 mode,"picture",rtn	P picture %Zpicture%
 mode,"type",rtn		F File type [%Ztype%]
+mode,"title",rtn	C Context %Ztitle%
 menu,"more-options",rtn	  % % More options...
 
 :defmenu more-options menu,"root",rtn
@@ -490,6 +498,8 @@ mode,"backpath",rtn	% % Path to backup files %Zbackpath%
 :defmenu cursor menu,"more-options",rtn
 mode,"pg",rtn	% % No. PgUp/PgDn lines %Zpg%
 mode,"mid",rtn	C Center on scroll %Zmid%
+mode,"left",rtn	L Columns to scroll left %Zleft%
+mode,"right",rtn R Columns to scroll right %Zright%
 mode,"floatmouse",rtn	% % Click past end %Zfloatmouse%
 mode,"rtbutton",rtn	% % Right button %Zrtbutton%
 
@@ -620,6 +630,9 @@ mode,"spaces",rtn	% % No tabs %Zspaces%
 \i \i  user joerc file is here %LOCALAPPDATA%\\JoeEditor\\jmacsrc \|\i \i
 \i \i  default syntax and i18n files are here (Program location)\\syntax \|\i \i
 \i \i  additional documentation can be found here (Program location)\\doc \|\i \i
+\i \i \|\i \i
+\i \i  Right-click in the editor window to display the context menu, \|\i \i
+\i \i  which has some settings and links to documentation. \|\i \i
 }
 
 {CharTable
@@ -744,12 +757,12 @@ defm2drag	M2DRAG		Select a region of words
 defm3down	M3DOWN		Select the line at the mouse location
 defm3up		M3UP
 defm3drag	M3DRAG		Select a region of lines
-defmmup		MMUP		No-op
+defmiddledrag	MIDDLEDRAG	No-op
+defmrup		MRUP		No-op
 defmrdown	MRDOWN		No-op
-defmmdrag	MMDRAG		No-op
 defmrdrag	MRDRAG		No-op
-winpaste	MMDOWN		Paste on middle-click
-wincontext	MRUP		Show context menu on right-click
+winpaste	MIDDLEDOWN	Paste on middle-click
+wincontext	MIDDLEUP	Show context menu on right-click
 
 xtmouse		^[ [ M		Introduces an xterm mouse event
 extmouse	^[ [ <		Introduces an extended xterm mouse event
@@ -1112,6 +1125,10 @@ ltarw		.kl		Go left
 ltarw		^B
 ltarw		^[ O D
 ltarw		^[ [ D
+pbuf		^X .kl		Go left
+pbuf		^X ^B
+pbuf		^X ^[ O D
+pbuf		^X ^[ [ D
  ltarw          ^# D
  mode		^[ ^[		Change modes
 menu,"root",rtn	^[ ^[
@@ -1143,6 +1160,10 @@ rtarw		.kr		Go right
 rtarw		^F
 rtarw		^[ O C
 rtarw		^[ [ C
+nbuf		^X .kr
+nbuf		^X ^F
+nbuf		^X ^[ O C
+nbuf		^X ^[ [ C
  rtarw          ^# C
 run		^[ !
 save		^X ^W		Write file

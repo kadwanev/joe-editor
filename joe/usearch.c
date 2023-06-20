@@ -153,7 +153,6 @@ static int fcmplt_abrt(W *w, ptrdiff_t x, void *obj)
 
 static int fcmplt_rtn(MENU *m, ptrdiff_t x, void *obj, int k)
 {
-	char *line = (char *)obj;
 	fcmplt_ins((BW *)m->parent->win->object, m->list[x]);
 	m->object = NULL;
 	wabort(m->parent);
@@ -268,7 +267,7 @@ static int srch_cmplt(BW *bw, int k)
      p is placed right after the found string
 
    Return 0 if we did not find the string:
-     p is left in its orignal spot
+     p is left in its original spot
 */
 
 static P *searchf(BW *bw,SRCH *srch, P *p)
@@ -333,7 +332,7 @@ static P *searchf(BW *bw,SRCH *srch, P *p)
      p is placed at the beginning of the string
 
    Return 0 if we did not find the string:
-     p is left in its orignal spot
+     p is left in its original spot
 */
 
 static P *searchb(BW *bw,SRCH *srch, P *p)
@@ -453,15 +452,15 @@ void rmsrch(SRCH *srch)
 {
 	if (srch->comp)
 		joe_regfree(srch->comp);
-	prm(markb);
-	prm(markk);
 	prm(srch->wrap_p);
 	if (srch->markb) {
+                prm(markb);
 		markb = srch->markb;
 		markb->owner = &markb;
 		markb->xcol = piscol(markb);
 	}
 	if (srch->markk) {
+		prm(markk);
 		markk = srch->markk;
 		markk->owner = &markk;
 		markk->xcol = piscol(markk);
@@ -539,6 +538,7 @@ static P *insert(SRCH *srch, P *p, const char *s, ptrdiff_t len, B **entire, B *
  * and execute first search */
 
 char srchstr[] = "Search";	/* Context sensitive help identifier */
+char replstr[] = "Replace";	/* Context sensitive help identifier */
 char srchopt[] = "SearchOptions";
 
 static int pfsave(W *w, void *obj)
@@ -552,14 +552,14 @@ static int pfsave(W *w, void *obj)
 		srch->repeat = -1;
 		srch->flg = 0;
 
-		prm(markb);
-		prm(markk);
 		if (srch->markb) {
+		        prm(markb);
 			markb = srch->markb;
 			markb->owner = &markb;
 			markb->xcol = piscol(markb);
 		}
 		if (srch->markk) {
+		        prm(markk);
 			markk = srch->markk;
 			markk->owner = &markk;
 			markk->xcol = piscol(markk);
@@ -617,9 +617,9 @@ int dofirst(BW *bw, int back, int repl, char *hint)
 	srch->wrap_p->owner = &srch->wrap_p;
 	if (pico && globalsrch && globalsrch->pattern) {
 		unesc_genfmt(bf1, sv(globalsrch->pattern), sizeof(bf1)-2);
-		prompt = vsfmt(prompt, 0, joe_gettext(_("Find (^C to abort) [%s]: ")),bf1);
+		prompt = vsfmt(prompt, 0, joe_gettext(_("Find (%{help} for help) [%s]: ")),bf1);
 	} else
-		prompt = vsdupz(joe_gettext(_("Find (^C to abort): ")));
+		prompt = vsdupz(joe_gettext(_("Find (%{help} for help): ")));
 
 	s = ask(bw->parent, prompt, &findhist, srchstr, srch_cmplt, bw->b->o.charmap, 0, 0, hint);
 
@@ -628,9 +628,9 @@ int dofirst(BW *bw, int back, int repl, char *hint)
 		char buf[80];
 		char *bufp;
 		if (opt_icase)
-			p = joe_gettext(_("case (S)ensitive (R)eplace (B)ackwards Bloc(K) (A)ll files NNN (^C to abort): "));
+			p = joe_gettext(_("case (S)ensitive (R)eplace (B)ackwards Bloc(K) (%{help} for help): "));
 		else
-			p = joe_gettext(_("(I)gnore (R)eplace (B)ackwards Bloc(K) (A)ll files NNN (^C to abort): "));
+			p = joe_gettext(_("(I)gnore (R)eplace (B)ackwards Bloc(K) (%{help} for help): "));
 
 		obj_free(srch->pattern);
 		if (vslen(s) || !globalsrch || !pico) {
@@ -710,11 +710,11 @@ int dofirst(BW *bw, int back, int repl, char *hint)
 					joe_snprintf_1(bf1,30,"%s",globalsrch->replacement);
 					if (zlen(globalsrch->replacement)>29)
 						zlcat(bf1, SIZEOF(bf1), "$");
-					joe_snprintf_1(buf,SIZEOF(buf),joe_gettext(_("Replace with (^C to abort) [%s]: ")),bf1);
+					joe_snprintf_1(buf,SIZEOF(buf),joe_gettext(_("Replace with (%{help} for help) [%s]: ")),bf1);
 				} else
-					zcpy(buf, joe_gettext(_("Replace with (^C to abort): "))); */
+					zcpy(buf, joe_gettext(_("Replace with (%{help} for help): "))); */
 
-				s = ask(bw->parent, joe_gettext(_("Replace with (^C to abort): ")), &replhist, srchstr, srch_cmplt, bw->b->o.charmap, 0, 0, NULL);
+				s = ask(bw->parent, joe_gettext(_("Replace with (%{help} for help): ")), &replhist, replstr, srch_cmplt, bw->b->o.charmap, 0, 0, NULL);
 				if (s) {
 					if (vslen(s) || !globalsrch || !pico) {
 						srch->replacement = s;
@@ -832,11 +832,11 @@ static int doreplace(BW *bw, SRCH *srch)
 	return 0;
 }
 
-static void visit(SRCH *srch, BW *bw, int yn)
+static void visit(SRCH *srch, BW *bw, int myyn)
 {
 	SRCHREC *r = (SRCHREC *) alitem(&fsr, SIZEOF(SRCHREC));
 	r->addr = bw->cursor->byte;
-	r->yn = yn;
+	r->yn = myyn;
 	r->wrap_flag = srch->wrap_flag;
 	r->last_repl = srch->last_repl;
 	r->b = bw->b;
@@ -901,7 +901,7 @@ static int dopfrepl(W *w, int c, void *obj)
 		nungetc(c);
 		return 0;
 	}
-	c = query(bw->parent, sz(joe_gettext(_("Replace (Y)es (N)o (R)est (B)ackup (^C to abort)?"))), QW_SR);
+	c = query(bw->parent, sz(joe_gettext(_("Replace (Y)es (N)o (R)est (B)ackup (%{abort} to abort)?"))), QW_SR);
 	if (c != -1)
 		goto again;
 	else

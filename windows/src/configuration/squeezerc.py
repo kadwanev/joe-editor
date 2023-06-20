@@ -33,29 +33,30 @@ def main(infname, outfname):
 flagsettings = [
     'asis', 'assume_256color', 'assume_color', 'autoindent', 'autoswap', 'beep', 'break_hardlinks', 'break_links',
     'c_comment', 'cpp_comment', 'crlf', 'csmode', 'dopadding', 'exask', 'floatmouse', 'flowed', 'force', 'french',
-    'guess_crlf', 'guess_indent', 'guess_non_utf8', 'guess_utf8', 'help', 'help_is_utf8', 'hex', 'highlight', 'icase',
+    'guess_crlf', 'guess_indent', 'guess_non_utf8', 'guess_utf8', 'helpon', 'help_is_utf8', 'hex', 'highlight', 'icase',
     'indentfirst', 'joe_state', 'joexterm', 'keepup', 'lightoff', 'linums', 'marking', 'menu_above', 'menu_explorer',
     'menu_jump', 'mid', 'mouse', 'no_double_quoted', 'nobackup', 'nobackups', 'nocurdir', 'nolocks', 'nomodcheck',
     'nonotice', 'nosta', 'notite', 'noxon', 'orphan', 'overwrite', 'picture', 'pound_comment', 'purify', 'rdonly',
     'restore', 'rtbutton', 'search_prompting', 'semi_comment', 'single_quoted', 'smarthome', 'smartbacks', 'spaces',
     'square', 'tex_comment', 'transpose', 'usetabs', 'vhdl_comment', 'wordwrap', 'wrap',
-    'nodeadjoe', 'noexmsg', 'nolinefeeds', 'highlighter_context', 'guess_utf16', 'brpaste', 'pastehack', 'regex'
+    'nodeadjoe', 'noexmsg', 'nolinefeeds', 'highlighter_context', 'guess_utf16', 'brpaste', 'pastehack', 'regex',
+    'title'
 ]
 
 oneparamsettings = [
     'baud', 'columns', 'encoding', 'help_color', 'indentc', 'istep', 'keymap', 'lines', 'lmargin', 'menu_color',
     'msg_color', 'pg', 'prompt_color', 'rmargin', 'skiptop', 'status_color', 'syntax', 'tab', 'text_color',
-    'undo_keep'
+    'undo_keep', 'left', 'right'
 ]
 
 lineparamsettings = [
     'backpath', 'cpara', 'lmsg', 'mfirst', 'mnew', 'mold', 'msnew', 'msold', 'rmsg', 'text_delimiters',
-    'smsg', 'zmsg'
+    'smsg', 'zmsg', 'xmsg', 'aborthint', 'helphint'
 ]
 
 specialkeys = [
     'SP', 'TO', 'MDOWN', 'MUP', 'MDRAG', 'M2DOWN', 'M2UP', 'M2DRAG', 'M3DOWN', 'M3UP', 'M3DRAG', 'MWDOWN', 'MWUP',
-    'MRUP', 'MRDOWN', 'MRDRAG', 'MMUP', 'MMDOWN', 'MMDRAG'
+    'MRUP', 'MRDOWN', 'MRDRAG', 'MIDDLEUP', 'MIDDLEDOWN', 'MIDDLEDRAG'
 ]
 
 class SqueezeState(object):
@@ -89,14 +90,14 @@ def squeeze(infname, inf, outf, first=None):
 def squeezeline(line, state):
     # Blank lines, or lines starting with whitespace are ignored.
     if len(line) == 0: return None
-    if line[0].isspace(): return None
+    if not state.inbrace and line[0].isspace(): return None
     
     if line[0] == '{':
         state.inbrace = True
     if state.inbrace:
         if line[0] == '}':
             state.inbrace = False
-        return line.strip()
+        return line.rstrip('\r\n')
     
     firstword = line.split()[0]
     

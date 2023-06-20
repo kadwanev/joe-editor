@@ -1,5 +1,5 @@
 /*
- *	UNIX Tty and Process interface
+ *	UNIX TTY and Process interface
  *	Copyright
  *		(C) 1992 Joseph H. Allen
  *
@@ -611,7 +611,7 @@ time_t last_time;
 char ttgetc(void)
 {
         MACRO *m;
-	ptrdiff_t stat;
+	ptrdiff_t mystat;
 	time_t new_time;
 	int flg;
 
@@ -653,11 +653,11 @@ char ttgetc(void)
 	}
 	if (ackkbd != -1) {
 		if (!have) {	/* Wait for input */
-			stat = read(mpxfd, &pack, pack.data - (char *)&pack);
+			mystat = read(mpxfd, &pack, pack.data - (char *)&pack);
 
-			if (pack.size && stat > 0) {
+			if (pack.size && mystat > 0) {
 				joe_read(mpxfd, pack.data, pack.size);
-			} else if (stat < 1) {
+			} else if (mystat < 1) {
 				if (winched || ticked)
 					goto loop;
 				else
@@ -786,7 +786,7 @@ void ttstsz(int fd, ptrdiff_t w, ptrdiff_t h)
 int ttshell(char *cmd)
 {
 	int x, omode = ttymode;
-	int stat= -1;
+	int mystat= -1;
 	const char *s = getenv("SHELL");
 
 	if (!s) {
@@ -800,10 +800,10 @@ int ttshell(char *cmd)
 	if ((x = vfork()) != 0) { /* For AMIGA only  */
 #endif
 		if (x != -1)
-			wait(&stat);
+			wait(&mystat);
 		if (omode)
 			ttopnn();
-		return stat;
+		return mystat;
 	} else {
 		signrm();
 		if (cmd)
@@ -895,7 +895,7 @@ void ttsusp(void)
    select() because joe needs to work on versions of UNIX which predate
    these calls.  Instead, when there is multiple async sources, we use
    helper processes which packetize data from the sources.  A header on each
-   packet indicates the source.  There is no guarentee that packets getting
+   packet indicates the source.  There is no guarantee that packets getting
    written to the same pipe don't get interleaved, but you can reasonable
    rely on it with small packets. */
 
@@ -1086,8 +1086,17 @@ static const char **newenv(const char * const *old, const char *s)
 
 /* If out_only is set, leave program's stdin attached to JOE's stdin */
 
-MPX *mpxmk(int *ptyfd, const char *cmd, char **args, void (*func)(void *object, char *data, ptrdiff_t len), void *object, void (*die) (void *object), void *dieobj, int out_only,
-           ptrdiff_t w, ptrdiff_t h)
+MPX *mpxmk(int *ptyfd,
+	   const char *cmd,
+	   char **args,
+	   void (*func)(void *object, char *data, ptrdiff_t len),
+	   void *object,
+	   void (*die) (void *object),
+	   void *dieobj,
+	   int out_only,
+	   int vt,
+	   ptrdiff_t w,
+	   ptrdiff_t h)
 {
 	char buf[80];
 	int fds[2];
@@ -1129,7 +1138,7 @@ MPX *mpxmk(int *ptyfd, const char *cmd, char **args, void (*func)(void *object, 
 	m->die = die;
 	m->dieobj = dieobj;
 
-	/* Acknowledgement pipe */
+	/* Acknowledgment pipe */
 	if (-1 == pipe(fds))
 		return NULL;
 	m->ackfd = fds[1];
@@ -1146,7 +1155,7 @@ MPX *mpxmk(int *ptyfd, const char *cmd, char **args, void (*func)(void *object, 
 	if (!(m->kpid = fork())) {
 		/* This process copies data from shell to joe */
 		/* After each packet it sends to joe it waits for
-		   an acknowledgement from joe so that it can not get
+		   an acknowledgment from joe so that it can not get
 		   too far ahead with buffering */
 
 		/* Close joe side of pipes */
@@ -1165,7 +1174,7 @@ MPX *mpxmk(int *ptyfd, const char *cmd, char **args, void (*func)(void *object, 
 			/* Close pty (we only need tty) */
 			close(*ptyfd);
 
-			/* All of this stuff is for disassociating ourself from
+			/* All of this stuff is for disassociating our self from
 			   controlling tty (session leader) and starting a new
 			   session.  This is the most non-portable part of UNIX- second
 			   only to pty/tty pair creation. */
@@ -1343,7 +1352,7 @@ void killmpx(int pid, int sig)
         kill(pid, sig);
 }
 
-int writempx(int fd, void *data, size_t amt)
+ptrdiff_t writempx(int fd, void *data, ptrdiff_t amt)
 {
         return joe_write(fd, data, amt);
 }

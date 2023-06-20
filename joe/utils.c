@@ -517,45 +517,25 @@ int *Zlcpy(int *a, ptrdiff_t len, const int *b)
 
 /* Convert ints to chars */
 
-char *Ztoz(char *a, ptrdiff_t len, const int *b)
+char *Ztoz(char *dest, const int *src)
 {
-	char *org = a;
-	if (!len) {
-		fprintf(stderr, "Ztoz called with len == 0\n");
-		exit(1);
-	}
-	--len;
-	while (len && *b) {
-		*a++ = TO_CHAR_OK(*b++);
-		--len;
-	}
-	*a = 0;
-	return org;
+	while (*src)
+		dest = vsadd(dest, TO_CHAR_OK(*src++));
+	return dest;
 }
 
 /* Convert ints to utf8 */
 
-char *Ztoutf8(char *a, ptrdiff_t len, const int *b)
+char *Ztoutf8(char *dest, const int *src)
 {
-	char *org = a;
-	if (!len) {
-		fprintf(stderr, "Ztoz called with len == 0\n");
-		exit(1);
-	}
-	--len;
-	while (len && *b) {
+	while (*src) {
 		char bf[8];
-		ptrdiff_t enc = utf8_encode(bf, *b++);
-		ptrdiff_t x;
-		if (enc < len) {
-			for (x = 0; x != enc; ++x) {
-				*a++ = bf[x];
-				--len;
-			}
-		}
+		ptrdiff_t enc = utf8_encode(bf, *src++);
+		dest = vsensure(dest, vslen(dest) + enc);
+		dest = vscat(dest, bf, enc);
 	}
-	*a = 0;
-	return org;
+
+	return dest;
 }
 
 /* Length of an int string */
@@ -668,7 +648,7 @@ int fullfilecmp(const char *f1, const char *f2)
 #define SIG_ERR ((sighandler_t) -1)
 #endif
 
-/* wrapper to hide signal interface differrencies */
+/* wrapper to hide signal interface differences */
 int joe_set_signal(int signum, sighandler_t handler)
 {
 	int retval;
@@ -711,6 +691,40 @@ int parse_ws(const char **pp,int cmt)
 	if (*p == cmt || *p == '\n' || *p == '\r') {
 		while (*p)
 			++p;
+	}
+	*pp = p;
+	return *p;
+}
+
+/* Parse whitespace, but leave pointer at line ending */
+
+int parse_wsn(const char **pp,int cmt)
+{
+	const char *p = *pp;
+	while (*p==' ' || *p=='\t')
+		++p;
+	if (*p == cmt) {
+		while (*p && *p != '\r' && *p != '\n')
+			++p;
+	}
+	*pp = p;
+	return *p;
+}
+
+/* Skip whitespace, including line endings */
+
+int parse_wsl(const char **pp,int cmt)
+{
+	const char *p = *pp;
+	for (;;) {
+		while (*p==' ' || *p=='\t' || *p == '\r' || *p == '\n')
+			++p;
+		if (*p == cmt) {
+			while (*p && *p != '\r' && *p != '\n')
+				++p;
+		} else {
+			break;
+		}
 	}
 	*pp = p;
 	return *p;

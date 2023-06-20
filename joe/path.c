@@ -347,7 +347,7 @@ char **rexpnd(const char *word)
 	DIR *dir;
 	char **lst = NULL;
 
-	DIR *de;
+	struct dirent *de;
 	dir = opendir(".");
 	if (dir) {
 		while ((de = readdir(dir)) != NULL)
@@ -380,7 +380,7 @@ char **rexpnd_cmd_path(const char *word)
 {
 	char *raw_path = getenv("PATH");
 	char **lst = NULL;
-	DIR *de;
+	struct dirent *de;
 	char **path;
 	ptrdiff_t x;
 	if (raw_path) {
@@ -519,7 +519,10 @@ char *dequotevs(char *s)
 	char *d = vsensure(NULL, vslen(s));
 	for (x = 0; x != vslen(s); ++x)
 		if (s[x] == '\\') {
-			/* Just skip it */
+			if (x + 1 != vslen(s)) {
+				++x;
+				d = vsadd(d, s[x]);
+			}
 		} else
 			d = vsadd(d, s[x]);
 	return d;
