@@ -86,9 +86,8 @@ static void iappend(BW *bw, struct isrch *isrch, char *s, ptrdiff_t len)
 
 	i->wrap_flag = srch->wrap_flag;
 
-	/* TODO: setpat? */
 	obj_free(srch->pattern);
-	srch->pattern = vsncpy(NULL, 0, sv(isrch->pattern));
+	setpat(srch, vsncpy(NULL, 0, sv(isrch->pattern)));
 	obj_perm(srch->pattern);
 	srch->backwards = isrch->dir;
 
@@ -186,8 +185,10 @@ static int itype(W *w, int c, void *obj)
 			lastpat = vstrunc(lastpat, 0);
 			lastpat = vsncpy(lastpat, 0, lastisrch->pattern, vslen(lastisrch->pattern));
 			rmisrch(lastisrch);
+			obj_perm(lastpat); /* Always permanent */
 		}
 		lastisrch = isrch;
+		obj_perm(lastisrch->pattern);
 		return 0;
 	} else if (c != -1) {
 		char buf[16];
@@ -213,6 +214,7 @@ static int itype(W *w, int c, void *obj)
 	opt_mid = omid;
 
 	isrch->prompt = vstrunc(isrch->prompt, isrch->ofst);
+	obj_perm(isrch->prompt);
 
 	if (locale_map->type && !bw->b->o.charmap->type) {
 		/* Translate bytes to utf-8 */
@@ -280,6 +282,7 @@ int uisrch(W *w, int k)
 			lastpat = vsncpy(lastpat, 0, sv(lastisrch->pattern));
 			rmisrch(lastisrch);
 			lastisrch = 0;
+			obj_perm(lastpat); /* Always permanent */
 		}
 		return doisrch(bw, 0);
 	}
@@ -304,6 +307,7 @@ int ursrch(W *w, int k)
 			lastpat = vsncpy(lastpat, 0, sv(lastisrch->pattern));
 			rmisrch(lastisrch);
 			lastisrch = 0;
+			obj_perm(lastpat); /* Always permanent */
 		}
 		return doisrch(bw, 1);
 	}

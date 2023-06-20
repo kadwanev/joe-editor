@@ -8,6 +8,29 @@
 
 [Build instructions](https://sourceforge.net/p/joe-editor/mercurial/ci/default/tree/INSTALL.md)
 
+### JOE 4.4
+
+* Bugs fixed
+
+	* Build fixes for Solaris
+
+	* Fix segfault due to buffer overrun.  This happens if a line
+	  with many backslashes appears in the status line context display.
+
+	* Improve php highlighter: allow numbers in substitution variable names
+
+	* Unicode tweak: treat private use characters (Co) as printable
+
+	* Dockerfile highlighter: Add Docker new commands from 1.12,
+	  mark bad strings in arrays
+
+	* Fix jmacs: ^X ^F and ^X ^B were not working
+
+	* Fix loading external charmaps
+
+* Windows version
+
+	* Fix crashing bug when using incremental search
 
 ### JOE for Windows 4.3
 
