@@ -34,7 +34,7 @@ MACRO *freemacros = NULL;
 
 /* Create a macro */
 
-MACRO *mkmacro(int k, int arg, int n, CMD *cmd)
+MACRO *mkmacro(int k, int flg, int n, CMD *cmd)
 {
 	MACRO *macro;
 
@@ -42,7 +42,7 @@ MACRO *mkmacro(int k, int arg, int n, CMD *cmd)
 		int x;
 
 		macro = (MACRO *) joe_malloc(sizeof(MACRO) * 64);
-		for (x = 0; x != 64; ++x) {	/* FIXME: why limit to 64? */
+		for (x = 0; x != 64; ++x) {
 			macro[x].steps = (MACRO **) freemacros;
 			freemacros = macro + x;
 		}
@@ -51,7 +51,7 @@ MACRO *mkmacro(int k, int arg, int n, CMD *cmd)
 	freemacros = (MACRO *) macro->steps;
 	macro->steps = NULL;
 	macro->size = 0;
-	macro->arg = arg;
+	macro->flg = flg;
 	macro->n = n;
 	macro->cmd = cmd;
 	macro->k = k;
@@ -92,7 +92,7 @@ void addmacro(MACRO *macro, MACRO *m)
 
 MACRO *dupmacro(MACRO *mac)
 {
-	MACRO *m = mkmacro(mac->k, mac->arg, mac->n, mac->cmd);
+	MACRO *m = mkmacro(mac->k, mac->flg, mac->n, mac->cmd);
 
 	if (mac->steps) {
 		int x;
@@ -112,11 +112,11 @@ MACRO *macstk(MACRO *m, int k)
 	return m;
 }
 
-/* Set arg part of macro */
+/* Set flg part of macro */
 
 MACRO *macsta(MACRO *m, int a)
 {
-	m->arg = a;
+	m->flg = a;
 	return m;
 }
 
@@ -196,12 +196,12 @@ MACRO *mparse(MACRO *m, unsigned char *buf, int *sta)
 				if (!m->steps) {
 					MACRO *macro = m;
 
-					m = mkmacro(-1, 1, 0, NULL);
+					m = mkmacro(-1, 0, 0, NULL);
 					addmacro(m, macro);
 				}
 			} else
-				m = mkmacro(-1, 1, 0, NULL);
-			addmacro(m, mkmacro(buf[x], 1, 0, findcmd(US "type")));
+				m = mkmacro(-1, 0, 0, NULL);
+			addmacro(m, mkmacro(buf[x], 0, 0, findcmd(US "type")));
 			++x;
 		}
 		if (buf[x] == '\"')
@@ -210,13 +210,28 @@ MACRO *mparse(MACRO *m, unsigned char *buf, int *sta)
 
 	/* Do we have a command? */
 	else {
-		for (y = x; buf[y] && buf[y] != ',' && buf[y] != ' ' && buf[y] != '\t' && buf[y] != '\n' && buf[x] != '\r'; ++y) ;
+		for (y = x; buf[y] && buf[y]!='#' && buf[y] != '!' &&
+		            buf[y] != '~' && buf[y] !='-' && buf[y] != ',' &&
+		            buf[y] != ' ' && buf[y] != '\t' &&
+		            buf[y] != '\n' && buf[x] != '\r'; ++y) ;
 		if (y != x) {
 			CMD *cmd;
+			int flg = 0;
 
 			c = buf[y];
 			buf[y] = 0;
 			cmd = findcmd(buf + x);
+			buf[x = y] = c;
+
+			/* Parse flags */
+			while (buf[x]=='-' || buf[x]=='!' || buf[x]=='#' || buf[x]=='~') {
+				if (buf[x]=='-') flg |= 1;
+				if (buf[x]=='!') flg |= 2;
+				if (buf[x]=='#') flg |= 4;
+				if (buf[x]=='~') flg |= 8;
+				++x;
+			}
+
 			if (!cmd) {
 				*sta = -1;
 				return NULL;
@@ -224,13 +239,12 @@ MACRO *mparse(MACRO *m, unsigned char *buf, int *sta)
 				if (!m->steps) {
 					MACRO *macro = m;
 
-					m = mkmacro(-1, 1, 0, NULL);
+					m = mkmacro(-1, 0, 0, NULL);
 					addmacro(m, macro);
 				}
-				addmacro(m, mkmacro(-1, 1, 0, cmd));
+				addmacro(m, mkmacro(-1, flg, 0, cmd));
 			} else
-				m = mkmacro(-1, 1, 0, cmd);
-			buf[x = y] = c;
+				m = mkmacro(-1, flg, 0, cmd);
 		}
 	}
 
@@ -260,11 +274,14 @@ static unsigned char *ptr;
 static int first;
 static int instr;
 
-static unsigned char *unescape(unsigned char *ptr, int c)
+unsigned char *unescape(unsigned char *ptr, int c)
 {
 	if (c == '"') {
 		*ptr++ = '\\';
 		*ptr++ = '"';
+	} else if (c == '\\') {
+		*ptr++ = '\\';
+		*ptr++ = '\\';
 	} else if (c == '\'') {
 		*ptr++ = '\\';
 		*ptr++ = '\'';
@@ -353,16 +370,32 @@ static void record(MACRO *m)
 		addmacro(recmac->m, dupmacro(m));
 }
 
-/* Query for user input */
+static int ifdepth=0;		/* JM: Nesting level of if cmds */
+static int ifflag=1;		/* JM: Truth flag for if */
+static int iffail=0;		/* JM: Depth where ifflag became 0 */
+
+/* Suspend macro record/play to allow for user input.
+ *
+ * Stop recording current macro, make recursive call to edit loop, which
+ * runs until dialog is complete, then continue with macro recording.
+ *
+ * When the macro is played, edit loop is run as a subroutine until dialog
+ * is complete, then uquery returns, which continues macro execution.
+ *
+ * Completion of a dialog is indicated with 'notify' flag (look at interactive
+ * dialogs in ufile.c).
+ */
 
 int uquery(BW *bw)
 {
 	int ret;
+	int oid=ifdepth, oifl=ifflag, oifa=iffail;
 	struct recmac *tmp = recmac;
 
 	recmac = NULL;
 	ret = edloop(1);
 	recmac = tmp;
+	ifdepth = oid; ifflag = oifl; iffail = oifa;
 	return ret;
 }
 
@@ -373,11 +406,168 @@ static int macroptr;
 static int arg = 0;		/* Repeat argument */
 static int argset = 0;		/* Set if 'arg' is set */
 
+/* Execute a macro which is just a simple command */
+
+int exsimple(MACRO *m, int arg, int u)
+{
+	CMD *cmd = m->cmd;
+	int flg = 0; /* set if we should not try to merge minor changes into single undo record */
+	int ret = 0;
+
+	/* Find command to execute if repeat argument is negative */
+	if (arg < 0) {
+		arg = -arg;
+		if (cmd->negarg)
+			cmd = findcmd(cmd->negarg);
+		else
+			arg = 0; /* Do not execute */
+	}
+
+	/* Check if command doesn't like an arg... */
+	if (arg != 1 && !cmd->arg)
+		arg = 0; /* Do not execute */
+
+	if (arg != 1 || !(cmd->flag & EMINOR)
+	    || maint->curwin->watom->what == TYPEQW)	/* Undo work right for s & r */
+		flg = 1;
+
+	if (ifflag || (cmd->flag&EMETA)) {
+		if (flg && u)
+			umclear();
+		/* Repeat... */
+		while (arg-- && !leave && !ret)
+			ret = execmd(cmd, m->k);
+		if (leave)
+			return ret;
+		if (flg && u)
+			umclear();
+		if (u)
+			undomark();
+	}
+
+	return ret;
+}
+
+int current_arg = 1;
+int current_arg_set = 0;
+
+int exmacro(MACRO *m, int u)
+{
+	int larg;
+	int negarg = 0;
+	int oid, oifl, oifa;
+	int ret = 0;
+	int main_ret = 0;
+	int o_arg_set = argset;
+	int o_arg = arg;
+
+	/* Take argument */
+
+	if (argset) {
+		larg = arg;
+		arg = 0;
+		argset = 0;
+	} else {
+		larg = 1;
+	}
+
+	/* Just a simple command? */
+
+	if (!m->steps) {
+		return exsimple(m, larg, u);
+	}
+
+	/* Must be a real macro then... */
+
+	if (larg < 0) {
+		larg = -larg;
+		negarg = 1;
+	}
+
+	if (ifflag) {
+		if (u)
+			umclear();
+		/* Repeat... */
+		while (larg && !leave && !ret) {
+			MACRO *tmpmac = curmacro;
+			int tmpptr = macroptr;
+			int x = 0;
+			int stk = nstack;
+
+			/* Steps of macro... */
+			while (m && x != m->n && !leave && !ret) {
+				MACRO *d;
+				int tmp_arg;
+				int tmp_set;
+
+				d = m->steps[x++];
+				curmacro = m;
+				macroptr = x;
+				tmp_arg = current_arg;
+				tmp_set = current_arg_set;
+				current_arg = o_arg;
+				current_arg_set = o_arg_set;
+
+				if(d->steps) oid=ifdepth, oifl=ifflag, oifa=iffail, ifdepth=iffail=0;
+
+				/* If this step wants to know about negative args... */
+				if ((d->flg&4)) {
+					argset = o_arg_set;
+					arg = o_arg;
+					larg = 1;
+				} else if ((d->flg&1) && negarg) {
+					if (argset) {
+						arg = -arg;
+					} else {
+						argset = 1;
+						arg = -1;
+					}
+				}
+
+				if (d->flg&8) {
+					larg = 1;
+				}
+
+				/* This is the key step of the macro... */
+				if (d->flg&2)
+					main_ret = exmacro(d, 0);
+				else
+					ret = exmacro(d, 0);
+
+				if(d->steps) ifdepth=oid, ifflag=oifl, iffail=oifa;
+				current_arg = tmp_arg;
+				current_arg_set = tmp_set;
+				m = curmacro;
+				x = macroptr;
+			}
+			curmacro = tmpmac;
+			macroptr = tmpptr;
+
+			/* Pop ^KB ^KK stack */
+			while (nstack > stk)
+				upop(NULL);
+		--larg;
+		}
+		ret |= main_ret;
+
+		if (leave)
+			return ret;
+		if (u)
+			umclear();
+		if (u)
+			undomark();
+	}
+
+	return ret;
+}
+
+#if 0
 int exmacro(MACRO *m, int u)
 {
 	int larg;
 	int negarg = 0;
 	int flg = 0;
+	int oid, oifl, oifa;
 	CMD *cmd;
 	int ret = 0;
 
@@ -412,47 +602,54 @@ int exmacro(MACRO *m, int u)
 	    )
 		flg = 1;
 
-	if (flg && u)
-		umclear();
-	while (larg-- && !leave && !ret)
-		if (m->steps) {
-			MACRO *tmpmac = curmacro;
-			int tmpptr = macroptr;
-			int x = 0;
-			int stk = nstack;
+	if (ifflag || (!m->steps && (cmd->flag&EMETA))) {
+		if (flg && u)
+			umclear();
+		while (larg-- && !leave && !ret)
+			if (m->steps) {
+				MACRO *tmpmac = curmacro;
+				int tmpptr = macroptr;
+				int x = 0;
+				int stk = nstack;
 
-			while (m && x != m->n && !leave && !ret) {
-				MACRO *d;
+				while (m && x != m->n && !leave && !ret) {
+					MACRO *d;
 
-				d = m->steps[x++];
-				curmacro = m;
-				macroptr = x;
-				ret = exmacro(d, 0);
-				m = curmacro;
-				x = macroptr;
-			}
-			curmacro = tmpmac;
-			macroptr = tmpptr;
-			while (nstack > stk)
-				upop(NULL);
-		} else
-			ret = execmd(cmd, m->k);
-	if (leave)
-		return ret;
-	if (flg && u)
-		umclear();
+					d = m->steps[x++];
+					curmacro = m;
+					macroptr = x;
+					if(d->steps) oid=ifdepth, oifl=ifflag, oifa=iffail, ifdepth=iffail=0;
+					ret = exmacro(d, 0);
+					if(d->steps) ifdepth=oid, ifflag=oifl, iffail=oifa;
+					m = curmacro;
+					x = macroptr;
+				}
+				curmacro = tmpmac;
+				macroptr = tmpptr;
+				while (nstack > stk)
+					upop(NULL);
+			} else
+				ret = execmd(cmd, m->k);
+		if (leave)
+			return ret;
+		if (flg && u)
+			umclear();
 
-	if (u)
-		undomark();
+		if (u)
+			undomark();
+	}
 
 	return ret;
 }
+#endif
 
-/* Execute a macro */
+/* Execute a macro - for user typing */
+/* Records macro in macro recorder, resets if */
 
 int exemac(MACRO *m)
 {
 	record(m);
+	ifflag=1; ifdepth=iffail=0;
 	return exmacro(m, 1);
 }
 
@@ -474,7 +671,7 @@ static int dorecord(BW *bw, int c, void *object, int *notify)
 			return -1;
 	r = (struct recmac *) joe_malloc(sizeof(struct recmac));
 
-	r->m = mkmacro(0, 1, 0, NULL);
+	r->m = mkmacro(0, 0, 0, NULL);
 	r->next = recmac;
 	r->n = c - '0';
 	recmac = r;
@@ -506,7 +703,7 @@ int ustop(void)
 			rmmacro(kbdmacro[r->n]);
 		kbdmacro[r->n] = r->m;
 		if (recmac)
-			record(m = mkmacro(r->n + '0', 1, 0, findcmd(US "play"))), rmmacro(m);
+			record(m = mkmacro(r->n + '0', 0, 0, findcmd(US "play"))), rmmacro(m);
 		joe_free(r);
 	}
 	return 0;
@@ -552,6 +749,39 @@ int umacros(BW *bw)
 	return 0;
 }
 
+void save_macros(FILE *f)
+{
+	int x;
+	unsigned char buf[1024];
+	for(x = 0; x!= 10; ++x)
+		if(kbdmacro[x]) {
+			mtext(buf, kbdmacro[x]);
+			fprintf(f,"	%d ",x);
+			emit_hdlc(f,buf,strlen((char *)buf));
+			fprintf(f,"\n");
+		}
+	fprintf(f,"done\n");
+}
+
+void load_macros(FILE *f)
+{
+	unsigned char buf[1024];
+	unsigned char bf[1024];
+	while(fgets((char *)buf,1023,f) && strcmp((char *)buf,"done\n")) {
+		unsigned char *p = buf;
+		int n;
+		int len;
+		int sta;
+		parse_ws(&p, '#');
+		if(!parse_int(&p,&n)) {
+			parse_ws(&p, '#');
+			len = parse_hdlc(&p,bf,1023);
+			if (len>0)
+				kbdmacro[n] = mparse(NULL,bf,&sta);
+		}
+	}
+}
+
 int uplay(BW *bw, int c)
 {
 	if (c >= '0' && c <= '9')
@@ -583,11 +813,74 @@ static int doarg(BW *bw, unsigned char *s, void *object, int *notify)
 
 int uarg(BW *bw)
 {
-	if (wmkpw(bw->parent, US "No. times to repeat next command (^C to abort): ", NULL, doarg, NULL, NULL, utypebw, NULL, NULL, locale_map))
+	if (wmkpw(bw->parent, US "No. times to repeat next command (^C to abort): ", NULL, doarg, NULL, NULL, utypebw, NULL, NULL, locale_map,0))
 		return 0;
 	else
 		return -1;
 }
+
+static int doif(BW *bw,unsigned char *s,void *object,int *notify)
+{
+	long num;
+	if(notify) *notify=1;
+	num=calc(bw,s);
+	if(merr) { msgnw(bw->parent,merr); return -1; }
+	ifflag=(num?1:0);
+	iffail=ifdepth;
+	vsrm(s);
+	return 0;
+}
+
+static int ifabrt()
+{
+	ifdepth--;
+}
+
+int uif(BW *bw)
+{
+	ifdepth++;
+	if (!ifflag) return 0;
+	if (wmkpw(bw->parent,US "If (^C to abort): ",NULL,doif,NULL,ifabrt,utypebw,NULL,NULL,locale_map,0)) return 0;
+	else return -1;
+}
+
+int uelsif(BW *bw)
+{
+	if (!ifdepth) {
+		msgnw(bw->parent,US "Elsif without if");
+		return -1;
+	} else if(ifflag) {
+		ifflag=iffail=0; /* don't let the next else/elsif get run */
+	} else if(ifdepth == iffail) {
+		ifflag=1;	/* so the script can type the condition :) */
+		if(wmkpw(bw->parent,US "Else if: ",NULL,doif,NULL,NULL,utypebw,NULL,NULL,locale_map,0)) return 0;
+		else return -1;
+	}
+}
+
+int uelse(BW *bw)
+{
+	if (!ifdepth) {
+		msgnw(bw->parent,US "Else without if");
+		return -1;
+	} else if(ifdepth == iffail) {
+		ifflag = !ifflag;
+	}
+	return 0;
+}
+
+int uendif(BW *bw)
+{
+	if(!ifdepth) {
+		msgnw(bw->parent,US "Endif without if");
+		return -1;
+	}
+	if(iffail==ifdepth) iffail--, ifflag=1;
+	ifdepth--;
+	if(ifdepth==0) ifflag=1;
+	return 0;
+}
+
 
 int unaarg;
 int negarg;

@@ -138,13 +138,22 @@ int ubknd(BW *bw)
 {
 	unsigned char **a;
 	unsigned char *s;
-        unsigned char *sh=(unsigned char *)getenv("SHELL");
-        if (!sh) {
-        	msgnw(bw->parent, US "\"SHELL\" environment variable not defined or exported");
-        	/* return -1; */
-        	sh = US "/bin/sh";
-        }
+        unsigned char *sh;
 
+        if (!modify_logic(bw,bw->b))
+        	return -1;
+
+        sh=(unsigned char *)getenv("SHELL");
+
+        if (file_exists(sh) && strcmp((char *)sh,"/bin/sh")) goto ok;
+        if (file_exists(sh=US "/bin/bash")) goto ok;
+        if (file_exists(sh=US "/usr/bin/bash")) goto ok;
+        if (file_exists(sh=US "/bin/sh")) goto ok;
+
+        msgnw(bw->parent, US "\"SHELL\" environment variable not defined or exported");
+        return -1;
+
+        ok:
 	a = vamk(3);
 	s = vsncpy(NULL, 0, sz(sh));
 	a = vaadd(a, s);
@@ -160,6 +169,9 @@ static int dorun(BW *bw, unsigned char *s, void *object, int *notify)
 	unsigned char **a = vamk(10);
 	unsigned char *cmd = vsncpy(NULL, 0, sc("/bin/sh"));
 
+        if (!modify_logic(bw,bw->b))
+        	return -1;
+
 	a = vaadd(a, cmd);
 	cmd = vsncpy(NULL, 0, sc("-c"));
 	a = vaadd(a, cmd);
@@ -171,7 +183,7 @@ B *runhist = NULL;
 
 int urun(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Program to run: ", &runhist, dorun, US "Run", NULL, NULL, NULL, NULL, locale_map)) {
+	if (wmkpw(bw->parent, US "Program to run: ", &runhist, dorun, US "Run", NULL, NULL, NULL, NULL, locale_map, 1)) {
 		return 0;
 	} else {
 		return -1;
@@ -195,7 +207,7 @@ B *buildhist = NULL;
 int ubuild(BW *bw)
 {
 	if (buildhist) {
-		if (bw=wmkpw(bw->parent, US "Build command: ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map)) {
+		if (bw=wmkpw(bw->parent, US "Build command: ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map, 1)) {
 			uuparw(bw);
 			u_goto_eol(bw);
 			bw->cursor->xcol = piscol(bw->cursor);
@@ -204,7 +216,7 @@ int ubuild(BW *bw)
 		return -1;
 		}
 	} else {
-		if (wmkpw(bw->parent, US "Enter build command (for example, 'make'): ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map)) {
+		if (wmkpw(bw->parent, US "Enter build command (for example, 'make'): ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map, 1)) {
 			return 0;
 		} else {
 		return -1;

@@ -26,6 +26,7 @@ extern int beep;
 #define EMOD		128	/* Not allowed on readonly files */
 /* These use same bits as TYPE* in types.h */
 #define EBLOCK		0x4000	/* Finish block selection (call udropon) */
+#define EMETA		0x10000	/* JM: Executes even when if flag is zero */
 
 /* CMD *findcmd(char *s);
  * Return command address for given name
@@ -35,5 +36,10 @@ void addcmd PARAMS((unsigned char *s, MACRO *m));
 
 /* Execute a command.  Returns return value of command */
 int execmd PARAMS((CMD *cmd, int k));
+
+extern B *cmdhist;
+
+int try_lock(BW *bw,B *b);
+int modify_logic(BW *bw,B *b);
 
 #endif

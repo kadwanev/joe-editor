@@ -8,6 +8,9 @@
 #include "config.h"
 #include "types.h"
 
+#ifdef HAVE_PWD_H
+#include <pwd.h>
+#endif
 #include <stdio.h>
 #include <sys/types.h>
 #ifdef HAVE_SYS_STAT_H
@@ -358,6 +361,21 @@ unsigned char **rexpnd(unsigned char *word)
 	return lst;
 }
 /********************************************************************/
+unsigned char **rexpnd_users(unsigned char *word)
+{
+	unsigned char **lst = NULL;
+	struct passwd *pw;
+
+	while(pw=getpwent())
+		if (rmatch(word+1, (unsigned char *)pw->pw_name)) {
+			unsigned char *t = vsncpy(NULL,0,sc("~"));
+			lst = vaadd(lst, vsncpy(sv(t),sz((unsigned char *)pw->pw_name)));
+			}
+	endpwent();
+
+	return lst;
+}
+/********************************************************************/
 int chpwd(unsigned char *path)
 {
 #ifdef __MSDOS__
@@ -404,4 +422,36 @@ unsigned char *pwd(void)
 	buf[PATH_MAX - 1] = '\0';
 
 	return ret;
+}
+
+/* Simplify prefix by using ~ */
+/* Expects s to have trailing / */
+
+unsigned char *simplify_prefix(unsigned char *s)
+{
+	unsigned char *t = (unsigned char *)getenv("HOME");
+	unsigned char *n;
+
+#ifdef junk
+	unsigned char *org = pwd();
+	/* Normalize home */
+	if (t && !chpwd(t)) {
+		t = pwd();
+	} else {
+		t = 0;
+	}
+	chpwd(org);
+#endif
+
+	/* If current directory is prefixed with home directory, use ~... */
+	if (t && !strncmp((char *)s,(char *)t,strlen((char *)t)) && (!s[strlen((char *)t)] || s[strlen((char *)t)]=='/')) {
+		n = vsncpy(NULL,0,sc("~/"));
+		/* If anything more than just the home directory, add it */
+		if (s[strlen((char *)t)]) {
+			n = vsncpy(sv(n),s+strlen((char *)t)+1,strlen((char *)(s+strlen((char *)t)+1)));
+		}
+	} else {
+		n = vsncpy(NULL,0,sz(s));
+	}
+	return n;
 }

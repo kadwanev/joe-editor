@@ -43,5 +43,14 @@ int umacros PARAMS((BW *bw));
 /* Repeat prefix user command */
 int uarg PARAMS((BW *bw));
 int uuarg PARAMS((BW *bw, int c));
+int uif PARAMS((BW *bw));
+int uelsif PARAMS((BW *bw));
+int uelse PARAMS((BW *bw));
+int uendif PARAMS((BW *bw));
+
+unsigned char *unescape PARAMS((unsigned char *ptr,int c));
+
+void load_macros PARAMS((FILE *f));
+void save_macros PARAMS((FILE *f));
 
 #endif

@@ -80,6 +80,14 @@ void undorm(UNDO *undo)
 	demote(UNDO, link, &frdos, undo);
 }
 
+void bw_unlock(BW *bw)
+{
+	if (bw->b->locked && !bw->b->ignored_lock && plain_file(bw->b)) {
+		unlock_it(bw->b->name);
+		bw->b->locked = 0;
+	}
+}
+
 static void doundo(BW *bw, UNDOREC *ptr)
 {
 	dostaupd = 1;
@@ -101,6 +109,8 @@ static void doundo(BW *bw, UNDOREC *ptr)
 		bdel(bw->cursor, q);
 		prm(q);
 	}
+	if (bw->b->changed && !ptr->changed)
+		bw_unlock(bw);
 	bw->b->changed = ptr->changed;
 }
 
@@ -437,10 +447,13 @@ int uyankpop(BW *bw)
 
 int unotmod(BW *bw)
 {
+	bw_unlock(bw);
 	bw->b->changed = 0;
 	msgnw(bw->parent, US "Modified flag cleared");
 	return 0;
 }
+
+
 
 int ucopy(BW *bw)
 {
@@ -455,5 +468,44 @@ int ucopy(BW *bw)
 	} else {
 		msgnw(bw->parent, US "No block");
 		return -1;
+	}
+}
+
+/* Save yank buffers */
+
+void save_yank(FILE *f)
+{
+	UNDOREC *rec;
+	for (rec = yanked.link.next; rec != &yanked; rec = rec->link.next) {
+		if (rec->len < SMALL) {
+			fprintf(f,"	");
+			emit_hdlc(f,rec->small,rec->len);
+			fprintf(f,"\n");
+		}
+	}
+	fprintf(f,"done\n");
+}
+
+/* Load yank buffers */
+
+void load_yank(FILE *f)
+{
+	UNDOREC *rec;
+	unsigned char buf[SMALL*4+80];
+	unsigned char bf[SMALL+1];
+	while(fgets((char *)buf,sizeof(buf)-1,f) && strcmp((char *)buf,"done\n")) {
+		unsigned char *p = buf;
+		int len;
+		parse_ws(&p,'#');
+		len = parse_hdlc(&p,bf,sizeof(bf)-1);
+		if (len>0 && len<=SMALL) {
+			rec = alrec();
+			rec->small = (unsigned char *) joe_malloc(len);
+			memcpy(rec->small,bf,len);
+			rec->where = -1;
+			rec->len = len;
+			rec->del = 1;
+			enqueb(UNDOREC, link, &yanked, rec);
+		}
 	}
 }

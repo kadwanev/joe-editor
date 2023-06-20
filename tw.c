@@ -25,6 +25,7 @@
 #include "utils.h"
 #include "vs.h"
 #include "syntax.h"
+#include "path.h"
 #include "w.h"
 
 extern unsigned char *exmsg;
@@ -91,6 +92,7 @@ unsigned char *get_context(BW *bw)
 {
 	P *p = pdup(bw->cursor);
 	static unsigned char buf1[stdsiz];
+	int i, j, spc;
 
 
 	buf1[0] = 0;
@@ -110,7 +112,23 @@ unsigned char *get_context(BW *bw)
 			    stdbuf[0]=='B' && stdbuf[1]=='E' && stdbuf[2]=='G' && stdbuf[3]=='I' && stdbuf[4]=='N' ||
 			    stdbuf[0]=='-' && stdbuf[1]=='-' ||
 			    stdbuf[0]==';')) {
-			    	strcpy(buf1,stdbuf);
+			    	/* strcpy((char *)buf1,(char *)stdbuf); */
+ 				/* replace tabs to spaces and remove adjoining spaces */
+ 				for (i=0,j=0,spc=0; stdbuf[i]; i++) {
+ 					if (stdbuf[i]=='\t' || stdbuf[i]==' ') {
+ 						if (spc) continue;
+ 						spc = 1;
+ 					}
+ 					else spc = 0;
+ 					if (stdbuf[i]=='\t')
+ 						buf1[j++] = ' ';
+					else if (stdbuf[i]=='\\') {
+						buf1[j++] = '\\';
+						buf1[j++] = '\\';
+					} else
+						buf1[j++] = stdbuf[i];
+ 				}
+ 				buf1[j]= '\0';
 				/* Uncomment to get the last line instead of the first line (see above)
 			    	if (pprevl(p)) {
 			    		p_goto_bol(p);
@@ -205,7 +223,15 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 					stalin = vsadd(stalin, fill);
 				break;
 			case 'n':
-				stalin = vsncpy(sv(stalin), sz(bw->b->name ? bw->b->name : (unsigned char *)"Unnamed"));
+				{
+				if (bw->b->name) {
+					unsigned char *tmp = simplify_prefix(bw->b->name);
+					stalin = vsncpy(sv(stalin), sv(tmp));
+					vsrm(tmp);
+				} else {
+					stalin = vsncpy(sv(stalin), sc("Unnamed"));
+				}
+				}
 				break;
 			case 'm':
 				if (bw->b->changed)
@@ -335,6 +361,8 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 	return stalin;
 }
 
+extern int hex;
+
 static void disptw(BW *bw, int flg)
 {
 	W *w = bw->parent;
@@ -347,8 +375,13 @@ static void disptw(BW *bw, int flg)
 		bwfllw(bw);
 	}
 
-	w->cury = bw->cursor->line - bw->top->line + bw->y - w->y;
-	w->curx = bw->cursor->xcol - bw->offset + (bw->o.linums ? LINCOLS : 0);
+	if (bw->o.hex) {
+		w->cury = (bw->cursor->byte-bw->top->byte)/16 + bw->y - w->y;
+		w->curx = (bw->cursor->byte-bw->top->byte)%16 + 60 - bw->offset;
+	} else {
+		w->cury = bw->cursor->line - bw->top->line + bw->y - w->y;
+		w->curx = bw->cursor->xcol - bw->offset + (bw->o.linums ? LINCOLS : 0);
+	}
 
 	if ((staupd || keepup || bw->cursor->line != tw->prevline || bw->b->changed != tw->changed || bw->b != tw->prev_b) && (w->y || !staen)) {
 		int fill;

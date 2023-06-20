@@ -1,3 +1,72 @@
+JOE 3.2
+
+- A Perforce SCM "p4 edit" macro has been supplied (along with the hooks
+  within JOE which support it) so that when you make the first change to a
+  read-only file, JOE runs "p4 edit".  (look in joerc file to enable the
+  macro).
+
+- Hex edit mode has been added.  For example: joe -hex /dev/hda,0,1024
+
+- New '-break_links' option causes JOE to delete before writing files, to
+  break hard links.  Useful for 'arch' SCM.
+
+- JOE now has GNU-Emacs compatible file locks.  A symbolic link called
+  .#name is created, "pointing" to "user@machine.pid" whenever the buffer
+  goes from unmodified to modified.  If the lock can't be created, the user
+  is allowed to steal or ignore the lock, or cancel the edit.  The lock is
+  deleted when buffer goes from modified to unmodified (or you close the
+  file).
+
+- JOE now periodically checks the file on the disk and gives a warning if
+  it changed when you try to modify the buffer.  (JOE already performed this
+  test on file save).
+
+- The built-in calculator (ESC m) is now a full featured scientific
+  calculator (I'm shooting for Casio Fx-4000 level here :-), including
+  hexadecimal and ability to sum (and perform statistics on) a highlighted
+  (possibly rectangular) block of numbers.  Hit ^K H at the math prompt for
+  documentation.
+
+- You can now change the current directory in JOE (well, it prompts with
+  the latest used directory).
+
+- Colors can now be specified in the joerc file
+
+- Macro language now has conditionals and modifiers for dealing with
+  repeat arguments.  Jmacs now works better due to this.
+
+- Tab completion works at tags search prompt ^K ;
+
+- ^G now jumps between word delimiters (begin..end in Verilog, #if #else
+  #endif in C, /* .. */ and XML tags).  If it doesn't know the word, it
+  starts a search with the word seeding the prompt.  It is also much smarter
+  about skipping over comments and quoted matter.
+
+- TAB completion is now much more like bash (again :-).  The cursor stays
+  at the file name prompt instead of jumping into the menu system.  Also
+  ^D brings up the menu, as in tcsh.  Also, tab completion now works on user
+  names for ~ expansion.
+
+- Now there is a ~/.joe_state file which stores:
+	all history buffers
+	current keyboard macros
+	yank records
+
+- Joe now has xterm mouse support: when enabled, the mouse can position
+  the cursor and select blocks.  The mouse wheel will scroll the screen. 
+  When enabled, shift-click emulates old xterm mouse behavior (cut &
+  paste between applications).
+
+- More syntax files: TeX, CSS, OCaml, Delphi, SML and 4GL.  Thanks to
+  all of the contributers.
+
+- Vastly improved highlighting of Perl and Shell due to the highlighter now
+  understanding word and balanced delimiters.
+
+- Many bugs have been fixed (every bug which has been entered into the
+  sourceforge project page has been addressed).  Hopefully I didn't add
+  too many new ones :-)
+
 JOE 3.1
 
 - Regex and incremental search (jmacs ^S) now work for UTF-8

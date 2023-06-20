@@ -1,3 +1,304 @@
+Mon Mar 21 11:56:56 EST 2005
+
+	Fix segfault problem
+
+	Xcol problems in hex mode
+
+	Backspace in overtype mode (picture mode
+	needs work).
+
+	Don't use paths which begin with ! as directories.
+
+	Fix more segfault problems: use doswitch instead of doedit.
+
+	Don't lock scratch buffers.
+
+	Run gcc -pedantic
+
+Sun Mar 20 11:54:44 EST 2005
+
+	Hex edit mode
+
+	Do not CD from names on command line
+
+	Support for wheel mouse
+
+Sat Mar 19 17:08:05 EST 2005
+
+	Fix != in math prompt
+
+	Add modifiers to macros
+
+	Improve jmacs
+	Jmacs: orphaned buffers were not having locks deleted
+
+	Fix bug where formatting characters working in context display
+
+	ubknd and urun were not checking for read only
+
+	Prompt with latest directory
+
+Fri Mar 18 16:15:19 EST 2005
+
+	Change so that ` up-arrow (or any key) goes to shell.
+
+	Prefer bash over sh for shell.
+
+Thu Mar 17 18:54:06 EST 2005
+
+	Get joe to compile on irix
+
+	Enable .joe_state file
+
+	Document 'backpath' bad parsing
+
+	Put version number in state file
+
+	Save command line file names in joe_state file
+
+	Fix ufilt (broke with irix fix)
+
+	Fix if (-s ...) in perl
+
+	Parse *rc file only once
+
+Wed Mar 16 11:04:19 EST 2005
+
+	Check if system joerc file is newer than local joerc file.
+
+	Fix line number reporting for joerc file errors.
+
+	Add ! operator to math (factorial and logical not)
+
+	Make ~ expansion occur at user level, not low level.
+           (otherwise ~ appears in b->name, which screws up
+	   many things unless ~ is really part of the file
+	   name).
+
+	Make tab completion work for user names.
+	uname() was shadowing a system call.
+
+Tue Mar 15 14:18:53 EST 2005
+
+	Fix processing of joe.1.in -> joe.1 so
+	that paths are properly set up.
+
+	Add file changed under us checking.
+
+Mon Mar 14 11:34:56 EST 2005
+
+	Fix some math and first change bugs.
+	Allow for file names which begin with +
+
+	Fix bug where menu wasn't being resized.
+
+	Fix processing of joerc.in -> joerc so that
+	paths are properly set up (added sed script
+	to Makefile.am).
+
+Sun Mar 13 12:39:18 EST 2005
+
+	Fix -mnew and -mold when there are multiple
+	files on command line.
+
+	Add optional file locking.
+
+	Add joe() math command.  Executes JOE macro, and 
+	returns success value as result.
+
+	Added sys command: execute a shell command with
+	I/O connected to terminal, not editor.  Return
+	value of shell command is success value of command.
+
+	rdonly flag is available as math variable.
+
+	Added perforce macro.  Fixed some "if" bugs.
+
+Sat Mar 12 00:31:23 EST 2005
+
+	Update other *rc files.
+	Fix some marking bugs in jpico.
+	Allow colors to be specified in joerc file
+	Improve perl again.
+	^D in prompts brings up menu
+	Fix ^X a in jmacs
+	Fix ^X ^I in jmacs (neg arg is broken)
+
+Fri Mar 11 2005  Joe Allen <jhallen@world.std.com>
+
+	Help text points to doc files
+
+
+Wed Mar  9 2005  Joe Allen <jhallen@world.std.com>
+
+	^K W now prints a success message.
+
+	More perl highlighter fixes.
+
+Sat Mar  5 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix bug where ^KC to copy text into search
+	prompt was not working (search was taking
+	over selected block too early).
+
+Fri Mar  4 2005  Joe Allen <jhallen@world.std.com>
+
+	Add block evaluator and ? operator to math
+	(now it can loop via. recursion :-)
+
+	Add #if #else #endif matching.
+
+	Get ^G working for VHDL (VHDL sucks).
+
+	Disable ^K E and ^K ' in prompt windows.
+
+	open ^] now autoindents (again).
+
+	Fix jpico lock-up problem (lmargin option was
+	not checking for invalid value of 0).
+
+	Accept buffer overflow patch.
+
+	-square is not a local option.
+
+Thu Mar  3 2005  Joe Allen <jhallen@world.std.com>
+
+	New help screen for math.
+	Add statistics functions.
+
+Wed Mar  2 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix pointer leak.
+	Make option to enable mouse support
+	Change .joe_state file to use \ for escape
+	Improve math
+	Ignore <a/> in Ctrl-G
+
+Wed Mar  2 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix warnings from various syntax files (can't
+	believe I didn't notice this...)
+
+	Add -menu_jump option
+
+Tue Mar  1 2005  Joe Allen <jhallen@world.std.com>
+
+	Allow :s in xml names.
+	Fix 'keymap' command.
+	Add 'name' command.
+
+Mon Feb 28 2005  Joe Allen <jhallen@world.std.com>
+
+	User defined text delimiters
+	XML delimiter matching
+
+Sun Feb 27 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix lockup problem from Ctrl-G
+	Fix bugs with new 'if' command.
+
+Sun Feb 27 2005  Joe Allen <jhallen@world.std.com>
+
+	Added Jesse McGrew's xterm mouse and macro enhancements:
+		added to math: %, ==, !=, >, >=, <, <= operators,
+		plus 'char' is ascii value of character under cursor.
+
+		added functions: if, then, elsif, endif
+
+	Needs work:
+		'if' crashes.
+		xterm selections don't paste into other windows.
+
+Sat Feb 26 2005  Joe Allen <jhallen@world.std.com>
+
+	Tab complete for ^K ; (tags search).
+
+Sat Feb 26 2005  Joe Allen <jhallen@world.std.com>
+
+	Allow '-' in file names in compiler error parser.
+
+Sat Feb 26 2005  Joe Allen <jhallen@world.std.com>
+
+	Accept patch from Kalan (thearinkalen at users.sourceforge.net)
+	which makes save block prompt if a file is to be overwritten.
+
+	Accept patch from sth2000 at users.sourceforge.net which improves
+	wordwrap when overtype mode is enabled.
+
+Fri Feb 25 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix bash highlighter bug: $"  " and $'  ' are strings.
+	Ctrl-G starts a search if it doesn't know word under cursor.
+
+Sun Feb 20 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix perl highlighter bug: \"fdfdg" is a string.
+
+Sun Feb 20 2005  Joe Allen <jhallen@world.std.com>
+
+	Greatly enhanced ^G (goto matching delimiter) so that it understands
+	quoting and comments and can operate on word delimiters
+	(begin...end).
+
+Sun Feb 20 2005  Joe Allen <jhallen@world.std.com>
+
+	Fix perl highlighter bug: words ending in q
+	got confused with 'q'.
+
+Wed Jan 19 2005  Joe Allen <jhallen@world.std.com>
+
+	New Pascal highlighter for Delphi and FPC
+
+Mon Dec 13 2004  Joe Allen <jhallen@world.std.com>
+
+	Accept SML syntax file.
+
+Mon Nov 29 2004  Joe Allen <jhallen@world.std.com>
+
+	Accept OCaml and 4GL syntax files.
+
+        Accept UTF-8 in help file patch.  Help text is now
+        UTF-8.
+
+Mon Aug  9 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix bug in joe_state code: buffer was not
+	large enough.
+
+
+Thu Jul  8 2004  Joe Allen <jhallen@world.std.com>
+
+	Merge last two changes (described below...)
+
+
+Tue Jul  6 2004  Pavel Fedin <sonimiga@rambler.ru>
+
+     Changed some fork()s to vfork()s.
+	Added ^# (CSI = 0x9B) control character.
+	Added Amiga CSI sequences to keys definitions in joerc files.
+	Added some #ifdef's to compile properly on AmigaOS.
+
+Tue Jun 22 2004  Joe Allen <jhallen@world.std.com>
+
+	~/.joe_state file:
+
+	Saves macros, yanks records, and file name history in a file.
+
+Mon Jun  7 2004  Joe Allen <jhallen@world.std.com>
+
+	Highlighter state now includes a saved string.
+	This improves shell and perl highlighters.
+
+
+sze jún  2 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix for archaic systems (BSD) with no nl_langinfo(CODESET).
+
+Tue Jun  1 2004  Joe Allen <jhallen@world.std.com>
+
+	Minor fix to c.jsf.in
+	Recognize a bunch of other mail/news files.
+
 Sat May 29 2004  Joe Allen <jhallen@world.std.com>
 
 	Use 'aspell' if it exists.

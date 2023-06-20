@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 3.1)
+AC_INIT(joe, 3.2)
 AC_CONFIG_SRCDIR([b.c])
 
 AC_CANONICAL_BUILD
@@ -30,6 +30,8 @@ case "$host" in
 		;;
 	*)	;;
 esac
+
+search_libs="$search_libs m"
 
 # Checks for libraries.
 AC_ARG_ENABLE(curses,
@@ -106,6 +108,7 @@ AC_CHECK_TYPE([ssize_t], [], [
 	], [])
 AC_TYPE_SIGNAL
 AC_FUNC_STAT
+AC_FUNC_FORK
 AC_CHECK_FUNCS([getcwd getwd])
 if test x"$ac_cv_func_getcwd" != xyes; then
 	if test x"$ac_cv_func_getwd" != xyes; then
@@ -144,10 +147,11 @@ AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 # Check for programs..
 AC_CHECK_PROG(SPELL,aspell,aspell,ispell)
 
-AC_CONFIG_FILES([Makefile joe.1 joerc jmacsrc jstarrc rjoerc jpicorc
+AC_CONFIG_FILES([Makefile
 syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf syntax/sh.jsf syntax/python.jsf
 syntax/conf.jsf syntax/php.jsf syntax/mail.jsf syntax/pascal.jsf syntax/html.jsf
 syntax/vhdl.jsf syntax/fortran.jsf syntax/java.jsf syntax/xml.jsf syntax/tcl.jsf
 charmaps/klingon syntax/lisp.jsf syntax/csh.jsf syntax/mason.jsf syntax/diff.jsf
-syntax/asm.jsf])
+syntax/asm.jsf syntax/css.jsf syntax/tex.jsf syntax/ocaml.jsf syntax/4gl.jsf
+syntax/sml.jsf ])
 AC_OUTPUT

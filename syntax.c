@@ -26,17 +26,19 @@
 int *attr_buf = 0;
 int attr_size = 0;
 
-int parse(struct high_syntax *syntax,P *line,int state)
+HIGHLIGHT_STATE parse(struct high_syntax *syntax,P *line,HIGHLIGHT_STATE h_state)
 {
-	struct high_state *h = syntax->states[state];
+	struct high_state *h = syntax->states[h_state.state];
 			/* Current state */
-	unsigned char buf[20];	/* Name buffer (trunc after 19 characters) */
+	unsigned char buf[24];	/* Name buffer (trunc after 23 characters) */
 	int buf_idx=0;	/* Index into buffer */
 	int c;		/* Current character */
 	int *attr_end = attr_buf+attr_size;
 	int *attr = attr_buf;
 	int buf_en = 0;	/* Set for name buffering */
 	int ofst = 0;	/* record offset after we've stopped buffering */
+
+	buf[0]=0;	/* Forgot this originally... took 5 months to fix! */
 
 	/* Get next character */
 	while((c=pgetc(line))!=NO_MORE_DATA) {
@@ -49,7 +51,7 @@ int parse(struct high_syntax *syntax,P *line,int state)
 
 		/* Expand attribute array if necessary */
 		if(attr==attr_end) {
-			attr_buf = realloc(attr_buf,sizeof(int)*(attr_size*2));
+			attr_buf = joe_realloc(attr_buf,sizeof(int)*(attr_size*2));
 			attr = attr_buf + attr_size;
 			attr_size *= 2;
 			attr_end = attr_buf + attr_size;
@@ -63,9 +65,18 @@ int parse(struct high_syntax *syntax,P *line,int state)
 			/* Color with current state */
 			attr[-1] = h->color;
 			/* Get command for this character */
-			cmd = h->cmd[c];
+			if (h->delim && c == h_state.saved_s[0])
+				cmd = h->delim;
+			else
+				cmd = h->cmd[c];
 			/* Determine new state */
-			if (cmd->keywords && (cmd->ignore ? (kw_cmd=htfind(cmd->keywords,lowerize(buf))) : (kw_cmd=htfind(cmd->keywords,buf)))) {
+			if (cmd->delim && !strcmp(h_state.saved_s,buf)) {
+				cmd = cmd->delim;
+				h = cmd->new_state;
+				/* Recolor string delimiter */
+				for(x= -(buf_idx+1);x<-1;++x)
+					attr[x-ofst] = h -> color;
+			} else if (cmd->keywords && (cmd->ignore ? (kw_cmd=htfind(cmd->keywords,lowerize(buf))) : (kw_cmd=htfind(cmd->keywords,buf)))) {
 				cmd = kw_cmd;
 				h = cmd->new_state;
 				/* Recolor keyword */
@@ -77,6 +88,26 @@ int parse(struct high_syntax *syntax,P *line,int state)
 			/* Recolor if necessary */
 			for(x=cmd->recolor;x<0;++x)
 				attr[x] = h -> color;
+
+			/* Save string? */
+			if (cmd->save_s)
+				strcpy((char *)h_state.saved_s,(char *)buf);
+
+			/* Save character? */
+			if (cmd->save_c) {
+				if (c=='<')
+					h_state.saved_s[0] = '>';
+				else if (c=='(')
+					h_state.saved_s[0] = ')';
+				else if (c=='[')
+					h_state.saved_s[0] = ']';
+				else if (c=='{')
+					h_state.saved_s[0] = '}';
+				else if (c=='`')
+					h_state.saved_s[0] = '\'';
+				else
+					h_state.saved_s[0] = c;
+			}
 
 			/* Start buffering? */
 			if (cmd->start_buffering) {
@@ -91,7 +122,7 @@ int parse(struct high_syntax *syntax,P *line,int state)
 		} while(cmd->noeat);
 
 		/* Save character in buffer */
-		if (buf_idx<19 && buf_en)
+		if (buf_idx<23 && buf_en)
 			buf[buf_idx++]=c;
 		if (!buf_en)
 			++ofst;
@@ -101,7 +132,8 @@ int parse(struct high_syntax *syntax,P *line,int state)
 			break;
 	}
 	/* Return new state number */
-	return h->no;
+	h_state.state = h->no;
+	return h_state;
 }
 
 /* Subroutines for load_dfa() */
@@ -119,18 +151,19 @@ static struct high_state *find_state(struct high_syntax *syntax,unsigned char *n
 	/* It doesn't exist, so create it */
 	if(x==syntax->nstates) {
 		int y;
-		state=malloc(sizeof(struct high_state));
-		state->name=(unsigned char *)strdup((char *)name);
+		state=joe_malloc(sizeof(struct high_state));
+		state->name=joe_strdup(name);
 		state->no=syntax->nstates;
 		state->color=FG_WHITE;
 		if(!syntax->nstates)
 			/* We're the first state */
 			syntax->default_cmd.new_state = state;
 		if(syntax->nstates==syntax->szstates)
-			syntax->states=realloc(syntax->states,sizeof(struct high_state *)*(syntax->szstates*=2));
+			syntax->states=joe_realloc(syntax->states,sizeof(struct high_state *)*(syntax->szstates*=2));
 		syntax->states[syntax->nstates++]=state;
 		for(y=0; y!=256; ++y)
 			state->cmd[y] = &syntax->default_cmd;
+		state->delim = 0;
 	} else
 		state = syntax->states[x];
 	return state;
@@ -138,17 +171,75 @@ static struct high_state *find_state(struct high_syntax *syntax,unsigned char *n
 
 /* Create empty command */
 
-static struct high_cmd *mkcmd()
+static void iz_cmd(struct high_cmd *cmd)
 {
-	struct high_cmd *cmd = malloc(sizeof(struct high_cmd));
 	cmd->noeat = 0;
 	cmd->recolor = 0;
 	cmd->start_buffering = 0;
 	cmd->stop_buffering = 0;
+	cmd->save_c = 0;
+	cmd->save_s = 0;
 	cmd->new_state = 0;
 	cmd->keywords = 0;
+	cmd->delim = 0;
 	cmd->ignore = 0;
+}
+
+static struct high_cmd *mkcmd()
+{
+	struct high_cmd *cmd = joe_malloc(sizeof(struct high_cmd));
+	iz_cmd(cmd);
 	return cmd;
+}
+
+/* Globally defined colors */
+
+struct high_color *global_colors;
+
+struct high_color *find_color(struct high_color *colors,unsigned char *name,unsigned char *syn)
+{
+	unsigned char bf[256];
+	struct high_color *color;
+	joe_snprintf_2((char *)bf, sizeof(bf), "%s.%s", syn, name);
+	for (color = colors; color; color = color->next)
+		if (!strcmp(color->name,bf)) break;
+	if (color)
+		return color;
+	for (color = colors; color; color = color->next)
+		if (!strcmp(color->name,name)) break;
+	return color;
+}
+
+void parse_color_def(struct high_color **color_list,unsigned char *p,unsigned char *name,int line)
+{
+	unsigned char bf[256];
+	if(!parse_tows(&p, bf)) {
+		struct high_color *color, *gcolor;
+
+		/* Find color */
+		color=find_color(*color_list,bf,name);
+
+		/* If it doesn't exist, create it */
+		if(!color) {
+			color = joe_malloc(sizeof(struct high_color));
+			color->name = joe_strdup(bf);
+			color->color = 0;
+			color->next = *color_list;
+			*color_list = color;
+		} else {
+			fprintf(stderr,"%s %d: Class already defined\n",name,line);
+		}
+
+		/* Find it in global list */
+		if (color_list != &global_colors && (gcolor=find_color(global_colors,bf,name))) {
+			color->color = gcolor->color;
+		} else {
+			/* Parse color definition */
+			while(parse_ws(&p,'#'), !parse_ident(&p,bf,255)) {
+				color->color |= meta_color(bf);
+			}
+		}
+	}
 }
 
 /* Load syntax file */
@@ -173,7 +264,7 @@ struct high_syntax *load_dfa(unsigned char *name)
 
 	if(!attr_buf) {
 		attr_size = 1024;
-		attr_buf = malloc(sizeof(int)*attr_size);
+		attr_buf = joe_malloc(sizeof(int)*attr_size);
 	}
 
 	/* Find syntax table */
@@ -198,19 +289,15 @@ struct high_syntax *load_dfa(unsigned char *name)
 		return 0;
 
 	/* Create new one */
-	syntax = malloc(sizeof(struct high_syntax));
-	syntax->name = (unsigned char *)strdup((char *)name);
+	syntax = joe_malloc(sizeof(struct high_syntax));
+	syntax->name = joe_strdup(name);
 	syntax->next = syntax_list;
 	syntax_list = syntax;
 	syntax->nstates = 0;
 	syntax->color = 0;
-	syntax->states = malloc(sizeof(struct high_state *)*(syntax->szstates=64));
+	syntax->states = joe_malloc(sizeof(struct high_state *)*(syntax->szstates=64));
 	syntax->sync_lines = 50;
-	syntax->default_cmd.noeat = 0;
-	syntax->default_cmd.recolor = 0;
-	syntax->default_cmd.start_buffering = 0;
-	syntax->default_cmd.new_state = 0;
-	syntax->default_cmd.keywords = 0;
+	iz_cmd(&syntax->default_cmd);
 
 	/* Parse file */
 	while(fgets((char *)buf,1023,f)) {
@@ -239,29 +326,7 @@ struct high_syntax *load_dfa(unsigned char *name)
 			} else
 				fprintf(stderr,"%s %d: Missing state name\n",name,line);
 		} else if(!parse_char(&p, '=')) {
-			if(!parse_ident(&p, bf, 255)) {
-				struct high_color *color;
-
-				/* Find color */
-				for(color=syntax->color;color;color=color->next)
-					if(!strcmp(color->name,bf))
-						break;
-				/* If it doesn't exist, create it */
-				if(!color) {
-					color = malloc(sizeof(struct high_color));
-					color->name = (unsigned char *)strdup((char *)bf);
-					color->color = 0;
-					color->next = syntax->color;
-					syntax->color = color;
-				} else {
-					fprintf(stderr,"%s %d: Class already defined\n",name,line);
-				}
-
-				/* Parse color definition */
-				while(parse_ws(&p,'#'), !parse_ident(&p,bf,255)) {
-					color->color |= meta_color(bf);
-				}
-			}
+			parse_color_def(&syntax->color,p,name,line);
 		} else if(!parse_char(&p, '-')) { /* No. sync lines */
 			if(parse_int(&p, &syntax->sync_lines))
 				syntax->sync_lines = -1;
@@ -269,13 +334,16 @@ struct high_syntax *load_dfa(unsigned char *name)
 			c = parse_ws(&p,'#');
 
 			if (!c) {
-			} else if (c=='"' || c=='*') {
+			} else if (c=='"' || c=='*' || c=='&') {
 				if (state) {
 					struct high_cmd *cmd;
+					int delim = 0;
 					if(!parse_field(&p, US "*")) {
 						int z;
 						for(z=0;z!=256;++z)
 							clist[z] = 1;
+					} else if(!parse_field(&p, US "&")) {
+						delim = 1;
 					} else {
 						c = parse_string(&p, bf, 255);
 						if(c)
@@ -307,6 +375,10 @@ struct high_syntax *load_dfa(unsigned char *name)
 								cmd->start_buffering = 1;
 							} else if(!strcmp(bf,"hold")) {
 								cmd->stop_buffering = 1;
+							} else if(!strcmp(bf,"save_c")) {
+								cmd->save_c = 1;
+							} else if(!strcmp(bf,"save_s")) {
+								cmd->save_s = 1;
 							} else if(!strcmp(bf,"recolor")) {
 								parse_ws(&p,'#');
 								if(!parse_char(&p,'=')) {
@@ -333,9 +405,13 @@ struct high_syntax *load_dfa(unsigned char *name)
 												struct high_cmd *kw_cmd=mkcmd();
 												kw_cmd->noeat=1;
 												kw_cmd->new_state = find_state(syntax,bf1);
-												if(!cmd->keywords)
-													cmd->keywords = htmk(64);
-												htadd(cmd->keywords,(unsigned char *)strdup((char *)bf),kw_cmd);
+												if (!strcmp((char *)bf, "&")) {
+													cmd->delim = kw_cmd;
+												} else {
+													if(!cmd->keywords)
+														cmd->keywords = htmk(64);
+														htadd(cmd->keywords,joe_strdup(bf),kw_cmd);
+												}
 												while (parse_ws(&p,'#'), !parse_ident(&p,bf,255))
 													if(!strcmp(bf,"buffer")) {
 														kw_cmd->start_buffering = 1;
@@ -363,7 +439,9 @@ struct high_syntax *load_dfa(unsigned char *name)
 								fprintf(stderr,"%s %d: Unknown option\n",name,line);
 
 						/* Install command */
-						for(z=0;z!=256;++z)
+						if (delim)
+							state->delim = cmd;
+						else for(z=0;z!=256;++z)
 							if(clist[z])
 								state->cmd[z]=cmd;
 					} else

@@ -9,11 +9,19 @@
 
 #include "config.h"
 #include "types.h"
+#include "utils.h"
 
 #include <string.h>
 
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
+#endif
+
+/* Under AmigaOS we have setlocale() but don't have langinfo.h and associated stuff,
+ * so we have to disable the whole piece of code
+ */
+#ifdef __amigaos
+#undef HAVE_SETLOCALE
 #endif
 
 #if defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE)
@@ -187,6 +195,107 @@ int utf8_decode_fwrd(unsigned char **p,int *plen)
 	return c;
 }
 
+/* For systems (BSD) with no nl_langinfo(CODESET) */
+
+/*
+ * This is a quick-and-dirty emulator of the nl_langinfo(CODESET)
+ * function defined in the Single Unix Specification for those systems
+ * (FreeBSD, etc.) that don't have one yet. It behaves as if it had
+ * been called after setlocale(LC_CTYPE, ""), that is it looks at
+ * the locale environment variables.
+ *
+ * http://www.opengroup.org/onlinepubs/7908799/xsh/langinfo.h.html
+ *
+ * Please extend it as needed and suggest improvements to the author.
+ * This emulator will hopefully become redundant soon as
+ * nl_langinfo(CODESET) becomes more widely implemented.
+ *
+ * Since the proposed Li18nux encoding name registry is still not mature,
+ * the output follows the MIME registry where possible:
+ *
+ *   http://www.iana.org/assignments/character-sets
+ *
+ * A possible autoconf test for the availability of nl_langinfo(CODESET)
+ * can be found in
+ *
+ *   http://www.cl.cam.ac.uk/~mgk25/unicode.html#activate
+ *
+ * Markus.Kuhn@cl.cam.ac.uk -- 2002-03-11
+ * Permission to use, copy, modify, and distribute this software
+ * for any purpose and without fee is hereby granted. The author
+ * disclaims all warranties with regard to this software.
+ *
+ * Latest version:
+ *
+ *   http://www.cl.cam.ac.uk/~mgk25/ucs/langinfo.c
+ */
+
+unsigned char *joe_getcodeset(unsigned char *l)
+{
+  static unsigned char buf[16];
+  unsigned char *p;
+  
+  if (((l = (unsigned char *)getenv("LC_ALL"))   && *l) ||
+      ((l = (unsigned char *)getenv("LC_CTYPE")) && *l) ||
+      ((l = (unsigned char *)getenv("LANG"))     && *l)) {
+
+    /* check standardized locales */
+    if (!strcmp((char *)l, "C") || !strcmp((char *)l, "POSIX"))
+      return US "ascii";
+
+    /* check for encoding name fragment */
+    if (strstr((char *)l, "UTF") || strstr((char*)l, "utf"))
+      return US "UTF-8";
+
+    if ((p = (unsigned char *)strstr((char *)l, "8859-"))) {
+      memcpy((char *)buf, "ISO-8859-\0\0", 12);
+      p += 5;
+      if (*p >= '0' && *p <= '9') {
+	buf[9] = *p++;
+	if (*p >= '0' && *p <= '9') buf[10] = *p++;
+	return buf;
+      }
+    }
+
+    if (strstr((char *)l, "KOI8-R")) return US "KOI8-R";
+    if (strstr((char *)l, "KOI8-U")) return US "KOI8-U";
+    if (strstr((char *)l, "620")) return US "TIS-620";
+    if (strstr((char *)l, "2312")) return US "GB2312";
+    if (strstr((char *)l, "HKSCS")) return US "Big5HKSCS";   /* no MIME charset */
+    if (strstr((char *)l, "Big5") || strstr((char *)l, "BIG5")) return US "Big5";
+    if (strstr((char *)l, "GBK")) return US "GBK";           /* no MIME charset */
+    if (strstr((char *)l, "18030")) return US "GB18030";     /* no MIME charset */
+    if (strstr((char *)l, "Shift_JIS") || strstr((char *)l, "SJIS")) return US "Shift_JIS";
+    /* check for conclusive modifier */
+    if (strstr((char *)l, "euro")) return US "ISO-8859-15";
+    /* check for language (and perhaps country) codes */
+    if (strstr((char *)l, "zh_TW")) return US "Big5";
+    if (strstr((char *)l, "zh_HK")) return US "Big5HKSCS";   /* no MIME charset */
+    if (strstr((char *)l, "zh")) return US "GB2312";
+    if (strstr((char *)l, "ja")) return US "EUC-JP";
+    if (strstr((char *)l, "ko")) return US "EUC-KR";
+    if (strstr((char *)l, "ru")) return US "KOI8-R";
+    if (strstr((char *)l, "uk")) return US "KOI8-U";
+    if (strstr((char *)l, "pl") || strstr((char *)l, "hr") ||
+	strstr((char *)l, "hu") || strstr((char *)l, "cs") ||
+	strstr((char *)l, "sk") || strstr((char *)l, "sl")) return US "ISO-8859-2";
+    if (strstr((char *)l, "eo") || strstr((char *)l, "mt")) return US "ISO-8859-3";
+    if (strstr((char *)l, "el")) return US "ISO-8859-7";
+    if (strstr((char *)l, "he")) return US "ISO-8859-8";
+    if (strstr((char *)l, "tr")) return US "ISO-8859-9";
+    if (strstr((char *)l, "th")) return US "TIS-620";      /* or ISO-8859-11 */
+    if (strstr((char *)l, "lt")) return US "ISO-8859-13";
+    if (strstr((char *)l, "cy")) return US "ISO-8859-14";
+    if (strstr((char *)l, "ro")) return US "ISO-8859-2";   /* or ISO-8859-16 */
+    if (strstr((char *)l, "am") || strstr((char *)l, "vi")) return US "UTF-8";
+    /* Send me further rules if you like, but don't forget that we are
+     * *only* interested in locale naming conventions on platforms
+     * that do not already provide an nl_langinfo(CODESET) implementation. */
+    return US "ISO-8859-1"; /* should perhaps be "UTF-8" instead */
+  }
+  return US "ascii";
+}
+
 /* Initialize locale for JOE */
 
 unsigned char *codeset;	/* Codeset of terminal */
@@ -200,7 +309,7 @@ struct charmap *locale_map;
 void joe_locale()
 {
 #ifdef HAVE_SETLOCALE
-	unsigned char *s, *t;
+	unsigned char *s, *t, *u;
 
 	int x;
 
@@ -213,18 +322,30 @@ void joe_locale()
 	}
 
 	if (s)
-		s=(unsigned char *)strdup((char *)s);
+		s=joe_strdup(s);
 	else
 		s=US "ascii";
+
+	u = joe_strdup(s);
 
 	if (t=(unsigned char *)strrchr((char *)s,'.'))
 		*t = 0;
 
-	setlocale(LC_ALL,(char *)s);
-	non_utf8_codeset = (unsigned char *)strdup(nl_langinfo(CODESET));
 
+#ifdef CODESET
+	setlocale(LC_ALL,(char *)s);
+	non_utf8_codeset = joe_strdup((unsigned char *)nl_langinfo(CODESET));
+#else
+	non_utf8_codeset = joe_getcodeset(s);
+#endif
+
+
+#ifdef CODESET
 	setlocale(LC_ALL,"");
-	codeset = (unsigned char *)strdup(nl_langinfo(CODESET));
+	codeset = joe_strdup((unsigned char *)nl_langinfo(CODESET));
+#else
+	codeset = joe_getcodeset(u);
+#endif
 
 	locale_map = find_charmap(codeset);
 	if (!locale_map)

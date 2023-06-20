@@ -21,6 +21,7 @@
 #include "path.h"
 #include "pw.h"
 #include "tw.h"
+#include "mouse.h"
 #include "uedit.h"
 #include "umath.h"
 #include "utils.h"
@@ -30,6 +31,11 @@
 #include "va.h"
 #include "utf8.h"
 #include "charmap.h"
+#include "ufile.h"
+#include "usearch.h"
+#include "ushell.h"
+#include "undo.h"
+#include "help.h"
 #include "w.h"
 
 #define OPT_BUF_SIZE 300
@@ -54,18 +60,47 @@ KMAP *kmap_getcontext(unsigned char *name)
 	c = (struct context *) joe_malloc(sizeof(struct context));
 
 	c->next = contexts;
-	c->name = (unsigned char *)strdup((char *)name);
+	c->name = joe_strdup(name);
 	contexts = c;
 	return c->kmap = mkkmap();
+}
+
+/* JM - ngetcontext(name) - like getcontext, but return NULL if it
+ * doesn't exist, instead of creating a new one.
+ */
+
+KMAP *ngetcontext(unsigned char *name)
+{
+	struct context *c;
+	for(c=contexts;c;c=c->next)
+		if(!strcmp(c->name,name))
+			return c->kmap;
+	return 0;
+}
+
+unsigned char **get_keymap_list()
+{
+	unsigned char **lst = 0;
+	struct context *c;
+	for (c=contexts; c; c=c->next)
+		lst = vaadd(lst, vsncpy(NULL,0,sz(c->name)));
+
+	return lst;
 }
 
 OPTIONS *options = NULL;
 
 /* Global variable options */
 extern int mid, dspasis, dspctrl, force, help, pgamnt, square, csmode, nobackups, lightoff, exask, skiptop;
-extern int noxon, lines, staen, columns, Baud, dopadding, orphan, marking, beep, keepup, nonotice;
+extern int noxon, lines, staen, columns, Baud, dopadding, orphan, marking, joe_beep, keepup, nonotice;
 extern int notite, usetabs, assume_color, guesscrlf, guessindent, menu_explorer, icase, wrap, autoswap;
+extern int menu_jump, break_links;
+extern int xmouse;
 extern unsigned char *backpath;
+extern int nolocks, nomodcheck, nocurdir;
+
+/* Set to use ~/.joe_state file */
+int joe_state;
 
 /* Default options for prompt windows */
 
@@ -103,10 +138,19 @@ OPTIONS pdefault = {
 	0,		/* Smart backspace key */
 	0,		/* Purify indentation */
 	0,		/* Picture mode */
+	0,		/* single_quoted */
+	0,		/* c_comment */
+	0,		/* cpp_comment */
+	0,		/* pound_comment */
+	0,		/* vhdl_comment */
+	0,		/* semi_comment */
+	0,		/* hex */
+	NULL,		/* text_delimiters */
 	NULL,		/* macro to execute for new files */
 	NULL,		/* macro to execute for existing files */
 	NULL,		/* macro to execute before saving new files */
 	NULL,		/* macro to execute before saving existing files */
+	NULL		/* macro to execute on first change */
 };
 
 /* Default options for file windows */
@@ -145,7 +189,15 @@ OPTIONS fdefault = {
 	0,		/* Smart backspace key */
 	0,		/* Purity indentation */
 	0,		/* Picture mode */
-	NULL, NULL, NULL, NULL	/* macros (see above) */
+	0,		/* single_quoted */
+	0,		/* c_comment */
+	0,		/* cpp_comment */
+	0,		/* pound_comment */
+	0,		/* vhdl_comment */
+	0,		/* semi_comment */
+	0,		/* hex */
+	NULL,		/* text_delimiters */
+	NULL, NULL, NULL, NULL, NULL	/* macros (see above) */
 };
 
 /* Update options */
@@ -220,15 +272,17 @@ struct glopts {
 	int high;		/* High limit for numeric options */
 } glopts[] = {
 	{US "overwrite",4, NULL, (unsigned char *) &fdefault.overtype, US "Overtype mode", US "Insert mode", US "T Overtype " },
-	{US "autoindent",	4, NULL, (unsigned char *) &fdefault.autoindent, US "Autoindent enabled", US "Autindent disabled", US "I Autoindent " },
+	{US "hex",4, NULL, (unsigned char *) &fdefault.hex, US "Hex edit mode", US "Text edit mode", US "  Hex edit mode " },
+	{US "autoindent",	4, NULL, (unsigned char *) &fdefault.autoindent, US "Autoindent enabled", US "Autoindent disabled", US "I Autoindent " },
 	{US "wordwrap",	4, NULL, (unsigned char *) &fdefault.wordwrap, US "Wordwrap enabled", US "Wordwrap disabled", US "Word wrap " },
 	{US "tab",	5, NULL, (unsigned char *) &fdefault.tab, US "Tab width (%d): ", 0, US "D Tab width ", 0, 1, 64 },
-	{US "lmargin",	7, NULL, (unsigned char *) &fdefault.lmargin, US "Left margin (%d): ", 0, US "Left margin ", 0, 0, 63 },
+	{US "lmargin",	7, NULL, (unsigned char *) &fdefault.lmargin, US "Left margin (%d): ", 0, US "Left margin ", 0, 1, 63 },
 	{US "rmargin",	7, NULL, (unsigned char *) &fdefault.rmargin, US "Right margin (%d): ", 0, US "Right margin ", 0, 7, 255 },
 	{US "square",	0, &square, NULL, US "Rectangle mode", US "Text-stream mode", US "X Rectangle mode " },
 	{US "icase",	0, &icase, NULL, US "Ignore case by default", US "Case sensitive by default", US "  Case insensitivity " },
 	{US "wrap",	0, &wrap, NULL, US "Search wraps", US "Search doesn't wrap", US "  Search wraps " },
-	{US "menu_explorer",	0, &menu_explorer, NULL, US "Menu explorer mode", US "  Simple completion", US "  Menu explorer " },
+	{US "menu_explorer",	0, &menu_explorer, NULL, US "Menu explorer mode", US "Simple completion", US "  Menu explorer " },
+	{US "menu_jump",	0, &menu_jump, NULL, US "Jump is on", US "Jump is off", US "  Jump into menu " },
 	{US "autoswap",	0, &autoswap, NULL, US "Autoswap ^KB and ^KK", US "  Autoswap off ", US "  Autoswap mode " },
 	{US "indentc",	5, NULL, (unsigned char *) &fdefault.indentc, US "Indent char %d (SPACE=32, TAB=9, ^C to abort): ", 0, US "  Indent char ", 0, 0, 255 },
 	{US "istep",	5, NULL, (unsigned char *) &fdefault.istep, US "Indent step %d (^C to abort): ", 0, US "  Indent step ", 0, 1, 64 },
@@ -243,10 +297,15 @@ struct glopts {
 	{US "marking",	0, &marking, NULL, US "Anchored block marking on", US "Anchored block marking off", US "Marking " },
 	{US "asis",	0, &dspasis, NULL, US "Characters above 127 shown as-is", US "Characters above 127 shown in inverse", US "  Meta chars as-is " },
 	{US "force",	0, &force, NULL, US "Last line forced to have NL when file saved", US "Last line not forced to have NL", US "Force last NL " },
+	{US "joe_state",0, &joe_state, NULL, US "~/.joe_state file will be updated", US "~/.joe_state file will not be updated", US "  Joe_state file " },
 	{US "nobackups",	0, &nobackups, NULL, US "Backup files will not be made", US "Backup files will be made", US "  Disable backups " },
+	{US "nolocks",	0, &nolocks, NULL, US "Files will not be locked", US "Files will be locked", US "  Disable locks " },
+	{US "nomodcheck",	0, &nomodcheck, NULL, US "No mtime check", US "Mtime checking enabled", US "  Disable mtime check " },
+	{US "nocurdir",	0, &nocurdir, NULL, US "No current dir", US "Current dir enabled", US "  Disable current dir " },
+	{US "break_links",	0, &break_links, NULL, US "Hardlinks will be broken", US "Hardlinks not broken", US "  Break hard links " },
 	{US "lightoff",	0, &lightoff, NULL, US "Highlighting turned off after block operations", US "Highlighting not turned off after block operations", US "Auto unmark " },
 	{US "exask",	0, &exask, NULL, US "Prompt for filename in save & exit command", US "Don't prompt for filename in save & exit command", US "  Exit ask " },
-	{US "beep",	0, &beep, NULL, US "Warning bell enabled", US "Warning bell disabled", US "Beeps " },
+	{US "beep",	0, &joe_beep, NULL, US "Warning bell enabled", US "Warning bell disabled", US "Beeps " },
 	{US "nosta",	0, &staen, NULL, US "Top-most status line disabled", US "Top-most status line enabled", US "  Disable status line " },
 	{US "keepup",	0, &keepup, NULL, US "Status line updated constantly", US "Status line updated once/sec", US "  Fast status line " },
 	{US "pg",		1, &pgamnt, NULL, US "Lines to keep for PgUp/PgDn or -1 for 1/2 window (%d): ", 0, US "  No. PgUp/PgDn lines ", 0, -1, 64 },
@@ -260,6 +319,15 @@ struct glopts {
 	{US "backpath",	2, (int *) &backpath, NULL, US "Backup files stored in (%s): ", 0, US "  Path to backup files " },
 	{US "syntax",	9, NULL, NULL, US "Select syntax (^C to abort): ", 0, US "Y Syntax" },
 	{US "encoding",13, NULL, NULL, US "Select file character set (^C to abort): ", 0, US "Encoding " },
+	{US "single_quoted",	4, NULL, (unsigned char *) &fdefault.single_quoted, US "Single quoting enabled", US "Single quoting disabled", US "  ^G ignores ' ' " },
+	{US "c_comment",	4, NULL, (unsigned char *) &fdefault.c_comment, US "/* comments enabled", US "/* comments disabled", US "  ^G ignores /**/ " },
+	{US "cpp_comment",	4, NULL, (unsigned char *) &fdefault.cpp_comment, US "// comments enabled", US "// comments disabled", US "  ^G ignores // " },
+	{US "pound_comment",	4, NULL, (unsigned char *) &fdefault.pound_comment, US "# comments enabled", US "# comments disabled", US "  ^G ignores # " },
+	{US "vhdl_comment",	4, NULL, (unsigned char *) &fdefault.vhdl_comment, US "-- comments enabled", US "-- comments disabled", US "  ^G ignores -- " },
+	{US "semi_comment",	4, NULL, (unsigned char *) &fdefault.vhdl_comment, US "; comments enabled", US "; comments disabled", US "  ^G ignores ; " },
+	{US "text_delimiters",	6, NULL, (unsigned char *) &fdefault.text_delimiters, US "Text delimiters (%s): ", 0, US "  Text delimiters " },
+	{US "floatmouse",	0, &floatmouse, 0, US "Clicking can move the cursor past end of line", US "Clicking past end of line moves cursor to the end", US "  Click past end " },
+	{US "rtbutton",	0, &rtbutton, 0, US "Mouse action is done with the right button", US "Mouse action is done with the left button", US "  Right button " },
 	{US "nonotice",	0, &nonotice, NULL, 0, 0, 0 },
 	{US "noxon",	0, &noxon, NULL, 0, 0, 0 },
 	{US "orphan",	0, &orphan, NULL, 0, 0, 0 },
@@ -270,6 +338,7 @@ struct glopts {
 	{US "columns",	1, &columns, NULL, 0, 0, 0, 0, 2, 1024 },
 	{US "skiptop",	1, &skiptop, NULL, 0, 0, 0, 0, 0, 64 },
 	{US "notite",	0, &notite, NULL, 0, 0, 0 },
+	{US "mouse",	0, &xmouse, NULL, 0, 0, 0 },
 	{US "usetabs",	0, &usetabs, NULL, 0, 0, 0 },
 	{US "assume_color", 0, &assume_color, NULL, 0, 0, 0 },
 	{ NULL,		0, NULL, NULL, NULL, NULL, NULL, 0, 0, 0 }
@@ -349,7 +418,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 			case 2: /* Global variable string option */
 				if (set) {
 					if (arg)
-						*(unsigned char **) glopts[x].set = (unsigned char *)strdup((char *)arg);
+						*(unsigned char **) glopts[x].set = joe_strdup(arg);
 					else
 						*(unsigned char **) glopts[x].set = 0;
 				}
@@ -368,6 +437,17 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 					} 
 				}
 				break;
+			case 6: /* Local string option */
+				if (options) {
+					if (arg) {
+						*(unsigned char **) ((unsigned char *)
+								  options + glopts[x].ofst) = joe_strdup(arg);
+					} else {
+						*(unsigned char **) ((unsigned char *)
+								  options + glopts[x].ofst) = 0;
+					}
+				}
+				break;
 			case 7: /* Local option numeric + 1, with range checking */
 				if (arg) {
 					int zz = 0;
@@ -384,7 +464,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 
 			case 9: /* Set syntax */
 				if (arg && options)
-					options->syntax_name = (unsigned char *)strdup((char *)arg);
+					options->syntax_name = joe_strdup(arg);
 				/* this was causing all syntax files to be loaded...
 				if (arg && options)
 					options->syntax = load_dfa(arg); */
@@ -392,7 +472,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 
 			case 13: /* Set byte mode encoding */
 				if (arg && options)
-					options->map_name = (unsigned char *)strdup((char *)arg);
+					options->map_name = joe_strdup(arg);
 				break;
 			}
 			/* This is a stupid hack... */
@@ -407,14 +487,14 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 	if (!strcmp(s, "lmsg")) {
 		if (arg) {
 			if (options)
-				options->lmsg = (unsigned char *)strdup((char *)arg);
+				options->lmsg = joe_strdup(arg);
 			ret = 2;
 		} else
 			ret = 1;
 	} else if (!strcmp(s, "rmsg")) {
 		if (arg) {
 			if (options)
-				options->rmsg = (unsigned char *)strdup((char *)arg);
+				options->rmsg = joe_strdup(arg);
 			ret = 2;
 		} else
 			ret = 1;
@@ -426,7 +506,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 			if (!arg[y])
 				arg[y] = 0;
 			if (options && y)
-				options->context = (unsigned char *)strdup((char *)arg);
+				options->context = joe_strdup(arg);
 			ret = 2;
 		} else
 			ret = 1;
@@ -436,6 +516,15 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 
 			if (options)
 				options->mnew = mparse(NULL, arg, &sta);
+			ret = 2;
+		} else
+			ret = 1;
+	} else if (!strcmp(s, "mfirst")) {
+		if (arg) {
+			int sta;
+
+			if (options)
+				options->mfirst = mparse(NULL, arg, &sta);
 			ret = 2;
 		} else
 			ret = 1;
@@ -503,7 +592,10 @@ static int doopt1(BW *bw, unsigned char *s, int *xx, int *notify)
 		break;
 	case 2:
 		if (s[0])
-			*(unsigned char **) glopts[x].set = (unsigned char *)strdup((char *)s);
+			*(unsigned char **) glopts[x].set = joe_strdup(s);
+		break;
+	case 6:
+		*(unsigned char **)((unsigned char *)&bw->o+glopts[x].ofst) = joe_strdup(s);
 		break;
 	case 5:
 		v = calc(bw, s);
@@ -678,6 +770,19 @@ static int doopt(MENU *m, int x, void *object, int flg)
 		if (glopts[x].ofst == (unsigned char *) &fdefault.readonly - (unsigned char *) &fdefault)
 			bw->b->rdonly = bw->o.readonly;
 		break;
+	case 6:
+		wabort(m->parent);
+		xx = (int *) joe_malloc(sizeof(int));
+		*xx = x;
+		if(*(unsigned char **)((unsigned char *)&bw->o+glopts[x].ofst))
+			joe_snprintf_1((char *)buf, OPT_BUF_SIZE, "Delimiters (%s): ",*(unsigned char **)((unsigned char *)&bw->o+glopts[x].ofst));
+		else
+			joe_snprintf_0((char *)buf, OPT_BUF_SIZE, "Delimiters: ");
+		if(wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map, 0))
+			return 0;
+		else
+			return -1;
+		break;
 	case 1:
 		joe_snprintf_1((char *)buf, OPT_BUF_SIZE, (char *)glopts[x].yes, *glopts[x].set);
 		xx = (int *) joe_malloc(sizeof(int));
@@ -685,7 +790,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 		*xx = x;
 		m->parent->notify = 0;
 		wabort(m->parent);
-		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map))
+		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map, 0))
 			return 0;
 		else
 			return -1;
@@ -699,7 +804,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 		*xx = x;
 		m->parent->notify = 0;
 		wabort(m->parent);
-		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map))
+		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map, 0))
 			return 0;
 		else
 			return -1;
@@ -713,7 +818,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 		*xx = x;
 		m->parent->notify = 0;
 		wabort(m->parent);
-		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map))
+		if (wmkpw(bw->parent, buf, NULL, doopt1, NULL, doabrt1, utypebw, xx, notify, locale_map, 0))
 			return 0;
 		else
 			return -1;
@@ -722,7 +827,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 		joe_snprintf_1((char *)buf, OPT_BUF_SIZE, (char *)glopts[x].yes, "");
 		m->parent->notify = 0;
 		wabort(m->parent);
-		if (wmkpw(bw->parent, buf, NULL, dosyntax, NULL, NULL, syntaxcmplt, NULL, notify, locale_map))
+		if (wmkpw(bw->parent, buf, NULL, dosyntax, NULL, NULL, syntaxcmplt, NULL, notify, locale_map, 0))
 			return 0;
 		else
 			return -1;
@@ -731,7 +836,7 @@ static int doopt(MENU *m, int x, void *object, int flg)
 		joe_snprintf_1((char *)buf, OPT_BUF_SIZE, (char *)glopts[x].yes, "");
 		m->parent->notify = 0;
 		wabort(m->parent);
-		if (wmkpw(bw->parent, buf, NULL, doencoding, NULL, NULL, encodingcmplt, NULL, notify, locale_map))
+		if (wmkpw(bw->parent, buf, NULL, doencoding, NULL, NULL, encodingcmplt, NULL, notify, locale_map, 0))
 			return 0;
 		else
 			return -1;
@@ -775,6 +880,7 @@ int umode(BW *bw)
 		case 2:
 		case 9:
 		case 13:
+		case 6:
 			strcpy((char *)(s[x]), (char *)glopts[x].menu);
 			break;
 		case 4:
@@ -810,7 +916,8 @@ int procrc(CAP *cap, unsigned char *name)
 	int line = 0;		/* Line number */
 	int err = 0;		/* Set to 1 if there was a syntax error */
 
-	strcpy((char *)buf, (char *)name);
+	strncpy((char *)buf, (char *)name, sizeof(buf) - 1);
+	buf[sizeof(buf)-1] = '\0';
 #ifdef __MSDOS__
 	fd = fopen((char *)buf, "rt");
 #else
@@ -832,6 +939,13 @@ int procrc(CAP *cap, unsigned char *name)
 		case '\f':
 		case 0:
 			break;	/* Skip comment lines */
+
+		case '=':	/* Define a global color */
+			{
+			parse_color_def(&global_colors,buf+1,name,line);
+			}
+			break;
+
 		case '*':	/* Select file types for file-type dependant options */
 			{
 				int x;
@@ -842,7 +956,7 @@ int procrc(CAP *cap, unsigned char *name)
 				buf[x] = 0;
 				o->next = options;
 				options = o;
-				o->name_regex = (unsigned char *)strdup((char *)buf);
+				o->name_regex = joe_strdup(buf);
 			}
 			break;
 		case '+':	/* Set file contents match regex */
@@ -852,7 +966,7 @@ int procrc(CAP *cap, unsigned char *name)
 				for (x = 0; buf[x] && buf[x] != '\n' && buf[x] != '\r'; ++x) ;
 				buf[x] = 0;
 				if (o)
-					o->contents_regex = (unsigned char *)strdup((char *)(buf+1));
+					o->contents_regex = joe_strdup(buf+1);
 			}
 			break;
 		case '-':	/* Set an option */
@@ -873,15 +987,9 @@ int procrc(CAP *cap, unsigned char *name)
 				}
 			}
 			break;
-		case '{':	/* Ignore help text */
+		case '{':	/* Process help text */
 			{
-				while ((fgets((char *)buf, 256, fd)) && (buf[0] != '}'))
-					/* do nothing */;
-				if (buf[0] != '}') {
-					err = 1;
-					fprintf(stderr, "\n%s %d: End of joerc file occured before end of help text\n", name, line);
-					break;
-				}
+				line = help_init(fd,buf,line);
 			}
 			break;
 		case ':':	/* Select context */
@@ -988,6 +1096,7 @@ int procrc(CAP *cap, unsigned char *name)
 					break;
 				} else if (x == -2) {
 					fgets((char *)buf, 1024, fd);
+					++line;
 					goto macroloop;
 				}
 				if (!m)
@@ -1015,4 +1124,152 @@ int procrc(CAP *cap, unsigned char *name)
 		fprintf(stderr, "done\n");
 
 	return err;		/* 0 for success, 1 for syntax error */
+}
+
+/* Save a history buffer */
+
+void save_hist(FILE *f,B *b)
+{
+	unsigned char buf[512];
+	int len;
+	if (b) {
+		P *p = pdup(b->bof);
+		P *q = pdup(b->bof);
+		if (b->eof->line>10)
+			pline(p,b->eof->line-10);
+		pset(q,p);
+		while (!piseof(p)) {
+			pnextl(q);
+			if (q->byte-p->byte<512) {
+				len = q->byte - p->byte;
+				brmem(p,buf,len);
+			} else {
+				brmem(p,buf,512);
+				len = 512;
+			}
+			fprintf(f,"\t");
+			emit_hdlc(f,buf,len);
+			fprintf(f,"\n");
+			pset(p,q);
+		}
+		prm(p);
+		prm(q);
+	}
+	fprintf(f,"done\n");
+}
+
+/* Load a history buffer */
+
+void load_hist(FILE *f,B **bp)
+{
+	B *b;
+	unsigned char buf[1024];
+	unsigned char bf[1024];
+	P *q;
+
+	b = *bp;
+	if (!b)
+		*bp = b = bmk(NULL);
+
+	q = pdup(b->eof);
+
+	while(fgets((char *)buf,1023,f) && strcmp(buf,"done\n")) {
+		unsigned char *p = buf;
+		int len;
+		parse_ws(&p,'#');
+		len = parse_hdlc(&p,bf,1023);
+		if (len>0) {
+			binsm(q,bf,len);
+			pset(q,b->eof);
+		}
+	}
+
+	prm(q);
+}
+
+/* Save state */
+
+#define STATE_ID "# JOE state file v1.0\n"
+
+void save_state()
+{
+	unsigned char *home = (unsigned char *)getenv("HOME");
+	int old_mask;
+	FILE *f;
+	if (!joe_state)
+		return;
+	if (!home)
+		return;
+	joe_snprintf_1((char *)stdbuf,stdsiz,"%s/.joe_state",home);
+	old_mask = umask(0066);
+	f = fopen((char *)stdbuf,"w");
+	umask(old_mask);
+	if(!f)
+		return;
+
+	/* Write ID */
+	fprintf(f,"%s",STATE_ID);
+
+	/* Write state information */
+	fprintf(f,"search\n"); save_srch(f);
+	fprintf(f,"macros\n"); save_macros(f);
+	fprintf(f,"files\n"); save_hist(f,filehist);
+	fprintf(f,"find\n"); save_hist(f,findhist);
+	fprintf(f,"replace\n"); save_hist(f,replhist);
+	fprintf(f,"run\n"); save_hist(f,runhist);
+	fprintf(f,"build\n"); save_hist(f,buildhist);
+	fprintf(f,"cmd\n"); save_hist(f,cmdhist);
+	fprintf(f,"math\n"); save_hist(f,mathhist);
+	fprintf(f,"yank\n"); save_yank(f);
+	fclose(f);
+}
+
+/* Load state */
+
+void load_state()
+{
+	unsigned char *home = (unsigned char *)getenv("HOME");
+	unsigned char buf[1024];
+	FILE *f;
+	if (!joe_state)
+		return;
+	if (!home)
+		return;
+	joe_snprintf_1((char *)stdbuf,stdsiz,"%s/.joe_state",home);
+	f = fopen((char *)stdbuf,"r");
+	if(!f)
+		return;
+
+	/* Only read state information if the version is correct */
+	if (fgets((char *)buf,1024,f) && !strcmp((char *)buf,STATE_ID)) {
+
+		/* Read state information */
+		while(fgets((char *)buf,1023,f)) {
+			if(!strcmp(buf,"search\n"))
+				load_srch(f);
+			else if(!strcmp(buf,"macros\n"))
+				load_macros(f);
+			else if(!strcmp(buf,"files\n"))
+				load_hist(f,&filehist);
+			else if(!strcmp(buf,"find\n"))
+				load_hist(f,&findhist);
+			else if(!strcmp(buf,"replace\n"))
+				load_hist(f,&replhist);
+			else if(!strcmp(buf,"run\n"))
+				load_hist(f,&runhist);
+			else if(!strcmp(buf,"build\n"))
+				load_hist(f,&buildhist);
+			else if(!strcmp(buf,"cmd\n"))
+				load_hist(f,&cmdhist);
+			else if(!strcmp(buf,"math\n"))
+				load_hist(f,&mathhist);
+			else if(!strcmp(buf,"yank\n"))
+				load_yank(f);
+			else { /* Unknown... skip until next done */
+				while(fgets((char *)buf,1023,f) && strcmp((char *)buf,"done\n"));
+			}
+		}
+	}
+
+	fclose(f);
 }

@@ -1,3 +1,310 @@
+
+Short (infinite) list for 3.2:
+
+- - - -
+
+Dangerous situations:
+  assume maint->curwin->object is a BW *
+  call interactive functions (like doedit) an expect them
+  to leave maint a buffer window (it could start a prompt).
+
+  should check plain file checking.
+
+Querysave is sometimes not saving all files in ESC c?
+
+- - - - - - - -
+
+- backspace in picture mode
+  (it jumps to end of line - should it be like left-arrow?)
+
+- - - - - - - -
+
+- name keyboard macro and append it to .joerc file
+
+- - - - - - - -
+
+- regexp for compiler parsing
+
+- - - - - - - -
+
+- update man page
+
+- - - - - - - -
+
+- hex edit mode
+    - force switch to overtype mode?
+
+    - think through i18n consequences (goto
+      bol when switch out of it).
+
+- - - - - - - -
+
+- security hole with spell checker
+
+- - - - - - - -
+
+- commands should be as deterministic as possible for
+  easier macro writing.
+     (some prompts give defaults sometime... this is bad)
+     (psh should save all possible state information)
+
+- merge math with macro language
+- tab at math prompt should go through variables, functions.
+- eliminate need for : separator
+- add loops, user defined functions with local variables
+- add comments
+- user should be able to bring up a program and hit 'eval'.
+- use ivy?
+
+- - - - - - - -
+
+- better editing in shell windows
+
+- - - - - - - -
+
+jmacs glitches:
+    history for incremental search
+    ^S return supposed to be normal search
+    ^[ 0 ^K  delete line bkwd (arg set)
+    ^[ @   set mark arg words away
+    ^X ^P  mark page
+    ^X h   mark entire buffer
+    ^X .  set left margin (fill prefix)
+
+- - - - - - - -
+
+- empty .joerc file causes lockup
+
+- - - - - - - -
+
+- highlight all words which match during search?
+
+- - - - - - - -
+
+    - Reload modified files (or current window)
+      (can be a macro: ^KE name rtn)
+
+    (a user asked: can it periodically reload log file like tail -f)?
+
+- - - - - - - -
+
+Problems with parsing joerc file: comments are getting included in all
+string options.  Switch to unix standard config file format?
+
+Make joerc file so we load system and local customizations.
+
+- - - - - - - -
+
+can we highlight backup files? files ending in .in?
+
+- - - - - - - -
+
+  define characters which make up words
+    There are some A-Zs in tomatch (should use i18n).
+
+- - - - - - - -
+
+- search: automatically use 'k' mode if there is a block selected?  Cursor should
+  jump to top of block when done?  Modes for this?
+
+- - - - - - - -
+  exemac for first change: it should be run with cursor in window.
+
+  -orphan will break -mnew, -mold macros (because macros are run without a
+window on the screen).
+
+- - - - - - - -
+
+- egmont's Ctrl-selection bug
+
+- - - - - - - -
+
+- better string demarcation in highlighter (highlight all words with 's in
+  them- need to use pointers instead of buffer to refer to string)
+
+- - - - - - - -
+
+- .joe_state file:
+ - try for previous screen configuration?
+ - multiple joes: the last one who exits wins: merge them
+
+- - - - - - - -
+
+More colors: UI for using 256 color xterms.
+  - Problems: tgoto takes only two params, so we have to switch to tparm.
+
+- - - - - - - -
+
+Completion list build could take a long time
+in general we should be able to abort long operations...
+
+- - - - - - - -
+
+Others:
+
+- completion list of internal commands brings up documentation
+
+- keep special meaning of !, >> and , in file names?
+
+- rectangular blocks: make this a local file option?
+
+- shell window intercept should be smarter.  hit ^K ^H- the ^H is going to the
+  shell window.
+
+- do not use ^[^[ for anything.  it prevents Alt-arrow
+  from being useful.
+
+- save all files without asking thing for quick compile
+
+- continued search mode for jpico?
+
+- make ^K F prompt with previous text (PICO)?
+
+options are screwed up: we copy window to buffer (to get buffer options
+to the buffer).  But if we have multiple windows, buffer options will have
+stale data.
+
+we are missing many query and prompt window abort handlers, which cause
+small memory leaks.
+
+regex: character classes? a-z matches any letter?
+
+can't load terminfo- should switch to termcap or provide compiled
+ANSI terminfo built in.
+
+gettext patch
+
+Perl compatible regex search.
+
+Improvements for regular text
+-----------------------------
+mode where wordwrap wraps rest of paragraph?
+
+mode where all editing wraps rest of paragraph?
+
+Improvements for programming
+----------------------------
+Jump to definition (tags does this)
+
+Show list of references
+
+Diff mode (need vertical window)
+
+Tie in with CVS
+
+Refactoring
+
+Syntax Highlighting:
+--------------------
+
+Fix for next release highlight:
+
+  other windows why
+  lose state during page down?
+
+
+Support for more languages:
+
+ Paragraph reformat mode for TeX files.
+
+ Reformat paragraph should reformat C function if we're editing C.
+
+File loading/storing:
+
+ Unnamed buffers should be in bufed list (was fixed in the lost joe 2.9)
+
+Jmacs:
+
+ search and replace 'fred' to 'foo':
+    find 'Fred', gets 'Foo'.
+
+ Rectangle mode for emacs yank system
+
+ Overtype mode works for yank
+
+ exiting options and i-search with ESC is not pretty
+ (it isn't in emacs either)
+
+Shell windows:
+
+ Better environment settings for shell windows.
+
+Documentation:
+
+ Include documentation for joe hackers.  I wrote a lot of this
+ some time, I need to find it.
+
+ joe should open tty earlier in startup sequence because ^Y
+ is suspend character on sun.
+
+UTF-8/Internationalization
+--------------------------
+
+byte to byte conversions?
+UTF-8 decoder right at input instead of in qw and utype?
+
+UTF-8 syntax files?
+
+- right-left mode for Hebrew/Arabic?
+
+  There is no good way to do this.  For all rtol, you could use a reversed
+xterm.  For mixed, you need tags to indicate direction.
+
+
+
+Use memory mapped files to fast load large files.  Have to not
+count no. lines in each buffer on startup.
+
+Emulate other editors?  Brief, EDT?  CUA?
+
+
+Prompts:
+
+ Sort should be column wise, not row wise?
+
+ HTML-style thing for option selection?
+
+
+
+Terminal handling:
+
+ Emit ESC c to reset terminal on startup?
+
+ Look into clearing right-most column.
+
+Mouse:
+
+ ` and autoindent mode are a problem for drag and drop.
+ any way we can distinguish normal typing from a drop?
+ modify xterm...
+
+Major new display modes:
+
+ Fixed record length mode
+
+
+Major code improvements:
+
+ Vertical windows (optionally lock-stepped).
+
+
+Major new features:
+
+ Folding
+
+
+Options
+
+ Fix it so all options appear in ^T.  Maybe make hook function
+ to handle major changes.
+
+Other requests:
+
+ -cleanup (delete extra lines and extra spaces at ends of lines).
+
+ -show no. utf characters, not no. bytes
+
+
 Do something with these keys:
 
 -------
@@ -396,244 +703,3 @@ notepad/cua mode?
 F3	find next
 F5	date/time
 
-- shell window intercept should be smarter.  hit ^K ^H- the ^H is going to the
-  shell window.
-
-- do not use ^[^[ for anything.  it prevents Alt-arrow
-  from being useful.
-
-- search should automatically use 'k' mode if block is
-  selected.  Cursor should jump to top of block when done.  Jump
-  back to start mode?
-
-
-
-- save all files without asking thing for quick compile
-
-- better parsing of compile messages
-
-
-
-- continued search mode for jpico?
-
-- smarter highlighter- need char and string storage.
-
-- make ^K F prompt with previous text (PICO)?
-
-^K X leads to segfault?
-
-if I use ^K C to move search string into search prompt, it says not found
-even though it found it.
-
-options are screwed up: we copy window to buffer (to get buffer options
-to the buffer).  But if we have multiple windows, buffer options will have
-stale data.
-
-we are missing many query and prompt window abort handlers, which cause
-small memory leaks.
-
-- update help screens: some things have changed (emacs is more like emacs).
-
-
-Fix for next release highlight:
-
-  other windows why
-  lose state during page down?
-  perl highlighter
-  more syntax files
-
-  byte to byte conversions?
-  UTF-8 decoder right at input instead of in qw and utype?
-
- Update man page.
-
- Reload modified files (or current window)
-
-  don't use -notite by default.
-
-Watch loaded file for changes
-
-Save all history buffers and keyboard macros in ~/.joe_state file?
-
-  Update documentation.
-
-shift/alt/ctrl arrow key stuff.
-
-regex: character classes? a-z matches any letter?
-
-  parse *rc file only once?
-
-  different symbol for 'joe' directory
-
-  can't load terminfo- should switch to termcap or provide compiled
-  ANSI terminfo built in.
-
-  gettext patch
-
-
-New features:
------------------------
-
-  move *rc files to .joe directory?
-
-  check all instances of 'chars': use unicode to locale symbols instead.
-  EBCDIC ?
-    - we assume '\n' is line terminator.
-    - there are many references to '\t' and ' '.
-    - EBCDIC used to be fixed record length (80 columns) anyway.
-
-Math: hex, octal more functions. (-lm?)
-
-Perl compatible regex search.
-
-Improvements for regular text
------------------------------
-mode where wordwrap wraps rest of paragraph?
-
-mode where all editing wraps rest of paragraph?
-
-Improvements for programming
-----------------------------
-
-Jump to definition (tags does this)
-
-Show list of references
-
-Diff mode (need vertical window)
-
-Tie in with CVS
-
-Refactoring
-
-Syntax Highlighting:
---------------------
-
-UTF-8 syntax files?
-
-Support for more languages:
-
- Paragraph reformat mode for TeX files.
-
- ^G Matching for verilog begin ... end, html tags, etc.
-
- Reformat paragraph should reformat C function if we're editing C.
-
-File loading/storing:
-
- Should have switch buffers in current window as more fundamental joe key
- sequence (it's ^[ u and ^[ v for now).
-
- Unnamed buffers should be in bufed list (was fixed in the lost joe 2.9)
-
-Jmacs/Jstar/Jpico:
-
- search and replace 'fred' to 'foo':
-    find 'Fred', gets 'Foo'.
-
- Rectangle mode for emacs yank system
-
- Overtype mode works for yank
-
- ESC args should work differently in emacs
-
- many negative args do not work properly
-
- exiting options and i-search with ESC is not pretty
- (it isn't in emacs either)
-
-Shell windows:
-
- Better environment settings for shell windows.
-
-Documentation:
-
- Include documentation for joe hackers.  I wrote a lot of this
- some time, I need to find it.
-
- joe should open tty earlier in startup sequence because ^Y
- is suspend character on sun.
-
-UTF-8/Internationalization
---------------------------
-
-- right-left mode for Hebrew/Arabic?
-
-  There is no good way to do this.  For all rtol, you could use a reversed
-xterm.  For mixed, you need tags to indicate direction.
-
-
-UI for changing colors in the editor (or at least dark/light mode)
-
-More colors: UI for using 256 color xterms.
-
-
- Lock files being edited?
-  one person gets write lock
-
-
- Don't understand:  optionally break hardlinks on save?  what is "tla"?
-
- Use memory mapped files to fast load large files.  Have to not
- count no. lines in each buffer on startup.
-
-
- Emulate other editors?  Brief, EDT?
-
-
-Prompts:
-
- Sort should be column wise, not row wise?
-
- HTML-style thing for option selection?
-
-
-
-Terminal handling:
-
- Emit ESC c to reset terminal on startup?
-
- Look into clearing right-most column.
-
-Macros:
-
- Interactive macros during file load are broken.  Think about multiple
- stack hack (otherwise template based C++ callbacks).
-
-
-Mouse:
-
- ` and autoindent mode are a problem for drag and drop.
- any way we can distinguish normal typing from a drop?
- modify xterm...
-
- mouse mode: mouse can position cursor.  Would be good for
- jcua...
-
-Major new modes:
-
- Hex edit mode
-
- Fixed record length mode
-
-
-Major code improvements:
-
- Vertical windows (optionally lock-stepped).
-
-
-Major new features:
-
- Folding
-
-
-Options
-
- Fix it so all options appear in ^T.  Maybe make hook function
- to handle major changes.  Need this for major mode change for
- hex edit mode.
-
-Other requests:
-
- -cleanup (delete extra lines and extra spaces at ends of lines).
-
- -show no. utf characters, not no. bytes

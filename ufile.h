@@ -17,7 +17,9 @@ void genexmsg PARAMS((BW *bw, int saved, unsigned char *name));
 
 int ublksave PARAMS((BW *bw));
 int ushell PARAMS((BW *bw));
+int usys PARAMS((BW *bw));
 int usave PARAMS((BW *bw));
+int usavenow PARAMS((BW *bw));
 int uedit PARAMS((BW *bw));
 int uswitch PARAMS((BW *bw));
 int uscratch PARAMS((BW *bw));
@@ -29,8 +31,10 @@ int uask PARAMS((BW *bw));
 int ubufed PARAMS((BW *bw));
 int ulose PARAMS((BW *bw));
 int okrepl PARAMS((BW *bw));
-int doedit PARAMS((BW *bw, unsigned char *s, void *obj, int *notify));
+int doswitch PARAMS((BW *bw, unsigned char *s, void *obj, int *notify));
 int uquerysave PARAMS((BW *bw));
 int ukilljoe PARAMS((BW *bw));
+
+extern B *filehist;
 
 #endif

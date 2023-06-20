@@ -20,6 +20,7 @@
 #include "scrn.h"
 #include "utils.h"
 #include "utf8.h"
+#include "syntax.h"
 #include "w.h"
 
 extern int dspasis;		/* Set to display chars above 127 as-is */
@@ -45,8 +46,10 @@ int countmain(SCREEN *t)
 
 void wredraw(W *w)
 {
+	int x;
 	msetI(w->t->t->updtab + w->y, 1, w->h);
-	msetI(w->t->t->syntab + w->y, -1, w->h);
+	for(x=0; x!=w->h; ++x)
+		invalidate_state(w->t->t->syntab + w->y + x);
 }
 
 /* Find first window in a group */
@@ -204,7 +207,7 @@ void updall(void)
 
 	for (y = 0; y != scr->h; ++y) {
 		scr->t->updtab[y] = 1;
-		scr->t->syntab[y] = -1;
+		invalidate_state(scr->t->syntab + y);
 		}
 }
 
@@ -236,6 +239,16 @@ void scrdel(B *b, long l, long n, int flg)
 		w = w->link.next;
 		} while (w != scr->topwin);
 	}
+}
+
+W *watpos(SCREEN *t,int x,int y)
+{
+	W *w=t->topwin;
+	do
+		if(w->y>=0 && w->y<=y && w->y+w->h>y && w->x<=x && w->x+w->w>x)
+			return w;
+		while(w=w->link.next, w!=t->topwin);
+	return 0;
 }
 
 /* Fit as many windows on the screen as is possible beginning with the window
@@ -371,8 +384,10 @@ void wfit(SCREEN *t)
 					w->watom->resize(w->object, w->w, w->nh);
 			}
 			if (w->y == -1) {
+				int q;
 				msetI(t->t->updtab + w->ny, 1, w->nh);
-				msetI(t->t->syntab + w->ny, -1, w->nh);
+				for(q=0; q!=w->nh; ++q)
+					invalidate_state(t->t->syntab + w->ny + q);
 				}
 			w->y = w->ny;
 		} else

@@ -12,7 +12,21 @@
 
 #define LINK(type) struct { type *next; type *prev; }
 
-#define KEYS		256
+/* #define KEYS		256 */
+#define KEYS 267	/* 256 ascii + mdown, mup, mdrag, m2down, m2up, m2drag,
+                                        m3down, m3up, m3drag */
+#define KEY_MDOWN	256
+#define KEY_MUP		257
+#define KEY_MDRAG	258
+#define KEY_M2DOWN	259
+#define KEY_M2UP	260
+#define KEY_M2DRAG	261
+#define KEY_M3DOWN	262
+#define KEY_M3UP	263
+#define KEY_M3DRAG	264
+#define KEY_MWUP	265
+#define KEY_MWDOWN	266
+
 #define stdsiz		8192
 #define FITHEIGHT	4		/* Minimum text window height */
 #define LINCOLS		6
@@ -66,7 +80,7 @@ typedef struct search SRCH;
 typedef struct srchrec SRCHREC;
 typedef struct vpage VPAGE;
 typedef struct vfile VFILE;
-
+typedef struct highlight_state HIGHLIGHT_STATE;
 
 struct header {
 	LINK(H)	link;		/* LINK ??? */
@@ -124,19 +138,29 @@ struct options {
 	int	smartbacks;	/* Set for smart backspace key */
 	int	purify;		/* Purify indentation */
 	int	picture;	/* Picture mode */
+	int	single_quoted;	/* Ignore '  ' for ^G */
+	int	c_comment;	/* Ignore text in C comments */
+	int	cpp_comment;	/* Ignore text after // comments */
+	int	pound_comment;	/* Ignore text after # comments */
+	int	vhdl_comment;	/* Ignore text after -- comments */
+	int	semi_comment;	/* Ignore text after ; comments */
+	int	hex;		/* Hex edit mode */
+	unsigned char *text_delimiters;	/* Define word delimiters */
 	MACRO	*mnew;		/* Macro to execute for new files */
 	MACRO	*mold;		/* Macro to execute for existing files */
 	MACRO	*msnew;		/* Macro to execute before saving new files */
 	MACRO	*msold;		/* Macro to execute before saving existing files */
+	MACRO	*mfirst;	/* Macro to execute on first change */
 };
 
 struct macro {
-	int	k;		/* Keycode */
-	int	arg;		/* Repeat argument */
-	CMD	*cmd;		/* Command address */
-	int	n;		/* Number of steps */
-	int	size;		/* Malloc size of steps */
-	MACRO	**steps;	/* Block */
+	int k; /* Keycode */
+	int flg; /* Flags: bit 0: this step wants the negative arg,
+	                   bit 1: ignore return value of this step, but use it as return value of macro */
+	CMD *cmd; /* Command address */
+	int n; /* Number of steps */
+	int size; /* Malloc size of steps */
+	MACRO **steps; /* Block */
 };
 
 struct recmac {
@@ -164,7 +188,11 @@ struct buffer {
 	P	*bof;
 	P	*eof;
 	unsigned char	*name;
+	int locked;		/* Set if we created a lock for this file */
+	int ignored_lock;	/* Set if we didn't create a lock and we don't care (locked set in this case) */
+	int didfirst;		/* Set after user attempted first change */
 	long    mod_time;	/* Last modification time for file */
+	long	check_time;	/* Last time we checked the file on disk */
 	int	orphan;
 	int	count;
 	int	changed;
@@ -341,6 +369,13 @@ struct hentry {
 	int	loc;
 };
 
+/* Try to be only one cache line */
+
+struct highlight_state {
+	int	state;
+	unsigned char saved_s[24];
+};
+
 /* Each terminal has one of these */
 
 #ifdef __MSDOS__
@@ -352,8 +387,7 @@ struct scrn {
 	int	scroll;
 	int	insdel;
 	int	*updtab;	/* Lines which need to be updated */
-	/* HIGHLIGHT_STATE *syntab; */ /* Syntax highlight state at start of each line */
-	int	*syntab;
+	HIGHLIGHT_STATE *syntax;
 	int	*compose;
 	int	*sary;
 };
@@ -460,7 +494,7 @@ struct scrn {
 	int	ins;		/* Set if we're in insert mode */
 
 	int	*updtab;	/* Dirty lines table */
-	int	*syntab;
+	HIGHLIGHT_STATE *syntab;
 	int	avattr;		/* Bits set for available attributes */
 	int	*sary;		/* Scroll buffer array */
 
@@ -505,6 +539,7 @@ struct pw {
 	int	promptofst;	/* Prompt scroll offset */
 	B	*hist;		/* History buffer */
 	void	*object;	/* Object */
+	int	file_prompt;	/* Set if this is a file name prompt, so do ~ expansion */
 };
 
 struct stditem {
@@ -605,6 +640,7 @@ struct search {
 	P	*markb, *markk;	/* Original marks */
 	P	*wrap_p;	/* Wrap point */
 	int	wrap_flag;	/* Set if we've wrapped */
+	int	allow_wrap;	/* Set to allow wrapping */
 	int	valid;		/* Set if original marks are a valid block */
 	long	addr;		/* Addr of last replacement or -1 for none */
 	int	block_restrict;	/* Search restricted to marked block */

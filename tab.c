@@ -27,8 +27,11 @@
 typedef struct tab TAB;
 
 extern int smode;		/* ??? */
-extern int beep;
+extern int joe_beep;
 int menu_explorer = 0;		/* Stay in menu system when directory selected */
+int menu_jump = 0;		/* Jump into menu */
+
+extern WATOM watommenu;
 
 struct tab {
 	int first_len;			/* Original size of path */
@@ -64,10 +67,22 @@ static int get_entries(TAB *tab, int prv)
 	int which = 0;
 	unsigned char *oldpwd = pwd();
 	unsigned char **files;
+	unsigned char *tmp;
+	int users_flg = 0;
 
-	if (chpwd(tab->path))
+	tmp = vsncpy(NULL,0,sv(tab->path));
+	tmp = canonical(tmp);
+
+	if (chpwd(tmp)) {
+		vsrm(tmp);
 		return -1;
-	files = rexpnd(tab->pattern);
+	}
+	vsrm(tmp);
+	if (!tab->path[0] && tab->pattern[0]=='~') {
+		files = rexpnd_users(tab->pattern);
+		users_flg = 1;
+	} else
+		files = rexpnd(tab->pattern);
 	if (!files) {
 		chpwd(oldpwd);
 		return -1;
@@ -83,20 +98,23 @@ static int get_entries(TAB *tab, int prv)
 	if (tab->type)
 		joe_free(tab->type);
 	tab->type = (unsigned char *) joe_malloc(tab->len);
-	for (a = 0; a != tab->len; a++) {
-		struct stat buf;
-		mset(&buf, 0, sizeof(struct stat));
-
-		stat((char *)(files[a]), &buf);
-		if (buf.st_ino == prv)
-			which = a;
-		if ((buf.st_mode & S_IFMT) == S_IFDIR)
+	for (a = 0; a != tab->len; a++)
+		if(users_flg) {
 			tab->type[a] = F_DIR;
-		else if (buf.st_mode & (0100 | 0010 | 0001))
-			tab->type[a] = F_EXEC;
-		else
-			tab->type[a] = F_NORMAL;
-	}
+		} else {
+			struct stat buf;
+			mset(&buf, 0, sizeof(struct stat));
+
+			stat((char *)(files[a]), &buf);
+			if (buf.st_ino == prv)
+				which = a;
+			if ((buf.st_mode & S_IFMT) == S_IFDIR)
+				tab->type[a] = F_DIR;
+			else if (buf.st_mode & (0100 | 0010 | 0001))
+				tab->type[a] = F_EXEC;
+			else
+				tab->type[a] = F_NORMAL;
+		}
 	chpwd(oldpwd);
 	return which;
 }
@@ -167,11 +185,13 @@ static unsigned char **treload(TAB *tab,MENU *m, BW *bw, int flg,int *defer)
 	}
 	if (defer) {
 		*defer = which;
-		insnam(bw, tab->path, tab->pattern, 0, tab->ofst);
+		/* bash */
+		/* insnam(bw, tab->path, tab->pattern, 0, tab->ofst); */
 		return tab->list;
 	} else {
 		ldmenu(m, tab->list, which);
-		insnam(bw, tab->path, tab->pattern, 0, tab->ofst);
+		/* bash */
+		/* insnam(bw, tab->path, tab->pattern, 0, tab->ofst); */
 		return tab->list;
 	}
 }
@@ -280,9 +300,11 @@ static int tabbacks(MENU *m, int cursor, TAB *tab)
 	}
 }
 /*****************************************************************************/
+/* This should verify that bw still exists... */
 static int tababrt(BW *bw, int cursor, TAB *tab)
 {
-	insnam(bw, tab->orgpath, tab->orgnam, 0, tab->ofst);
+	/* bash */
+	/* insnam(bw, tab->orgpath, tab->orgnam, 0, tab->ofst); */
 	rmtab(tab);
 	return -1;
 }
@@ -308,7 +330,7 @@ int cmplt(BW *bw)
 	MENU *new;
 	TAB *tab;
 	P *p, *q;
-	unsigned char *cline, *tmp;
+	unsigned char *cline;
 	long a, b;
 	int which;
 	unsigned char **l;
@@ -327,9 +349,9 @@ int cmplt(BW *bw)
 	p_goto_start_of_path(p);
 	ofst = p->byte;
 
-	tmp = brvs(p, (int) (q->byte - p->byte));
-	cline = parsens(tmp, &a, &b);
-	vsrm(tmp);
+	cline = brvs(p, (int) (q->byte - p->byte));
+	/* Don't do it so soon... */
+	/* cline = canonical(cline); */
 	prm(p);
 	prm(q);
 
@@ -344,24 +366,38 @@ int cmplt(BW *bw)
 
 	l = treload(tab, 0, bw, 0, &which);
 
+	/* bash */
+	if (bw->parent->link.next->watom==&watommenu) {
+		wabort(bw->parent->link.next);
+		/* smode=2; */
+	}
+
 	if (l && (new = mkmenu(bw->parent, l, tabrtn, tababrt, tabbacks, which, tab, NULL))) {
 		if (sLEN(tab->files) == 1)
+			/* Only one file found, so select it */
 			return tabrtn1(new, 0, tab);
-		else if (smode || isreg(tab->orgnam))
+		else if (smode || isreg(tab->orgnam)) {
+			/* User tried to complete twice (see smode=2 below), so leave menu on */
+			/* bash */
+			if (!menu_jump)
+				bw->parent->t->curwin=bw->parent;
 			return 0;
-		else {
+		} else {
+			/* Complete name as much as possible, turn menu off */
 			unsigned char *com = mcomplete(new);
 
 			vsrm(tab->orgnam);
 			tab->orgnam = com;
+			/* wabort causes tab->orgnam to be copied to prompt */
+			insnam(bw, tab->orgpath, tab->orgnam, 0, tab->ofst);
 			wabort(new->parent);
 			smode = 2;
-			/* if(beep) */
+			/* if(joe_beep) */
 				ttputc(7);
 			return 0;
 		}
 	} else {
-		/* if(beep) */
+		/* if(joe_beep) */
 			ttputc(7);
 		rmtab(tab);
 		return -1;

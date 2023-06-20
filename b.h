@@ -23,6 +23,7 @@ extern unsigned char *msgs[];
 
 B *bmk PARAMS((B *prop));
 void brm PARAMS((B *b));
+void brmall();
 
 B *bfind PARAMS((unsigned char *s));
 B *bfind_scratch PARAMS((unsigned char *s));
@@ -132,6 +133,7 @@ int bsave PARAMS((P *p, unsigned char *s, long int size,int flag));
 int bsavefd PARAMS((P *p, int fd, long int size));
 
 unsigned char *parsens PARAMS((unsigned char *s, long int *skip, long int *amnt));
+unsigned char *canonical PARAMS((unsigned char *s));
 
 /* Get byte at pointer or return NO_MORE_DATA if pointer is at end of buffer */
 int brc PARAMS((P *p));
@@ -161,5 +163,11 @@ B *bprev PARAMS((void));
 extern int berror;
 
 unsigned char **getbufs PARAMS((void));
+
+int lock_it(unsigned char *path,unsigned char *buf);
+void unlock_it(unsigned char *path);
+int plain_file(B *b);
+int check_mod(B *b);
+int file_exists(unsigned char *path);
 
 #endif

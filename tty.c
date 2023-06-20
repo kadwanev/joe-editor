@@ -43,6 +43,10 @@ int idleout = 1;
 
 #include "config.h"
 
+#ifdef __amigaos
+#undef SIGTSTP
+#endif
+
 /* We use the defines in sys/ioctl to determine what type
  * tty interface the system uses and what type of system
  * we actually have.
@@ -680,9 +684,10 @@ void ttgtsz(int *x, int *y)
 #endif
 }
 
-void ttshell(unsigned char *cmd)
+int ttshell(unsigned char *cmd)
 {
 	int x, omode = ttymode;
+	int stat= -1;
 	unsigned char *s = (unsigned char *)getenv("SHELL");
 
 	if (!s) {
@@ -690,11 +695,16 @@ void ttshell(unsigned char *cmd)
 		/* return; */
 	}
 	ttclsn();
+#ifdef HAVE_FORK
 	if ((x = fork()) != 0) {
+#else
+	if ((x = vfork()) != 0) { /* For AMIGA only  */
+#endif
 		if (x != -1)
-			wait(NULL);
+			wait(&stat);
 		if (omode)
 			ttopnn();
+		return stat;
 	} else {
 		signrm();
 		if (cmd)
@@ -704,6 +714,7 @@ void ttshell(unsigned char *cmd)
 			execl((char *)s, (char *)s, NULL);
 		}
 		_exit(0);
+		return 0;
 	}
 }
 
@@ -858,7 +869,7 @@ static unsigned char *getpty(int *ptyfd)
 	static unsigned char name[32];
 	int ttyfd;
 
-        if (openpty(ptyfd, &ttyfd, name, NULL, NULL) == 0)
+        if (openpty(ptyfd, &ttyfd, (char *)name, NULL, NULL) == 0)
            return(name);
         else
 	   return (NULL);

@@ -21,6 +21,14 @@ void setopt PARAMS((B *b, unsigned char *name));
  */
 KMAP *kmap_getcontext PARAMS((unsigned char *name));
 
+/* KMAP *ngetcontext(char *name);
+ * JM - Find and return the KMAP for a given context name.  If none is found,
+ * NULL is returned.
+ */
+KMAP *ngetcontext PARAMS((unsigned char *name));
+
+unsigned char **get_keymap_list();
+
 /* int procrc(CAP *cap, char *name);  Process an rc file
    Returns 0 for success
           -1 for file not found
@@ -31,5 +39,11 @@ int procrc PARAMS((CAP *cap, unsigned char *name));
 int glopt PARAMS((unsigned char *s, unsigned char *arg, OPTIONS *options, int set));
 
 int umode PARAMS((BW *bw));
+
+/* Save state */
+void save_state();
+
+/* Load state */
+void load_state();
 
 #endif

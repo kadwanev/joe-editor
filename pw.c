@@ -9,6 +9,9 @@
 #include "types.h"
 
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "b.h"
 #include "bw.h"
@@ -25,10 +28,33 @@
 #include "vfile.h"
 #include "menu.h"
 #include "va.h"
+#include "path.h"
 #include "w.h"
 
+/* The current directory */
+
+int nocurdir;
+unsigned char *current_dir;
+
+void set_current_dir(unsigned char *s,int simp)
+{
+	if (s[0]=='!' || s[0]=='>' && s[1]=='>')
+		return;
+	vsrm(current_dir);
+	if (s) {
+		current_dir=dirprt(s);
+		if (simp) {
+			unsigned char *tmp = simplify_prefix(current_dir);
+			vsrm(current_dir);
+			current_dir = tmp;
+		}
+	}
+	else
+		current_dir = 0;
+}
+
 extern int smode;
-extern int beep;
+extern int joe_beep;
 
 static void disppw(BW *bw, int flg)
 {
@@ -76,6 +102,45 @@ static void disppw(BW *bw, int flg)
 	bwgen(bw, 0);
 }
 
+/* History functions */
+
+void setup_history(B **history)
+{
+	if (!*history) {
+		*history = bmk(NULL);
+	}
+}
+
+/* Add line to history buffer */
+
+void append_history(B *hist,unsigned char *s,int len)
+{
+	P *q = pdup(hist->eof);
+	binsm(q, s, len);
+	p_goto_eof(q);
+	binsc(q, '\n');
+	prm(q);
+}
+
+/* Promote line to end of history buffer */
+
+void promote_history(B *hist, long line)
+{
+	P *q = pdup(hist->bof);
+	P *r;
+	P *t;
+
+	pline(q, line);
+	r = pdup(q);
+	pnextl(r);
+	t = pdup(hist->eof);
+	binsb(t, bcpy(q, r));
+	bdel(q, r);
+	prm(q);
+	prm(r);
+	prm(t);
+}
+
 /* When user hits return in a prompt window */
 
 extern volatile int dostaupd;
@@ -91,34 +156,30 @@ static int rtnpw(BW *bw)
 	void *object;
 	long byte;
 
+	/* Extract entered text from buffer */
 	p_goto_eol(bw->cursor);
 	byte = bw->cursor->byte;
 	p_goto_bol(bw->cursor);
 	s = brvs(bw->cursor, (int) (byte - bw->cursor->byte));
+
+	/* Save text into history buffer */
 	if (pw->hist) {
 		if (bw->b->changed) {
-			P *q = pdup(pw->hist->eof);
-
-			binsm(q, s, (int) (byte - bw->cursor->byte));
-			p_goto_eof(q);
-			binsc(q, '\n');
-			prm(q);
+			append_history(pw->hist, sv(s));
 		} else {
-			P *q = pdup(pw->hist->bof);
-			P *r;
-			P *t;
-
-			pline(q, bw->cursor->line);
-			r = pdup(q);
-			pnextl(r);
-			t = pdup(pw->hist->eof);
-			binsb(t, bcpy(q, r));
-			bdel(q, r);
-			prm(q);
-			prm(r);
-			prm(t);
+			promote_history(pw->hist, bw->cursor->line);
 		}
 	}
+
+	/* Do ~ expansion and set new current directory */
+	if (pw->file_prompt&2) {
+		set_current_dir(s,1);
+	}
+
+	if (pw->file_prompt) {
+		s = canonical(s);
+	}
+
 	win = w->win;
 	pfunc = pw->pfunc;
 	object = pw->object;
@@ -130,6 +191,8 @@ static int rtnpw(BW *bw)
 	w->notify = 0;
 	wabort(w);
 	dostaupd = 1;
+
+	/* Call callback function */
 	if (pfunc) {
 		return pfunc(win->object, s, object, notify);
 	} else {
@@ -196,11 +259,13 @@ static WATOM watompw = {
 
 /* Create a prompt window */
 
-BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify,struct charmap *map)
+BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify,struct charmap *map,int file_prompt)
 {
 	W *new;
 	PW *pw;
 	BW *bw;
+	unsigned char *s;
+	unsigned char *t;
 
 	new = wcreate(w->t, &watompw, w, w, w->main, 1, huh, notify);
 	if (!new) {
@@ -216,14 +281,13 @@ BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned cha
 	pw->abrt = abrt;
 	pw->tab = tab;
 	pw->object = object;
-	pw->prompt = (unsigned char *)strdup((char *)prompt);
+	pw->prompt = joe_strdup(prompt);
 	pw->promptlen = fmtlen(prompt);
 	pw->promptofst = 0;
 	pw->pfunc = func;
+	pw->file_prompt = file_prompt;
 	if (history) {
-		if (!*history) {
-			*history = bmk(NULL);
-		}
+		setup_history(history);
 		pw->hist = *history;
 		binsb(bw->cursor, bcpy(pw->hist->bof, pw->hist->eof));
 		bw->b->changed = 0;
@@ -232,6 +296,12 @@ BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned cha
 		p_goto_bol(bw->top);
 	} else {
 		pw->hist = NULL;
+	}
+	/* Install current directory */
+	if ((file_prompt&4) && !nocurdir) {
+		binsm (bw->cursor, sv(current_dir));
+		p_goto_eof(bw->cursor);
+		bw->cursor->xcol = piscol(bw->cursor);
 	}
 	w->t->curwin = new;
 	return bw;
@@ -266,7 +336,7 @@ void cmplt_ins(BW *bw, unsigned char *line)
 int cmplt_abrt(BW *bw, int x, unsigned char *line)
 {
 	if (line) {
-		cmplt_ins(bw, line);
+		/* cmplt_ins(bw, line); */
 		vsrm(line);
 	}
 	return -1;
@@ -280,6 +350,9 @@ int cmplt_rtn(MENU *m, int x, unsigned char *line)
 	wabort(m->parent);
 	return 0;
 }
+
+extern int menu_jump;
+extern WATOM watommenu;
 
 int simple_cmplt(BW *bw,unsigned char **list)
 {
@@ -308,6 +381,10 @@ int simple_cmplt(BW *bw,unsigned char **list)
 		return -1;
 	}
 
+	if (bw->parent->link.next->watom==&watommenu) {
+		wabort(bw->parent->link.next);
+	}
+
 	m = mkmenu(bw->parent, lst, cmplt_rtn, cmplt_abrt, NULL, 0, line, NULL);
 	if (!m) {
 		varm(lst);
@@ -316,13 +393,17 @@ int simple_cmplt(BW *bw,unsigned char **list)
 	}
 	if (aLEN(lst) == 1)
 		return cmplt_rtn(m, 0, line);
-	else if (smode || isreg(line))
+	else if (smode || isreg(line)) {
+		if (!menu_jump)
+			bw->parent->t->curwin=bw->parent;
 		return 0;
-	else {
+	} else {
 		unsigned char *com = mcomplete(m);
 
 		vsrm(m->object);
 		m->object = com;
+		
+		cmplt_ins(bw, com);
 		wabort(m->parent);
 		smode = 2;
 		ttputc(7);

@@ -9,7 +9,13 @@
 #include "types.h"
 
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <fcntl.h>
+#ifdef MOUSE_GPM
+#include <gpm.h>
+#endif
 #include <string.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
@@ -30,8 +36,9 @@
 #include "utf8.h"
 #include "charmap.h"
 #include "syntax.h"
+#include "pw.h"
 
-extern int mid, dspasis, force, help, pgamnt, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, marking, beep;
+extern int mid, dspasis, force, help, pgamnt, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, marking, joe_beep;
 
 extern int idleout;		/* Clear to use /dev/tty for screen */
 extern unsigned char *joeterm;
@@ -39,8 +46,13 @@ int help = 0;			/* Set to have help on when starting */
 int nonotice = 0;		/* Set to prevent copyright notice */
 int orphan = 0;
 unsigned char *exmsg = NULL;		/* Message to display when exiting the editor */
+int ttisxterm=0;
+int xmouse=0;
 
 SCREEN *maint;			/* Main edit screen */
+int nowmarking;
+
+extern B *filehist;		/* History of file names */
 
 /* Make windows follow cursor */
 
@@ -73,6 +85,10 @@ void edupd(int flg)
 	if ((wid >= 2 && wid != maint->w) || (hei >= 1 && hei != maint->h)) {
 		nresize(maint->t, wid, hei);
 		sresize(maint);
+#ifdef MOUSE_GPM
+		gpm_mx = wid;
+		gpm_my = hei;
+#endif
 	}
 	dofollows();
 	ttflsh();
@@ -162,7 +178,10 @@ unsigned char **mainenv;
 int main(int argc, unsigned char **argv, unsigned char **envv)
 {
 	CAP *cap;
+	struct stat sbuf;
 	unsigned char *s;
+	unsigned char *t;
+	long time_t;
 	unsigned char *run;
 #ifdef __MSDOS__
 	unsigned char *rundir;
@@ -247,37 +266,62 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	}
 #else
 
+	/* Name of system joerc file */
+	t = vsncpy(NULL, 0, sc(JOERC));
+	t = vsncpy(sv(t), sv(run));
+	t = vsncpy(sv(t), sc("rc"));
+	if (!stat((char *)t,&sbuf))
+		time_t = sbuf.st_mtime;
+	else
+		time_t = 0;
+
+	/* Local joerc file */
 	s = (unsigned char *)getenv("HOME");
 	if (s) {
+		unsigned char buf[8];
+
 		s = vsncpy(NULL, 0, sz(s));
 		s = vsncpy(sv(s), sc("/."));
 		s = vsncpy(sv(s), sv(run));
 		s = vsncpy(sv(s), sc("rc"));
-		c = procrc(cap, s);
-		if (c == 0)
-			goto donerc;
-		if (c == 1) {
-			unsigned char buf[8];
 
-			fprintf(stderr, "There were errors in '%s'.  Use it anyway?", s);
+		if (!stat((char *)s,&sbuf)) {
+			if (sbuf.st_mtime<time_t) {
+				fprintf(stderr, "Warning: %s is newer than your %s.\n",t,s);
+				fprintf(stderr,"You should update or delete %s\n",s);
+				fprintf(stderr,"Hit enter to continue with %s ",t);
+				fflush(stderr);
+				fgets((char *)buf, 8, stdin);
+				goto use_sys;
+			}
+		}
+
+		c = procrc(cap, s);
+		if (c == 0) {
+			vsrm(t);
+			goto donerc;
+		}
+		if (c == 1) {
+			fprintf(stderr, "There were errors in '%s'.  Use it anyway (y,n)? ", s);
 			fflush(stderr);
 			fgets((char *)buf, 8, stdin);
-			if (buf[0] == 'y' || buf[0] == 'Y')
+			if (buf[0] == 'y' || buf[0] == 'Y') {
+				vsrm(t);
 				goto donerc;
+			}
 		}
 	}
 
+	use_sys:
 	vsrm(s);
-	s = vsncpy(NULL, 0, sc(JOERC));
-	s = vsncpy(sv(s), sv(run));
-	s = vsncpy(sv(s), sc("rc"));
+	s = t;
 	c = procrc(cap, s);
 	if (c == 0)
 		goto donerc;
 	if (c == 1) {
 		unsigned char buf[8];
 
-		fprintf(stderr, "There were errors in '%s'.  Use it anyway?", s);
+		fprintf(stderr, "There were errors in '%s'.  Use it anyway (y,n)? ", s);
 		fflush(stderr);
 		fgets((char *)buf, 8, stdin);
 		if (buf[0] == 'y' || buf[0] == 'Y')
@@ -289,7 +333,6 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	return 1;
 
       donerc:
-	help_init(s);
 	for (c = 1; argv[c]; ++c) {
 		if (argv[c][0] == '-') {
 			if (argv[c][1])
@@ -312,8 +355,25 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	maint = screate(n);
 	vmem = vtmp();
 
+#ifdef MOUSE_XTERM
+	/* initialize mouse */
+	if (xmouse && (s=(unsigned char *)getenv("TERM")) && strstr((char *)s,"xterm")) {
+		ttisxterm=1;
+		ttputs(US "\33[?1002h");
+		ttflsh();
+	}
+#endif
+
+	load_state();
+
+	/* It would be better if this ran uedit() to load files */
+
+	/* The business with backopt is to load the file first, then apply file
+	 * local options afterwords */
+
+	/* orphan is not compatible with exemac()- macros need a window to exist */
 	for (c = 1, backopt = 0; argv[c]; ++c)
-		if (argv[c][0] == '+' && argv[c][1]) {
+		if (argv[c][0] == '+' && argv[c][1]>='0' && argv[c][1]<='9') {
 			if (!backopt)
 				backopt = c;
 		} else if (argv[c][0] == '-' && argv[c][1]) {
@@ -326,6 +386,13 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 			BW *bw = NULL;
 			int er = error;
 
+			/* This is too annoying */
+			/* set_current_dir(argv[c],1); */
+
+			setup_history(&filehist);
+			append_history(filehist,sz(argv[c]));
+
+			/* wmktw inserts the window before maint->curwin */
 			if (!orphan || !opened) {
 				bw = wmktw(maint, b);
 				if (er)
@@ -352,18 +419,26 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 				}
 				bw->b->o = bw->o;
 				bw->b->rdonly = bw->o.readonly;
-				if (!opened)
-					maint->curwin = bw->parent;
+				/* Put cursor in window, so macros work properly */
+				maint->curwin = bw->parent;
+				/* Execute macro */
 				if (er == -1 && bw->o.mnew)
-					exemac(bw->o.mnew);
+					exmacro(bw->o.mnew,1);
 				if (er == 0 && bw->o.mold)
-					exemac(bw->o.mold);
+					exmacro(bw->o.mold,1);
+				/* Hmm... window might not exist any more... depends on what macro does... */
 				if (lnum > 0)
 					pline(bw->cursor, lnum - 1);
+				/* Go back to first window so windows are in same order as command line  */
+				if (opened)
+					wnext(maint);
+				
 			}
 			opened = 1;
 			backopt = 0;
 		}
+
+	
 
 	if (opened) {
 		wshowall(maint);
@@ -375,7 +450,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 		BW *bw = wmktw(maint, bfind(US ""));
 
 		if (bw->o.mnew)
-			exemac(bw->o.mnew);
+			exmacro(bw->o.mnew,1);
 	}
 	maint->curwin = maint->topwin;
 
@@ -384,16 +459,29 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	}
 	if (!nonotice) {
 		if (locale_map->type)
-			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright © 2004 **\\i",locale_map->name);
+			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright © 2005 **\\i",locale_map->name);
 		else
-			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright (C) 2004 **\\i",locale_map->name);
+			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright (C) 2005 **\\i",locale_map->name);
 
 		msgnw(((BASE *)lastw(maint)->object)->parent, msgbuf);
 	}
 
 	edloop(0);
+
+	save_state();
+
+	/* Delete all buffer so left over locks get eliminated */
+	brmall();
+
 	vclose(vmem);
+#ifdef MOUSE_XTERM
+	if(ttisxterm) {
+		ttputs(US "\33[?1002l");
+		ttflsh();
+	}
+#endif
 	nclose(n);
+
 	if (exmsg)
 		fprintf(stderr, "\n%s\n", exmsg);
 	return 0;

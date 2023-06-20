@@ -4,7 +4,7 @@
 
  JOE looks for this file in:
 	1 - $HOME/.rjoerc
-	2 - @sysconfdir@/rjoerc
+	2 - @JOERC@/rjoerc
 
  This file can include other files by placing the following include command
  in the first column:
@@ -14,6 +14,37 @@
  FIRST SECTION: Default global options (these options can also be specified
  on the command line.  Also the NOXON, LINES, COLUMNS, DOPADDING and BAUD
  options can be specified in environment variables):
+
+ Override colors of lexical classes specified in syntax files:
+ Put each color override you want in the first column.
+
+ Valid colors:
+   bold inverse blink dim underline
+   white cyan magenta blue yellow green red black
+   bg_white bg_cyan bg_magenta bg_blue bg_yellow bg_green bg_red bg_black
+
+ Override all instances of class Idle:
+   =Idle red
+
+ Override Idle only for c syntax file:
+   =c.Idle red
+
+ The following list is from c.jsf.  Look at other syntax files for more classes.
+
+ =Idle
+ =Bad        bold red
+ =Preproc    blue
+ =Define     bold blue
+ =IncLocal   cyan
+ =IncSystem  bold cyan
+ =Constant   cyan
+ =Escape     bold cyan
+ =Type       bold
+ =Keyword    bold
+ =CppKeyword bold
+ =Brace      magenta
+ =Control
+
 
  Put each option you want set in the first column:
 
@@ -28,7 +59,16 @@
 
  -force		Force final newline when files are saved
 
+ -nolocks	If you don't want file locks to be used
+
+ -nomodcheck	Disable periodic checking of disk file newer than buffer
+		(this checking happens on save even with this option).
+
+ -nocurdir	Do not prompt with current directory
+
  -nobackups	If you don't want backup files to be created
+
+ -break_links	Delete file before writing, to break hard links
 
  -lightoff	Turn off highlighting after block copy or move
 
@@ -44,7 +84,13 @@
 
  -csmode	^KF after a pervious search does a ^L instead
 
- -backpath path Directory to store backup files
+ -backpath path
+		Directory to store backup files (one space between 'backpath' and
+		the 'path', no trailing spaces or comments after the path).
+
+ -floatmouse	Clicking past end of line moves the cursor past the end
+
+ -rtbutton	Use the right mouse button for action, instead of the left
 
  -nonotice	Disable copyright notice
 
@@ -82,9 +128,20 @@
 -menu_explorer Stay in menu system when a directory is selected (otherwise
                 directory is added to path and menu is closed).
 
+ -menu_jump	Jump into file selection menu when tab is hit (otherwise, menu
+		comes up, but cursor stays in file name prompt).
+
  -icase         Search is case insensitive by default.
 
  -wrap          Search wraps
+
+ -autoswap	Swap markb with markk when necessary
+
+-joe_state     Use ~/.joe_state file
+
+ -mouse		Enable mouse support
+
+ -square	Rectangular block mode
 
  Status line definition strings.  -lmsg defines the left-justified string and
  -rmsg defines the right-justified string.  The first character of -rmsg is
@@ -113,6 +170,7 @@
   %S  '*SHELL*' if there is a shell running in window
   %M  Macro recording message
   %y  Syntax
+  %x  Context (first non-indented line going backwards)
 
  These formatting escape sequences may also be given:
  
@@ -133,10 +191,12 @@
 
  Here are the modes which can be set:
 
-	-utf8			File is UTF-8 coded
+	-encoding name		Set file coding (for example: utf-8, iso-8859-15)
 
 	-syntax name		Specify syntax (syntax file called
 				'name.jsf' will be loaded)
+
+	-hex			Hex editor mode
 
 	-highlight		Enable highlighting
 
@@ -193,19 +253,42 @@
 	-lmsg			Status line definition strings-
 	-rmsg			see previous section for more info.
 
+	-mfirst macro		Macro to execute on first modification
 	-mnew macro		Macro to execute when new files are loaded
 	-mold macro		Macro to execute when existing files are loaded
 	-msnew macro		Macro to execute when new files are saved
 	-msold macro		Macro to execute when existing files are saved
 
-	-square			Rectangular block mode
-
 	Macros for the above options are in the same format as in the key
 	binding section below- but without the key name strings.
+
+	These define the language syntax for ^G (goto matching delimiter):
+
+	-single_quoted		Text between '  ' should be ignored (this is
+				not good for regular text since ' is
+				normally used alone as an apostrophe)
+
+	-c_comment		Text between /* */ should be ignored
+
+	-cpp_comment		Text after // should be ignored
+
+	-pound_comment		Text after # should be ignored
+
+	-vhdl_comment		Text after -- should be ignored
+
+	-semi_comment		Text after ; should be ignored
+
+	-text_delimiters begin=end:if=elif=else=endif
+
+				Define word delimiters
 
  Default local options
 -highlight
 -istep 2
+
+ Use this macro (put in first column) to have joe "p4 edit" a file you're about to change.
+
+ -mfirst if,"rdonly && joe(sys,\"p4 edit \",name,rtn)",then,mode,"o",msg,"executed \"p4 edit ",name,"\"",rtn,endif
 
  No '.' in file name?  Assume it's a text file and we want wordwrap on.
 *
@@ -227,9 +310,56 @@
 +\[1-9]\+\[0-9]\[cda]
 -syntax diff
 
+ TeX
+*.tex
+-wordwrap
+-syntax tex
+
+*.sty
+-wordwrap
+-syntax tex
+
  Text file.
 *.txt
 -wordwrap
+
+ News/mail files.
+*.article
+-wordwrap
+-syntax mail
+
+*.followup
+-wordwrap
+-syntax mail
+
+*.letter
+-wordwrap
+-syntax mail
+
+ NN newsreader
+*tmp/nn.*
+-wordwrap
+-syntax mail
+
+ mail
+*tmp/Re*
+-wordwrap
+-syntax mail
+
+ elm
+*tmp/snd.*
+-wordwrap
+-syntax mail
+
+ dmail
+*tmp/dmt*
+-wordwrap
+-syntax mail
+
+ pine
+*tmp/pico.*
+-wordwrap
+-syntax mail
 
  Assembly language
 *.asm
@@ -251,6 +381,30 @@
 -smarthome
 -smartbacks
 
+ SML
+*.sml
+-autoindent
+-syntax sml
+-smarthome
+-smartbacks
+-istep 2
+
+ OCaml lanaguage file
+*.ml
+-autoindent
+-syntax ocaml
+-smarthome
+-smartbacks
+-istep 2
+
+ OCaml language interface
+*.mli
+-autoindent
+-syntax ocaml
+-smarthome
+-smartbacks
+-istep 2
+
  Perl
 *
 +#!\+\[ 	]\+\[a-z/]/perl\>
@@ -258,18 +412,24 @@
 -syntax perl
 -smarthome
 -smartbacks
+-pound_comment
+-single_quoted
 
 *.pl
 -autoindent
 -syntax perl
 -smarthome
 -smartbacks
+-pound_comment
+-single_quoted
 
 *.pm
 -autoindent
 -syntax perl
 -smarthome
 -smartbacks
+-pound_comment
+-single_quoted
 
  C language file
 *.c
@@ -278,6 +438,10 @@
 -smarthome
 -smartbacks
 -purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
 *.cpp
 -autoindent
@@ -285,6 +449,10 @@
 -smarthome
 -smartbacks
 -purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
 *.c++
 -autoindent
@@ -292,6 +460,10 @@
 -smarthome
 -smartbacks
 -purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
  C language header file
 *.h
@@ -300,6 +472,10 @@
 -smarthome
 -smartbacks
 -purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
 *.hpp
 -autoindent
@@ -307,6 +483,10 @@
 -smarthome
 -smartbacks
 -purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
 *.h++
 -autoindent
@@ -314,6 +494,10 @@
 -smarthome
 -smartbacks
 -purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
  Verilog file
 *.v
@@ -323,6 +507,9 @@
 -smarthome
 -smartbacks
 -purify
+-c_comment
+-cpp_comment
+-text_delimiters `ifdef|`ifndef=`else=`endif:begin=end:case|casex|casez=endcase:function=endfunction:module=endmodule:task=endtask:attribute=endattribute:primitive=endprimitive:table=endtable
 
  Verilog header file
 *.vh
@@ -332,6 +519,9 @@
 -smarthome
 -smartbacks
 -purify
+-c_comment
+-cpp_comment
+-text_delimiters `ifdef|`ifndef=`else=`endif:begin=end:case|casex|casez=endcase:function=endfunction:module=endmodule:task=endtask:attribute=endattribute:primitive=endprimitive:table=endtable
 
  VHDL file
 *.vhd
@@ -341,9 +531,17 @@
 -smarthome
 -smartbacks
 -purify
+-vhdl_comment
+-text_delimiters entity|ENTITY|if|IF|component|COMPONENT|loop|LOOP|configuration|CONFIGURATION|units|UNITS|record|RECORD|case|CASE|function|FUNCTION|package|PACKAGE|architecture|ARCHITECTURE|block|BLOCK|process|PROCESS|generate|GENERATE=end|END
 
  XML
 *.xml
+-wordwrap
+-autoindent
+-syntax xml
+
+ XML
+*.xsd
 -wordwrap
 -autoindent
 -syntax xml
@@ -396,100 +594,126 @@
 +#!\+\[ 	]\+\[a-z/]/csh\>
 -autoindent
 -syntax csh
+-pound_comment
 
 *.csh
 -autoindent
 -syntax csh
-
-*.cshrc
--autoindent
--syntax csh
+-pound_comment
 
 *.login
 -autoindent
 -syntax csh
+-pound_comment
 
 *.logout
 -autoindent
 -syntax csh
+-pound_comment
 
  TCSH
 *
 +#!\+\[ 	]\+\[a-z/]/tcsh\>
 -autoindent
 -syntax csh
+-pound_comment
 
 *.tcsh
 -autoindent
 -syntax csh
+-pound_comment
 
 *.tcshrc
 -autoindent
 -syntax csh
+-pound_comment
 
  Shell
 *
 +#!\+\[ 	]\+\[a-z/]/sh\>
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
 *.sh
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
 *profile
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
  BASH Shell
 *
 +#!\+\[ 	]\+\[a-z/]/bash\>
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
 *.bash
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
 *.bash_login
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
 *.bash_logout
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
  LISP
 *.lisp
 -autoindent
 -syntax lisp
+-semi_comment
 
 *.lsp
 -autoindent
 -syntax lisp
+-semi_comment
 
 *.el
 -autoindent
 -syntax lisp
+-semi_comment
 
  KSH
 *
 +#!\+\[ 	]\+\[a-z/]/ksh\>
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
 *.ksh
 -autoindent
 -syntax sh
+-pound_comment
+-text_delimiters do=done:if=elif=else=fi:case=esac
 
  Makefile
 *akefile
 -autoindent
 -syntax conf
+-pound_comment
 
 *AKEFILE
 -autoindent
 -syntax conf
+-pound_comment
 
  Pascal
 *.p
@@ -498,6 +722,7 @@
 -smarthome
 -smartbacks
 -purify
+-text_delimiters begin|BEGIN|record|RECORD|case|CASE=end|END:repeat|REPEAT=until|UNTIL
 
 *.pas
 -autoindent
@@ -505,6 +730,7 @@
 -smarthome
 -smartbacks
 -purify
+-text_delimiters begin|BEGIN|record|RECORD|case|CASE=end|END:repeat|REPEAT=until|UNTIL
 
  Fortran
 *.f
@@ -619,10 +845,29 @@
 \i \i    \\\\      replaced with \\               \\n     replaced with newline       \|\i \i
 }
 
+{Math
+\i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
+\i \i \uCOMMANDS\u (hit ESC m for math)  \uFUNCTIONS\u                                    \|\i \i
+\i \i     hex hex display mode       sin cos tab asin acos atan                   \|\i \i
+\i \i     dec decimal mode           sinh cosh tanh asinh acosh atanh             \|\i \i
+\i \i     ins type result into file  sqrt cbrt exp ln log                         \|\i \i
+\i \i    eval evaluate block         int floor ceil abs erg ergc                  \|\i \i
+\i \i    0xff enter number in hex                                                 \|\i \i
+\i \i    3e-4 floating point decimal \uBLOCK\u                                        \|\i \i
+\i \i    a=10 assign a variable      sum cnt  Sum, count                          \|\i \i
+\i \i 2+3:ins multiple commands      avg dev  Average, std. deviation             \|\i \i
+\i \i    e pi constants              \uOPERATORS\u                                    \|\i \i
+\i \i     ans previous result        ! ^  * / %  + -  < <= > >= == !=  &&  ||  ? :\|\i \i
+}
+
 {Joe
 \i   Help Screen    \|turn off with ^KH    prev. screen ^[,                        \i
-\i \i Send bug reports to: http://sourceforge.net/projects/joe-editor             \|\i \i
+\i \i Send bug reports to: http://sourceforge.net/projects/joe-editor \|\i \i
+\i \i \|\i \i
+\i \i  default joerc file is here @JOERC@/joerc \|\i \i
+\i \i  additional documentation can be found here @JOERC@/doc \|\i \i
 }
+
 
  FOURTH SECTION: Key bindings:
 
@@ -643,9 +888,11 @@
 
  Keys:
 
- Use ^@ through ^_ and ^? for Ctrl chars
+ Use ^@ through ^_, ^# and ^? for Ctrl chars
  Use SP for space
  Use a TO b to generate a range of characters
+ Use MDOWN, MDRAG, MUP, M2DOWN, M2DRAG, M2UP, M3DOWN, M3DRAG, M3UP for mouse
+ Use MWDOWN, MWUP for wheel mouse motion
 
  You can also use termcap string capability names.  For example:
 
@@ -703,9 +950,11 @@ nextw		^K n
 pgdn		.kN		Screen down
 pgdn		^V
 pgdn		^[ [ 6 ~
+pgdn		^# S
 pgup		.kP		Screen up
 pgup		^U
 pgup		^[ [ 5 ~
+pgup		^# T
 play		^K 0 TO 9	Execute macro
 prevw		^K P		Goto previous window
 prevw		^K ^P
@@ -718,6 +967,19 @@ rtn		^M		Return
  shell		^K ^Z
  shell		^K z
 stop		^K ]		Stop recording
+
+ Mouse handling
+defmdown	MDOWN		Move the cursor to the mouse location
+defmup		MUP
+defmdrag	MDRAG		Select a region of characters
+defm2down	M2DOWN		Select the word at the mouse location
+defm2up		M2UP
+defm2drag	M2DRAG		Select a region of words
+defm3down	M3DOWN		Select the line at the mouse location
+defm3up		M3UP
+defm3drag	M3DRAG		Select a region of lines
+
+xtmouse		^[ [ M		Introduces an xterm mouse event
 
 :main			Text editing window
 :inherit windows
@@ -748,11 +1010,13 @@ home			^[ [ 1 ~		Putty, Linux, Cygwin
 home			^[ [ H			Xterm, Konsole, SCO
 home			^[ O H			gnome-terminal
 home			^[ [ 7 ~		RxVT
+home			^# SP A			Amiga
 
 eol			^[ [ 4 ~		Putty, Linux, Cygwin, ssh
 eol			^[ [ F			Xterm, Konsole, SCO
 eol			^[ O F			gnome-terminal
 eol			^[ [ 8 ~		RxVT
+eol			^# SP @			Amiga
 
  Extra functions not really part of JOE user interface:
 
@@ -761,6 +1025,7 @@ delbol		^[ ^O		Delete to beginning of line
 dnslide		^[ z		Scroll down one line
 dnslide		^[ Z		Scroll down one line
 dnslide		^[ ^Z		Scroll down one line
+dnslide,dnslide,dnslide,dnslide		MWDOWN
  switch,rtn,filt,
  query,parserr	^[ c		Compile
  switch,rtn,filt,
@@ -794,6 +1059,7 @@ txt		^[ I		Prompt for text and insert it
 upslide		^[ w		Scroll up one line
 upslide		^[ ^W		Scroll up one line
 upslide		^[ W		Scroll up one line
+upslide,upslide,upslide,upslide		MWUP
 yankpop		^[ y		Undelete text
 yankpop		^[ ^Y		Undelete text
 yankpop		^[ Y		Undelete text
@@ -853,6 +1119,7 @@ bol		.kh		Goto beginning of line
 bol		^A
 bol		^[ [ H
 bol		^[ [ 1 ~
+bol		^# SP A
 center		^K A		Center line
 center		^K ^A
 center		^K a
@@ -867,6 +1134,7 @@ dnarw		.kd		Go down
 dnarw		^N
 dnarw		^[ O B
 dnarw		^[ [ B
+dnarw		^# B
  edit		^K E		Edit a file
  edit		^K ^E
  edit		^K e
@@ -905,6 +1173,7 @@ ltarw		.kl		Go left
 ltarw		^B
 ltarw		^[ O D
 ltarw		^[ [ D
+ltarw		^# D
 macros		^[ d		Dump keyboard macros
 macros		^[ ^D
 markb		^K B		Set beginning of marked block
@@ -925,6 +1194,7 @@ rtarw		.kr		Go right
 rtarw		^F
 rtarw		^[ O C
 rtarw		^[ [ C
+rtarw		^# C
 ask		^K D		Save file- no prompt
 ask		^K S
 ask		^K ^D
@@ -952,10 +1222,21 @@ uparw		.ku		Go up
 uparw		^P
 uparw		^[ O A
 uparw		^[ [ A
+uparw		^# A
 
 :prompt			Prompt windows
 :inherit main
 complete	^I
+dnarw,eol	.kd		Go down
+dnarw,eol	^N
+dnarw,eol	^[ O B
+dnarw,eol	^[ [ B
+dnarw,eol	^# B
+uparw,eol	.ku		Go up
+uparw,eol	^# A
+uparw,eol	^P
+uparw,eol	^[ O A
+uparw,eol	^[ [ A
 
 :menu			Selection menus
 :inherit windows
@@ -968,11 +1249,13 @@ bolmenu			^[ [ 1 ~		Putty, Linux, Cygwin
 bolmenu			^[ [ H			Xterm, Konsole
 bolmenu			^[ O H			gnome-terminal
 bolmenu			^[ [ 7 ~		RxVT
+bolmenu			^# SP A			Amiga
 
 eolmenu			^[ [ 4 ~		Putty, Linux, Cygwin, ssh
 eolmenu			^[ [ F			Xterm, Konsole
 eolmenu			^[ O F			gnome-terminal
 eolmenu			^[ [ 8 ~		RxVT
+eolmenu			^# SP @			Amiga
 
 abort		^[ ^[
 backsmenu	^?
@@ -985,6 +1268,7 @@ bolmenu		^A
 dnarwmenu	.kd
 dnarwmenu	^N
 dnarwmenu	^[ [ B
+dnarwmenu	^# B
 dnarwmenu	^[ O B
 eofmenu		^K V
 eofmenu		^K ^V
@@ -994,16 +1278,20 @@ eolmenu		^E
 ltarwmenu	.kl
 ltarwmenu	^B
 ltarwmenu	^[ [ D
+ltarwmenu	^# D
 ltarwmenu	^[ O D
 pgdnmenu	.kN		Screen down
 pgdnmenu	^V
 pgdnmenu	^[ [ 6 ~
+pgdnmenu	^# S
 pgupmenu	.kP		Screen up
 pgupmenu	^U
 pgupmenu	^[ [ 5 ~
+pgupmenu	^# T
 rtarwmenu	.kr
 rtarwmenu	^F
 rtarwmenu	^[ [ C
+rtarwmenu	^# C
 rtarwmenu	^[ O C
 rtn		SP
 rtn		^I
@@ -1014,6 +1302,7 @@ tabmenu		^I
 uparwmenu	.ku
 uparwmenu	^P
 uparwmenu	^[ [ A
+uparwmenu	^# A
 uparwmenu	^[ O A
 
 :query			Single-key query window

@@ -19,6 +19,7 @@
 #include "termcap.h"
 #include "charmap.h"
 #include "utf8.h"
+#include "syntax.h"
 #include "utils.h"
 
 int skiptop = 0;
@@ -28,7 +29,7 @@ int notite = 0;
 int usetabs = 0;
 int assume_color = 0;
 
-extern int mid;
+extern int mid, ttisxterm;
 
 /* How to display characters (especially the control ones) */
 /* here are characters ... */
@@ -487,6 +488,11 @@ SCRN *nopen(CAP *cap)
 	else
 		t->te = jgetstr(t->cap,US "te");
 
+	if (ttisxterm) {
+		ttputs(US "\33[?1002l");
+		ttflsh();
+	}
+
 	t->ut = getflag(t->cap,US "ut");
 	t->Sb = jgetstr(t->cap,US "AB");
 	if (!t->Sb) t->Sb = jgetstr(t->cap,US "Sb");
@@ -753,7 +759,7 @@ void nresize(SCRN *t, int w, int h)
 	t->attr = (int *) joe_malloc(t->li * t->co * sizeof(int));
 	t->sary = (int *) joe_calloc(t->li, sizeof(int));
 	t->updtab = (int *) joe_malloc(t->li * sizeof(int));
-	t->syntab = (int *) joe_malloc(t->li * sizeof(int));
+	t->syntab = (HIGHLIGHT_STATE *) joe_malloc(t->li * sizeof(HIGHLIGHT_STATE));
 	t->compose = (int *) joe_malloc(t->co * sizeof(int));
 	t->ofst = (int *) joe_malloc(t->co * sizeof(int));
 	t->ary = (struct hentry *) joe_malloc(t->co * sizeof(struct hentry));
@@ -1429,6 +1435,7 @@ void magic(SCRN *t, int y, int *cs, int *ca,int *s, int *a, int placex)
 static void doupscrl(SCRN *t, int top, int bot, int amnt)
 {
 	int a = amnt;
+	int q;
 
 	if (!amnt)
 		return;
@@ -1480,7 +1487,8 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 		goto done;
 	}
 	msetI(t->updtab + top, 1, bot - top);
-	msetI(t->syntab + top, -1, bot - top);
+	for(q=0; q!=bot-top; ++q)
+		invalidate_state(t->syntab + top + q);
 	return;
 
       done:
@@ -1491,7 +1499,8 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 		msetI(t->scrn + (t->li - amnt) * t->co, -1, amnt * t->co);
 		msetI(t->attr + (t->li - amnt) * t->co, 0, amnt * t->co);
 		msetI(t->updtab + t->li - amnt, 1, amnt);
-		msetI(t->syntab + t->li - amnt, -1, amnt);
+		for(q=0; q!=amnt; ++q)
+			invalidate_state(t->syntab + t->li - amnt + q);
 	} else {
 		msetI(t->scrn + (bot - amnt) * t->co, ' ', amnt * t->co);
 		msetI(t->attr + (bot - amnt) * t->co, 0, amnt * t->co);
@@ -1501,6 +1510,7 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 {
 	int a = amnt;
+	int q;
 
 	if (!amnt)
 		return;
@@ -1552,7 +1562,8 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 		goto done;
 	}
 	msetI(t->updtab + top, 1, bot - top);
-	msetI(t->syntab + top, -1, bot - top);
+	for(q=0; q!=bot-top; ++q)
+		invalidate_state(t->syntab + top + q);
 	return;
       done:
 	mmove(t->scrn + (top + amnt) * t->co, t->scrn + top * t->co, (bot - top - amnt) * t->co * sizeof(int));
@@ -1562,7 +1573,8 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 		msetI(t->scrn, -1, amnt * t->co);
 		msetI(t->attr, 0, amnt * t->co);
 		msetI(t->updtab, 1, amnt);
-		msetI(t->syntab, -1, amnt);
+		for(q=0;q!=amnt; ++q)
+			invalidate_state(t->syntab + q);
 	} else {
 		msetI(t->scrn + t->co * top, ' ', amnt * t->co);
 		msetI(t->attr + t->co * top, 0, amnt * t->co);
@@ -1619,6 +1631,8 @@ void nescape(SCRN *t)
 
 void nreturn(SCRN *t)
 {
+	if (ttisxterm)
+		ttputs(US "\33[?1002h");
 	if (t->ti)
 		texec(t->cap, t->ti, 1, 0, 0, 0, 0);
 	if (!skiptop && t->cl)
@@ -1658,11 +1672,11 @@ void nscrldn(SCRN *t, int top, int bot, int amnt)
 		for (x = bot; x != top + amnt; --x) {
 			t->sary[x - 1] = (t->sary[x - amnt - 1] == t->li ? t->li : t->sary[x - amnt - 1] - amnt);
 			t->updtab[x - 1] = t->updtab[x - amnt - 1];
-			t->syntab[x - 1] = t->syntab[x - amnt - 1];
+			move_state(t->syntab + x - 1, t->syntab + x - amnt - 1);
 		}
 		for (x = top; x != top + amnt; ++x) {
 			t->updtab[x] = 1;
-			t->syntab[x] = -1;
+			invalidate_state(t->syntab + x);
 			}
 	}
 	if (amnt > bot - top)
@@ -1670,7 +1684,8 @@ void nscrldn(SCRN *t, int top, int bot, int amnt)
 	msetI(t->sary + top, t->li, amnt);
 	if (amnt == bot - top) {
 		msetI(t->updtab + top, 1, amnt);
-		msetI(t->syntab + top, -1, amnt);
+		for(x=0; x!=amnt; ++x)
+			invalidate_state(t->syntab + top + x);
 		}
 }
 
@@ -1686,11 +1701,11 @@ void nscrlup(SCRN *t, int top, int bot, int amnt)
 		for (x = top + amnt; x != bot; ++x) {
 			t->sary[x - amnt] = (t->sary[x] == t->li ? t->li : t->sary[x] + amnt);
 			t->updtab[x - amnt] = t->updtab[x];
-			t->syntab[x - amnt] = t->syntab[x];
+			move_state(t->syntab + x - amnt, t->syntab + x);
 		}
 		for (x = bot - amnt; x != bot; ++x) {
 			t->updtab[x] = 1;
-			t->syntab[x] = -1;
+			invalidate_state(t->syntab + x);
 			}
 	}
 	if (amnt > bot - top)
@@ -1698,7 +1713,8 @@ void nscrlup(SCRN *t, int top, int bot, int amnt)
 	msetI(t->sary + bot - amnt, t->li, amnt);
 	if (amnt == bot - top) {
 		msetI(t->updtab + bot - amnt, 1, amnt);
-		msetI(t->syntab + bot - amnt, -1, amnt);
+		for(x=0; x!=amnt; ++x)
+			invalidate_state(t->syntab + bot - amnt + x);
 		}
 }
 
@@ -1706,6 +1722,7 @@ extern volatile int dostaupd;
 
 void nredraw(SCRN *t)
 {
+	int x;
 	dostaupd = 1;
 	msetI(t->scrn, ' ', t->co * skiptop);
 	msetI(t->attr, 0, t->co * skiptop);
@@ -1713,7 +1730,8 @@ void nredraw(SCRN *t)
 	msetI(t->attr + skiptop * t->co, 0, (t->li - skiptop) * t->co);
 	msetI(t->sary, 0, t->li);
 	msetI(t->updtab + skiptop, -1, t->li - skiptop);
-	msetI(t->syntab + skiptop, -1, t->li - skiptop);
+	for(x=0; x!=t->li - skiptop; ++x)
+		invalidate_state(t->syntab + skiptop + x);
 	t->x = -1;
 	t->y = -1;
 	t->top = t->li;
@@ -1801,9 +1819,10 @@ int meta_color(unsigned char *s)
  * 'atr' is screeen attributes (and color) which should be used
  * 'width' is column width of field
  * 'flg' if set, erases to end of line
+ * 'fmt' is array of attributes, one for each byte.  OK if NULL.
  */
 
-void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,int len,int atr,int width,int flg)
+void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,int len,int atr,int width,int flg,int *fmt)
 {
 	int col;
 	struct utf8_sm sm;
@@ -1814,6 +1833,8 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 	for (col = 0;len != 0 && x < last_col; len--) {
 		int c = *s++;
 		int wid = -1;
+		int my_atr = atr;
+		if (fmt) my_atr |= *fmt++;
 		if (locale_map->type) {
 			/* UTF-8 mode: decode character and determine its width */
 			c = utf8_decode(&sm,c);
@@ -1828,14 +1849,14 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 				if (x + wid > last_col) {
 					/* Character crosses end of field, so fill balance of field with '>' characters instead */
 					while (x < last_col) {
-						outatr(locale_map, t, scrn, attr, x, y, '>', atr);
+						outatr(locale_map, t, scrn, attr, x, y, '>', my_atr);
 						++scrn;
 						++attr;
 						++x;
 					}
 				} else if(wid) {
 					/* Emit character */
-					outatr(locale_map, t, scrn, attr, x, y, c, atr);
+					outatr(locale_map, t, scrn, attr, x, y, c, my_atr);
 					x += wid;
 					scrn += wid;
 					attr += wid;
@@ -1845,7 +1866,7 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 				wid -= ofst - col;
 				col = ofst;
 				while (wid) {
-					outatr(locale_map, t, scrn, attr, x, y, '<', atr);
+					outatr(locale_map, t, scrn, attr, x, y, '<', my_atr);
 					++scrn;
 					++attr;
 					++x;

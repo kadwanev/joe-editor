@@ -43,7 +43,7 @@ static void menudisp(MENU *m)
 		for (x = 0; x != m->perline && y*m->perline+x+m->top<m->nitems; ++x) {
 			int atr, z, lcol;
 	
-			if (x + y*m->perline + m->top == m->cursor)
+			if (x + y*m->perline + m->top == m->cursor && m->t->curwin==m->parent)
 				atr = INVERSE;
 			else
 				atr = 0;
@@ -62,7 +62,7 @@ static void menudisp(MENU *m)
 			         strlen((char *)m->list[x + y*m->perline + m->top]),
 			         atr,
 			         m->width,
-			         0);
+			         0,NULL);
 
 			col += m->width;
 
@@ -90,12 +90,6 @@ static void menumove(MENU *m, int x, int y)
 {
 	m->x = x;
 	m->y = y;
-}
-
-static void menuresz(MENU *m, int wi, int he)
-{
-	m->w = wi;
-	m->h = he;
 }
 
 static int mlines(unsigned char **s, int w)
@@ -141,6 +135,13 @@ static void mconfig(MENU *m)
 
 		/* lines = (m->nitems + m->perline - 1) / m->perline; */
 	}
+}
+
+static void menuresz(MENU *m, int wi, int he)
+{
+	m->w = wi;
+	m->h = he;
+	mconfig(m);
 }
 
 int umbol(MENU *m)

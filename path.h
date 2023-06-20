@@ -96,8 +96,10 @@ int isreg PARAMS((unsigned char *s));
  * which match the pattern 'pattern'
  */
 unsigned char **rexpnd PARAMS((unsigned char *word));
+unsigned char **rexpnd_users PARAMS((unsigned char *word));
 
 int chpwd PARAMS((unsigned char *path));
 unsigned char *pwd PARAMS((void));
+unsigned char *simplify_prefix(unsigned char *path);
 
 #endif

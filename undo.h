@@ -28,4 +28,8 @@ int uyapp PARAMS((BW *bw));
 int unotmod PARAMS((BW *bw));
 int ucopy PARAMS((BW *bw));
 
+void load_yank PARAMS((FILE *f));
+void save_yank PARAMS((FILE *f));
+void bw_unlock PARAMS((BW *bw));
+
 #endif

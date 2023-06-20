@@ -33,6 +33,7 @@ ssize_t joe_write PARAMS((int fd, void *buf, size_t siz));
 
 /* wrappers to *alloc routines */
 void *joe_malloc PARAMS((size_t size));
+unsigned char *joe_strdup PARAMS((unsigned char *ptr));
 void *joe_calloc PARAMS((size_t nmemb, size_t size));
 void *joe_realloc PARAMS((void *ptr, size_t size));
 void joe_free PARAMS((void *ptr));
@@ -59,5 +60,10 @@ int parse_char PARAMS((unsigned char  **p,unsigned char c));
 int parse_int PARAMS((unsigned char **p,int *buf));
 int parse_string PARAMS((unsigned char **p,unsigned char *buf,int len));
 int parse_range PARAMS((unsigned char **p,int *first,int *second));
+void emit_string PARAMS((FILE *f,unsigned char *s,int len));
+int parse_escapes PARAMS((unsigned char *buf,int len));
+
+void emit_hdlc PARAMS((FILE *f,unsigned char *s,int len));
+int parse_hdlc PARAMS((unsigned char **p,unsigned char *buf,int len));
 
 #endif

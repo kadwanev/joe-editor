@@ -286,7 +286,7 @@ static P *searchf(BW *bw,SRCH *srch, P *p)
 		if (pgetc(start) == NO_MORE_DATA)
 			break;
 	}
-	if (wrap && !srch->wrap_flag && srch->wrap_p) {
+	if (srch->allow_wrap && !srch->wrap_flag && srch->wrap_p) {
 		msgnw(bw->parent, US "Wrapped");
 		srch->wrap_flag = 1;
 		p_goto_bof(start);
@@ -343,7 +343,7 @@ static P *searchb(BW *bw,SRCH *srch, P *p)
 		}
 	}
 
-	if (wrap && !srch->wrap_flag && srch->wrap_p) {
+	if (srch->allow_wrap && !srch->wrap_flag && srch->wrap_p) {
 		msgnw(bw->parent, US "Wrapped");
 		srch->wrap_flag = 1;
 		p_goto_eof(start);
@@ -393,6 +393,7 @@ SRCH *mksrch(unsigned char *pattern, unsigned char *replacement, int ignore, int
 	srch->markb = NULL;
 	srch->markk = NULL;
 	srch->wrap_p = NULL;
+	srch->allow_wrap = wrap;
 	srch->wrap_flag = 0;
 	srch->valid = 0;
 	srch->block_restrict = 0;
@@ -524,7 +525,7 @@ static int pfsave(BW *bw, SRCH *srch)
 static int set_replace(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 {
 	srch->replacement = s;
-	return dopfnext(bw, srch, notify);
+	return dopfnext(bw, setmark(srch), notify);
 }
 
 static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
@@ -551,6 +552,14 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 		case 'S':
 			srch->ignore = 0;
 			break;
+		case 'w':
+		case 'W':
+			srch->allow_wrap = 1;
+			break;
+		case 'n':
+		case 'N':
+			srch->allow_wrap = 0;
+			break;
 		case 'k':
 		case 'K':
 			srch->block_restrict = 1;
@@ -573,12 +582,12 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 	}
 	vsrm(s);
 	if (srch->replace) {
-		if (wmkpw(bw->parent, US "Replace with (^C to abort): ", &replhist, set_replace, srchstr, pfabort, srch_cmplt, srch, notify, bw->b->o.charmap))
+		if (wmkpw(bw->parent, US "Replace with (^C to abort): ", &replhist, set_replace, srchstr, pfabort, srch_cmplt, srch, notify, bw->b->o.charmap, 0))
 			return 0;
 		else
 			return -1;
 	} else
-		return dopfnext(bw, srch, notify);
+		return dopfnext(bw, setmark(srch), notify);
 }
 
 static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
@@ -593,7 +602,7 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 
 	vsrm(srch->pattern);
 	srch->pattern = s;
-	if ((pbw = wmkpw(bw->parent, p, NULL, set_options, srchstr, pfabort, utypebw, srch, notify, bw->b->o.charmap)) != NULL) {
+	if ((pbw = wmkpw(bw->parent, p, NULL, set_options, srchstr, pfabort, utypebw, srch, notify, bw->b->o.charmap, 0)) != NULL) {
 		unsigned char buf[10];
 
 		if (srch->ignore)
@@ -617,9 +626,10 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 	}
 }
 
-static int dofirst(BW *bw, int back, int repl)
+int dofirst(BW *bw, int back, int repl, unsigned char *hint)
 {
 	SRCH *srch;
+	BW *pbw;
 
 	if (smode && globalsrch) {
 		globalsrch->backwards = back;
@@ -636,13 +646,18 @@ static int dofirst(BW *bw, int back, int repl)
 			prgetc(bw->cursor);
 		return urtn((BASE *)bw, -1);
 	}
-	srch = setmark(mksrch(NULL, NULL, 0, back, -1, repl, 0));
+	srch = mksrch(NULL, NULL, 0, back, -1, repl, 0);
 	srch->addr = bw->cursor->byte;
 	srch->wrap_p = pdup(bw->cursor);
 	srch->wrap_p->owner = &srch->wrap_p;
-	if (wmkpw(bw->parent, US "Find (^C to abort): ", &findhist, set_pattern, srchstr, pfabort, srch_cmplt, srch, NULL, bw->b->o.charmap))
+	if (pbw=wmkpw(bw->parent, US "Find (^C to abort): ", &findhist, set_pattern, srchstr, pfabort, srch_cmplt, srch, NULL, bw->b->o.charmap, 0)) {
+		if (hint) {
+			binss(pbw->cursor, hint);
+			pset(pbw->cursor, pbw->b->eof);
+			pbw->cursor->xcol = piscol(pbw->cursor);
+		}
 		return 0;
-	else {
+	} else {
 		rmsrch(srch);
 		return -1;
 	}
@@ -650,17 +665,17 @@ static int dofirst(BW *bw, int back, int repl)
 
 int pffirst(BW *bw)
 {
-	return dofirst(bw, 0, 0);
+	return dofirst(bw, 0, 0, NULL);
 }
 
 int prfirst(BW *bw)
 {
-	return dofirst(bw, 1, 0);
+	return dofirst(bw, 1, 0, NULL);
 }
 
 int pqrepl(BW *bw)
 {
-	return dofirst(bw, 0, 1);
+	return dofirst(bw, 0, 1, NULL);
 }
 
 /* Execute next search */
@@ -669,10 +684,8 @@ static int doreplace(BW *bw, SRCH *srch)
 {
 	P *q;
 
-	if (bw->b->rdonly) {
-		msgnw(bw->parent, US "Read only");
+	if (!modify_logic(bw,bw->b))
 		return -1;
-	}
 	if (markk)
 		markk->end = 1;
 	if (srch->markk)
@@ -949,4 +962,70 @@ int pfnext(BW *bw)
 		}
 		return dopfnext(bw, setmark(srch), NULL);
 	}
+}
+
+void save_srch(FILE *f)
+{
+	if(globalsrch) {
+		if(globalsrch->pattern) {
+			fprintf(f,"	pattern ");
+			emit_hdlc(f,globalsrch->pattern,sLEN(globalsrch->pattern));
+			fprintf(f,"\n");
+		}
+		if(globalsrch->replacement) {
+			fprintf(f,"	replacement ");
+			emit_hdlc(f,globalsrch->replacement,sLEN(globalsrch->replacement));
+			fprintf(f,"\n");
+		}
+		fprintf(f,"	backwards %d\n",globalsrch->backwards);
+		fprintf(f,"	ignore %d\n",globalsrch->ignore);
+		fprintf(f,"	replace %d\n",globalsrch->replace);
+		fprintf(f,"	block_restrict %d\n",globalsrch->block_restrict);
+	}
+	fprintf(f,"done\n");
+}
+
+void load_srch(FILE *f)
+{
+	unsigned char buf[1024];
+	unsigned char bf[1024];
+	unsigned char *pattern = 0;
+	unsigned char *replacement = 0;
+	int backwards = 0;
+	int ignore = 0;
+	int replace = 0;
+	int block_restrict = 0;
+	while(fgets((char *)buf,1023,f) && strcmp((char *)buf,"done\n")) {
+		unsigned char *p=buf;
+		parse_ws(&p,'#');
+		if(!parse_kw(&p,US "pattern")) {
+			int len;
+			parse_ws(&p,'#');
+			bf[0] = 0;
+			len = parse_hdlc(&p,bf,1023);
+			if (len>0)
+				pattern = vsncpy(NULL,0,bf,len);
+		} else if(!parse_kw(&p,US "replacement")) {
+			int len;
+			parse_ws(&p,'#');
+			bf[0] = 0;
+			len = parse_hdlc(&p,bf,1023);
+			if (len>0)
+				replacement = vsncpy(NULL,0,bf,len);
+		} else if(!parse_kw(&p,US "backwards")) {
+			parse_ws(&p,'#');
+			parse_int(&p,&backwards);
+		} else if(!parse_kw(&p,US "ignore")) {
+			parse_ws(&p,'#');
+			parse_int(&p,&ignore);
+		} else if(!parse_kw(&p,US "replace")) {
+			parse_ws(&p,'#');
+			parse_int(&p,&replace);
+		} else if(!parse_kw(&p,US "block_restrict")) {
+			parse_ws(&p,'#');
+			parse_int(&p,&block_restrict);
+		}
+	}
+	globalsrch = mksrch(pattern,replacement,ignore,backwards,0,replace,0);
+	globalsrch->block_restrict = block_restrict;
 }

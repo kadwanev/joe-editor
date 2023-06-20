@@ -73,6 +73,58 @@ int mid = 0;
 void bwfllw(BW *w)
 {
 	P *newtop;
+	int x;
+
+	if (w->o.hex) {
+		/* Top must be a muliple of 16 bytes */
+		if (w->top->byte%16) {
+			pbkwd(w->top,w->top->byte%16);
+		}
+
+		/* Move backward */
+		if (w->cursor->byte < w->top->byte) {
+			long new_top = w->cursor->byte/16;
+			if (mid) {
+				if (new_top >= w->h / 2)
+					new_top -= w->h / 2;
+				else
+					new_top = 0;
+			}
+			if (w->top->byte/16 - new_top < w->h)
+				nscrldn(w->t->t, w->y, w->y + w->h, (int) (w->top->byte/16 - new_top));
+			else
+				msetI(w->t->t->updtab + w->y, 1, w->h);
+			pgoto(w->top,new_top*16);
+		}
+
+		/* Move forward */
+		if (w->cursor->byte >= w->top->byte+(w->h*16)) {
+			long new_top;
+			if (mid) {
+				new_top = w->cursor->byte/16 - w->h / 2;
+			} else {
+				new_top = w->cursor->byte/16 - (w->h - 1);
+			}
+			if (new_top - w->top->byte/16 < w->h)
+				nscrlup(w->t->t, w->y, w->y + w->h, (int) (new_top - w->top->byte/16));
+			else {
+				msetI(w->t->t->updtab + w->y, 1, w->h);
+			}
+			pgoto(w->top, new_top*16);
+		}
+
+		/* Adjust scroll offset */
+		if (w->cursor->byte%16+60 < w->offset) {
+			w->offset = w->cursor->byte%16+60;
+			msetI(w->t->t->updtab + w->y, 1, w->h);
+		} else if (w->cursor->byte%16+60 >= w->offset + w->w) {
+			w->offset = w->cursor->byte%16+60 - (w->w - 1);
+			msetI(w->t->t->updtab + w->y, 1, w->h);
+		}
+		return;
+	} if (!pisbol(w->top)) {
+		p_goto_bol(w->top);
+	}
 
 	if (w->cursor->line < w->top->line) {
 		newtop = pdup(w->cursor);
@@ -87,12 +139,14 @@ void bwfllw(BW *w)
 			nscrldn(w->t->t, w->y, w->y + w->h, (int) (w->top->line - newtop->line));
 		else {
 			msetI(w->t->t->updtab + w->y, 1, w->h);
-			msetI(w->t->t->syntab + w->y, -1, w->h);
+			for(x=0; x!=w->h; ++x)
+				invalidate_state(w->t->t->syntab + w->y + x);
 		}
 		pset(w->top, newtop);
 		prm(newtop);
 	} else if (w->cursor->line >= w->top->line + w->h) {
-		newtop = pdup(w->top);
+		/* newtop = pdup(w->top); */
+		/* getto() creates newtop */
 		if (mid)
 			newtop = getto(NULL, w->cursor, w->top, w->cursor->line - w->h / 2);
 		else
@@ -101,7 +155,8 @@ void bwfllw(BW *w)
 			nscrlup(w->t->t, w->y, w->y + w->h, (int) (newtop->line - w->top->line));
 		else {
 			msetI(w->t->t->updtab + w->y, 1, w->h);
-			msetI(w->t->t->syntab + w->y, -1, w->h);
+			for(x=0; x!=w->h; ++x)
+				invalidate_state(w->t->t->syntab + w->y + x);
 		}
 		pset(w->top, newtop);
 		prm(newtop);
@@ -121,29 +176,31 @@ void bwfllw(BW *w)
    If the state is not known, it is computed and the state for all
    of the remaining lines of the window are also recalculated. */
 
-int get_highlight_state(BW *w,int line)
+HIGHLIGHT_STATE get_highlight_state(BW *w,int line)
 {
 	P *tmp = 0;
-	int state;
+	HIGHLIGHT_STATE state;
 
 	/* Screen y position of requested line */
 	int y = line-w->top->line+w->y;
 
-	if(!w->o.highlight || !w->o.syntax)
-		return -1;
+	if(!w->o.highlight || !w->o.syntax) {
+		invalidate_state(&state);
+		return state;
+	}
 
 	/* If we know the state, just return it */
-	if (w->parent->t->t->syntab[y]>=0)
+	if (w->parent->t->t->syntab[y].state>=0)
 		return w->parent->t->t->syntab[y];
 
 	/* Scan upwards until we have a line with known state or
 	   we're on the first line */
-	while (y > w->y && w->parent->t->t->syntab[y] < 0) --y;
+	while (y > w->y && w->parent->t->t->syntab[y].state < 0) --y;
 
 	/* If we don't have state for this line, calculate by going 100 lines back */
-	if (w->parent->t->t->syntab[y]<0) {
+	if (w->parent->t->t->syntab[y].state<0) {
 		/* We must be on the top line */
-		state = 0;
+		clear_state(&state);
 		tmp = pdup(w->top);
 		if(w->o.syntax->sync_lines >= 0 && tmp->line > w->o.syntax->sync_lines)
 			pline(tmp, tmp->line-w->o.syntax->sync_lines);
@@ -187,6 +244,7 @@ int get_highlight_state(BW *w,int line)
 
 void bwins(BW *w, long int l, long int n, int flg)
 {
+	int q;
 	if (l + flg + n < w->top->line + w->h && l + flg >= w->top->line && l + flg <= w->b->eof->line) {
 		if (flg)
 			w->t->t->sary[w->y + l - w->top->line] = w->t->t->li;
@@ -195,10 +253,12 @@ void bwins(BW *w, long int l, long int n, int flg)
 	if (l < w->top->line + w->h && l >= w->top->line) {
 		if (n >= w->h - (l - w->top->line)) {
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, w->h - (int) (l - w->top->line));
-			msetI(w->t->t->syntab + w->y + l - w->top->line, -1, w->h - (int) (l - w->top->line));
+			for(q=0; q!=w->h - (int)(l - w->top->line); ++q)
+				invalidate_state(w->t->t->syntab + w->y + l - w->top->line + q);
 		} else {
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, (int) n + 1);
-			msetI(w->t->t->syntab + w->y + l - w->top->line, -1, (int) n + 1);
+			for(q=0; q!=n+1; ++q)
+				invalidate_state(w->t->t->syntab + w->y + l - w->top->line + q);
 		}
 	}
 }
@@ -213,7 +273,7 @@ void bwdel(BW *w, long int l, long int n, int flg)
 
 /* Update highlight for line after first one which changed */
 	if ((l+1) < w->top->line + w->h && (l+1) >= w->top->line) {
-		w->t->t->syntab[w->y + (l+1) - w->top->line] = -1;
+		invalidate_state(w->t->t->syntab + w->y + l + 1 - w->top->line);
 		w->t->t->updtab[w->y + (l+1) - w->top->line] = 1;
 		}
 
@@ -245,7 +305,7 @@ void bwdel(BW *w, long int l, long int n, int flg)
 
 /* Update a single line */
 
-static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long int scr, long int from, long int to,int st,BW *bw)
+static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long int scr, long int from, long int to,HIGHLIGHT_STATE st,BW *bw)
         
       
             			/* Screen line address */
@@ -274,7 +334,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 
 	utf8_init(&utf8_sm);
 
-	if(st!=-1) {
+	if(st.state!=-1) {
 		tmp=pdup(p);
 		p_goto_bol(tmp);
 		parse(bw->o.syntax,tmp,st);
@@ -302,7 +362,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 				bc = ungetit;
 				ungetit = -1;
 			}
-			if(st!=-1)
+			if(st.state!=-1)
 				atr = syn[idx++];
 			if (p->b->o.crlf && bc == '\r') {
 				++byte;
@@ -418,7 +478,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 				bc = ungetit;
 				ungetit = -1;
 			}
-			if(st!=-1)
+			if(st.state!=-1)
 				atr=syn[idx++];
 			if (p->b->o.crlf && bc == '\r') {
 				++byte;
@@ -740,12 +800,87 @@ static void gennum(BW *w, int *screen, int *attr, SCRN *t, int y, int *comp)
 	}
 }
 
+void bwgenh(BW *w,long from,long to)
+{
+	int *screen;
+	int *attr;
+	P *q = pdup(w->top);
+	int bot = w->h + w->y;
+	int y;
+	SCRN *t = w->t->t;
+	int flg = 0;
+
+	y=w->y;
+	attr = t->attr + y*w->t->w;
+	for (screen = t->scrn + y * w->t->w; y != bot; ++y, (screen += w->t->w), (attr += w->t->w)) {
+		unsigned char txt[80];
+		int fmt[80];
+		unsigned char bf[16];
+		int x;
+		memset(txt,' ',76);
+		msetI(fmt,0,76);
+		txt[76]=0;
+		if (!flg) {
+			sprintf((char *)bf,"%8x ",q->byte);
+			memcpy(txt,bf,9);
+			for (x=0; x!=8; ++x) {
+				int c;
+				if (q->byte==w->cursor->byte && !flg) {
+					fmt[10+x*3] = INVERSE;
+					fmt[10+x*3+1] = INVERSE;
+				}
+				if (q->byte>=from && q->byte<to && !flg) {
+					fmt[10+x*3] |= UNDERLINE;
+					fmt[10+x*3+1] |= UNDERLINE;
+					fmt[60+x] = INVERSE;
+				}
+				c = pgetb(q);
+				if (c >= 0) {
+					sprintf((char *)bf,"%2.2x",c);
+					txt[10+x*3] = bf[0];
+					txt[10+x*3+1] = bf[1];
+					if (c >= 0x20 && c <= 0x7E)
+						txt[60+x] = c;
+					else
+						txt[60+x] = '.';
+				} else
+					flg = 1;
+			}
+			for (x=8; x!=16; ++x) {
+				int c;
+				if (q->byte==w->cursor->byte && !flg) {
+					fmt[11+x*3] = INVERSE;
+					fmt[11+x*3+1] = INVERSE;
+				}
+				if (q->byte>=from && q->byte<to && !flg) {
+					fmt[11+x*3] |= UNDERLINE;
+					fmt[11+x*3+1] |= UNDERLINE;
+					fmt[60+x] = INVERSE;
+				}
+				c = pgetb(q);
+				if (c >= 0) {
+					sprintf((char *)bf,"%2.2x",c);
+					txt[11+x*3] = bf[0];
+					txt[11+x*3+1] = bf[1];
+					if (c >= 0x20 && c <= 0x7E)
+						txt[60+x] = c;
+					else
+						txt[60+x] = '.';
+				} else
+					flg = 1;
+			}
+		}
+		genfield(t, screen, attr, 0, y, w->offset, txt, 76, 0, w->w, 1, fmt);
+	}
+	prm(q);
+}
+
 void bwgen(BW *w, int linums)
 {
 	int *screen;
 	int *attr;
 	P *p = NULL;
-	P *q = pdup(w->cursor);
+	P *q;
 	int bot = w->h + w->y;
 	int y;
 	int dosquare = 0;
@@ -781,6 +916,17 @@ void bwgen(BW *w, int linums)
 
 	if (marking && w==maint->curwin->object)
 		msetI(t->updtab + w->y, 1, w->h);
+
+	if (w->o.hex) {
+		if (dosquare) {
+			from = 0;
+			to = 0;
+		}
+		bwgenh(w,from,to);
+		return;
+	}
+
+	q = pdup(w->cursor);
 
 	y = w->cursor->line - w->top->line + w->y;
 	attr = t->attr + y*w->t->w;
@@ -854,9 +1000,11 @@ void bwmove(BW *w, int x, int y)
 
 void bwresz(BW *w, int wi, int he)
 {
+	int x;
 	if (he > w->h && w->y != -1) {
 		msetI(w->t->t->updtab + w->y + w->h, 1, he - w->h);
-		msetI(w->t->t->syntab + w->y + w->h, -1, he - w->h);
+		for(x=0;x!=he-w->h; ++x)
+			invalidate_state(w->t->t->syntab + w->y + w->h + x);
 		}
 	w->w = wi;
 	w->h = he;

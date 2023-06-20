@@ -23,6 +23,12 @@
 #include <time.h>
 #endif
 
+#ifdef WITH_SELINUX
+#include <selinux/selinux.h>
+static int selinux_enabled = -1;
+#endif
+
+
 #include "b.h"
 #include "blocks.h"
 #include "main.h"
@@ -199,10 +205,15 @@ static B *bmkchn(H *chn, B *prop, long amnt, long nlines)
 	b->internal = 1;
 	b->scratch = 0;
 	b->changed = 0;
+	b->locked = 0;
+	b->ignored_lock = 0;
+	b->didfirst = 0;
 	b->count = 1;
 	b->name = NULL;
 	b->er = -3;
 	b->bof = palloc();
+	b->mod_time = 0;
+	b->check_time = time(NULL);
 	izque(P, link, b->bof);
 	b->bof->end = 0;
 	b->bof->b = b;
@@ -247,6 +258,8 @@ void brm(B *b)
 	if (b && !--b->count) {
 		if (b->changed)
 			abrerr(b->name);
+		if (b->locked && !b->ignored_lock && plain_file(b))
+			unlock_it(b->name);
 		if (b == errbuf)
 			errbuf = NULL;
 		if (b->undo)
@@ -259,6 +272,12 @@ void brm(B *b)
 			joe_free(b->name);
 		demote(B, link, &frebufs, b);
 	}
+}
+
+void brmall()
+{
+	while (!qempty(B, link, &bufs))
+		brm(bufs.link.next);
 }
 
 P *poffline(P *p)
@@ -2042,7 +2061,19 @@ unsigned char *parsens(unsigned char *s, long int *skip, long int *amnt)
 				sscanf((char *)(n + x + 1), "%ld", skip);
 		}
 	}
+	/* Don't do this here: do it in prompt buffer instead, so we're just like
+	   the shell doing it on the command line. */
+	/* n = canonical(n); */
+	return n;
+}
+
+/* Canonicalize file name: do ~ expansion */
+
+unsigned char *canonical(unsigned char *n)
+{
 #ifndef __MSDOS__
+	int x;
+	unsigned char *s;
 	if (n[0] == '~') {
 		for (x = 1; n[x] && n[x] != '/'; ++x) ;
 		if (n[x] == '/') {
@@ -2186,7 +2217,7 @@ opnerr:
 	}
 
 	/* Set name */
-	b->name = joesep((unsigned char *)strdup(s));
+	b->name = joesep(joe_strdup(s));
 
 	/* Set flags */
 	if (error || s[0] == '!' || skip || amnt != MAXLONG) {
@@ -2310,7 +2341,7 @@ B *bfind_scratch(unsigned char *s)
 	b->internal = 0;
 	b->rdonly = b->o.readonly;
 	b->er = error;
-	b->name = (unsigned char *)strdup((char *)s);
+	b->name = joe_strdup(s);
 	b->scratch = 1;
 	return b;
 }
@@ -2413,6 +2444,8 @@ err:
  * same name as buffer or is about to get this name).
  */
 
+int break_links; /* Set to break hard links on writes */
+
 int bsave(P *p, unsigned char *s, long int size, int flag)
 {
 	FILE *f;
@@ -2441,6 +2474,40 @@ int bsave(P *p, unsigned char *s, long int size, int flag)
 	} else if (skip || amnt != MAXLONG)
 		f = fopen((char *)s, "r+");
 	else {
+		/* Normal file save */
+		if (break_links) {
+			struct stat sbuf;
+
+			/* Try to copy permissions */
+			if (!stat((char *)s,&sbuf)) {
+				int g;
+				int en=0;
+#ifdef WITH_SELINUX
+				security_context_t se;
+				if (selinux_enabled == -1)
+					selinux_enabled = (is_selinux_enabled() > 0);
+				
+				if (selinux_enabled) {
+					if (getfilecon((char *)s, &se) < 0) {
+						error = -4;
+						goto opnerr;
+					}
+				}
+#endif
+				unlink((char *)s);
+				g = creat((char *)s, sbuf.st_mode & ~(S_ISUID | S_ISGID));
+#ifdef WITH_SELINUX
+				if (selinux_enabled) {
+					setfilecon((char *)s, &se);
+					freecon(se);
+				}
+#endif
+				close(g);
+			} else {
+				unlink((char *)s);
+			}
+		}
+
 		f = fopen((char *)s, "w");
 		norm = 1;
 	}
@@ -2614,4 +2681,83 @@ RETSIGTYPE ttsig(int sig)
 	if (sig)
 		ttclsn();
 	_exit(1);
+}
+
+
+/* Create lock for a file
+   Return 0 for success or -1 for failure
+*/
+
+int lock_it(unsigned char *path,unsigned char *bf)
+{
+	unsigned char *lock_name=dirprt(path);
+	unsigned char *name=namprt(path);
+	unsigned char buf[1024];
+	unsigned char *user = (unsigned char *)getenv("USER");
+	unsigned char *host = (unsigned char *)getenv("HOSTNAME");
+	int len;
+	if (!user) user=US "me";
+	if (!host) host=US "here";
+	lock_name=vsncpy(sv(lock_name),sc(".#"));
+	lock_name=vsncpy(sv(lock_name),sv(name));
+	joe_snprintf_3((char *)buf,sizeof(buf),"%s@%s.%d",user,host,getpid());
+	if (!symlink((char *)buf,(char *)lock_name)) {
+		vsrm(lock_name);
+		vsrm(name);
+		return 0;
+	}
+	if (bf) {
+		len = readlink((char *)lock_name,(char *)bf,255);
+		if (len<0) len = 0;
+		bf[len] = 0;
+	}
+	vsrm(lock_name);
+	vsrm(name);
+	return -1;
+}
+
+void unlock_it(unsigned char *path)
+{
+	unsigned char *lock_name=dirprt(path);
+	unsigned char *name=namprt(path);
+	lock_name=vsncpy(sv(lock_name),sc(".#"));
+	lock_name=vsncpy(sv(lock_name),sv(name));
+	unlink((char *)lock_name);
+	vsrm(lock_name);
+	vsrm(name);
+}
+
+/* True if file is regular */
+
+int plain_file(B *b)
+{
+	if (b->name && strcmp(b->name,"-") && b->name[0]!='!' && b->name[0]!='>' &&
+	    !b->scratch)
+		return 1;
+	else
+		return 0;
+}
+
+/* True if file changed under us */
+
+int check_mod(B *b)
+{
+	struct stat sbuf;
+	if (!plain_file(b))
+		return 0;
+	if (!stat((char *)b->name,&sbuf)) {
+		if (sbuf.st_mtime>b->mod_time) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* True if file exists */
+
+int file_exists(unsigned char *path)
+{
+	struct stat sbuf;
+	if (!path) return 0;
+	return !stat((char *)path, &sbuf);
 }

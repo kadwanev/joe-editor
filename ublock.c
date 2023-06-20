@@ -38,7 +38,7 @@ int square = 0;			/* Set for rectangle mode */
 int lightoff = 0;		/* Set if highlighting should turn off
 
 				   after block operations */
-extern int marking;
+extern int marking, nowmarking;
 
 /* Global variables */
 
@@ -270,7 +270,7 @@ int udrop(BW *bw)
 
 int ubegin_marking(BW *bw)
 {
-	if (marking)
+	if (nowmarking)
 		/* We're marking now... don't stop */
 		return 0;
 	else if (markv(0) && bw->cursor->b==markb->b)
@@ -278,18 +278,18 @@ int ubegin_marking(BW *bw)
 		if (bw->cursor->byte==markb->byte) {
 			pset(markb,markk);
 			prm(markk); markk=0;
-			marking = 1;
+			nowmarking = 1;
 			return 0;
 		} else if(bw->cursor->byte==markk->byte) {
 			prm(markk); markk=0;
-			marking = 1;
+			nowmarking = 1;
 			return 0;
 		}
 	/* Start marking - no message */
 	prm(markb); markb=0;
 	prm(markk); markk=0;
 	updall();
-	marking = 1;
+	nowmarking = 1;
 	return umarkb(bw);
 }
 
@@ -300,7 +300,7 @@ int utoggle_marking(BW *bw)
 		prm(markb); markb=0;
 		prm(markk); markk=0;
 		updall();
-		marking = 0;
+		nowmarking = 0;
 		msgnw(bw->parent, US "Selection cleared.");
 		return 0;
 	} else if (markk) {
@@ -308,11 +308,11 @@ int utoggle_marking(BW *bw)
 		prm(markb); markb=0;
 		prm(markk); markk=0;
 		updall();
-		marking = 1;
+		nowmarking = 1;
 		msgnw(bw->parent, US "Selection started.");
 		return umarkb(bw);
 	} else if (markb && markb->b==bw->cursor->b) {
-		marking = 0;
+		nowmarking = 0;
 		if (bw->cursor->byte<markb->byte) {
 			pdupown(markb, &markk);
 			prm(markb); markb=0;
@@ -325,7 +325,7 @@ int utoggle_marking(BW *bw)
 		updall(); /* Because other windows could be changed */
 		return 0;
 	} else {
-		marking = 1;
+		nowmarking = 1;
 		msgnw(bw->parent, US "Selection started.");
 		return umarkb(bw);
 	}
@@ -354,6 +354,7 @@ int unmark(BW *bw)
 {
 	prm(markb);
 	prm(markk);
+	nowmarking = 0;
 	updall();
 	return 0;
 }
@@ -471,10 +472,8 @@ int upicokill(BW *bw)
 int ublkmove(BW *bw)
 {
 	if (markv(1)) {
-		if (markb->b->rdonly) {
-			msgnw(bw->parent, US "Read only");
+		if (markb->b!=bw->b && !modify_logic(bw,markb->b))
 			return -1;
-		}
 		if (square) {
 			long height = markk->line - markb->line + 1;
 			long width = markk->xcol - markb->xcol;
@@ -554,8 +553,20 @@ int ublkcpy(BW *bw)
 			return 0;
 		} else {
 			long size = markk->byte - markb->byte;
+			B *tmp = bcpy(markb, markk);
 
-			binsb(bw->cursor, bcpy(markb, markk));
+			/* Simple overtype for hex mode */
+			if (bw->o.hex && bw->o.overtype) {
+				P *q = pdup(bw->cursor);
+				if (q->byte + size >= q->b->eof->byte)
+					pset(q, q->b->eof);
+				else
+					pfwrd(q, size);
+				bdel(bw->cursor, q);
+				prm(q);
+			}
+
+			binsb(bw->cursor, tmp);
 			if (lightoff)
 				unmark(bw);
 			else {
@@ -575,7 +586,7 @@ int ublkcpy(BW *bw)
 /* Write highlighted block to a file */
 /* This is called by ublksave in ufile.c */
 
-int dowrite(BW *bw, unsigned char *s, void *object, int *notify)
+/*int dowrite(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
@@ -614,7 +625,7 @@ int dowrite(BW *bw, unsigned char *s, void *object, int *notify)
 		msgnw(bw->parent, US "No block");
 		return -1;
 	}
-}
+}*/
 
 /* Set highlighted block on a program block */
 
@@ -939,7 +950,11 @@ static int dofilt(BW *bw, unsigned char *s, void *object, int *notify)
 	pipe(fw);
 	npartial(bw->parent->t->t);
 	ttclsn();
+#ifdef HAVE_FORK
 	if (!fork()) {
+#else
+	if (!vfork()) { /* For AMIGA only */
+#endif
 #ifdef HAVE_PUTENV
 		unsigned char		*fname, *name;
 		unsigned	len;
@@ -969,7 +984,11 @@ static int dofilt(BW *bw, unsigned char *s, void *object, int *notify)
 	}
 	close(fr[1]);
 	close(fw[0]);
+#ifdef HAVE_FORK
 	if (fork()) {
+#else
+	if (vfork()) { /* For AMIGA only */
+#endif
 		close(fw[1]);
 		if (square) {
 			B *tmp;
@@ -1073,12 +1092,12 @@ int ufilt(BW *bw)
 #else
 	switch (checkmark(bw)) {
 	case 0:
-		if (wmkpw(bw->parent, US "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, locale_map))
+		if (wmkpw(bw->parent, US "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, locale_map, 1))
 			return 0;
 		else
 			return -1;
 	case 1:
-		if (wmkpw(bw->parent, US "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, locale_map))
+		if (wmkpw(bw->parent, US "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, locale_map, 1))
 			return 0;
 		else
 			return -1;
@@ -1147,4 +1166,102 @@ int uupper(BW *bw)
 		return 0;
 	} else
 		return -1;
+}
+
+/* Get sum, sum of squares, and return count of
+ * a block of numbers.
+ *
+ * avg = sum/count
+ *
+ * stddev = sqrt(  (a-avg)^2 + (b-avg)^2 + (c-avg)^2 )
+ *        = sqrt(  a^2-2*a*avg+avg^2  + b^2-2*b*avg+avg^2 + c^2-2*c*avg+avg^2 )
+ *        = sqrt(  a^2+b^2+c^2 + 3*avg^2 - 2*avg*(a+b+c) )
+ *        = sqrt(  sumsq + count*avg^2 - 2*avg*sum  )
+ *
+ */
+
+int blksum(double *sum, double *sumsq)
+{
+	unsigned char buf[80];
+	if (markv(1)) {
+		P *q = pdup(markb);
+		int x;
+		int c;
+		double accu = 0.0;
+		double accusq = 0.0;
+		double v;
+		int count = 0;
+		long left = markb->xcol;
+		long right = markk->xcol;
+		while (q->byte < markk->byte) {
+			/* Skip until we're within columns */
+			while (q->byte < markk->byte && square && (piscol(q) < left || piscol(q) >= right))
+				pgetc(q);
+
+			/* Skip to first number */
+			while (q->byte < markk->byte && (!square || (piscol(q) >= left && piscol(q) < right))) {
+				c=pgetc(q);
+				if (c >= '0' && c <= '9' || c == '.' || c == '-') {
+					/* Copy number into buffer */
+					buf[0]=c; x=1;
+					while (q->byte < markk->byte && (!square || (piscol(q) >= left && piscol(q) < right))) {
+						c=pgetc(q);
+						if (c >= '0' && c <= '9' || c == 'e' || c == 'E' ||
+						    c == 'p' || c == 'P' || c == 'x' || c == 'X' ||
+						    c == '.' || c == '-' || c == '+' ||
+						    c >= 'a' && c <= 'f' || c >= 'A' && c<='F') {
+							if(x != 79)
+								buf[x++]=c;
+						} else
+							break;
+					}
+					/* Convert number to floating point, add it to total */
+					buf[x] = 0;
+					v = strtod((char *)buf,NULL);
+					++count;
+					accu += v;
+					accusq += v*v;
+					break;
+				}
+			}
+		}
+		prm(q);
+		*sum = accu;
+		*sumsq = accusq;
+		return count;
+	} else
+		return -1;
+}
+
+/* Get a (possibly square) block into a buffer */
+
+unsigned char *blkget()
+{
+	if (markv(1)) {
+		P *q;
+		unsigned char *buf=joe_malloc(markk->byte-markb->byte+1);
+		unsigned char *s=buf;
+		int x;
+		int c;
+		long left = markb->xcol;
+		long right = markk->xcol;
+		q = pdup(markb);
+		while (q->byte < markk->byte) {
+			/* Skip until we're within columns */
+			while (q->byte < markk->byte && square && (piscol(q) < left || piscol(q) >= right))
+				pgetc(q);
+
+			/* Copy text into buffer */
+			while (q->byte < markk->byte && (!square || (piscol(q) >= left && piscol(q) < right))) {
+				*s++ = pgetc(q);
+			}
+			/* Add a new line if we went past right edge of column */
+			if (square && q->byte<markk->byte && piscol(q) >= right)
+				*s++ = '\n';
+		}
+		prm(q);
+		*s = 0;
+		return buf;
+	} else
+		return 0;
 }
