@@ -111,8 +111,8 @@ am_joe_OBJECTS = b.$(OBJEXT) blocks.$(OBJEXT) bw.$(OBJEXT) \
 	lattr.$(OBJEXT) gettext.$(OBJEXT) builtin.$(OBJEXT) \
 	builtins.$(OBJEXT) vt.$(OBJEXT) mmenu.$(OBJEXT) \
 	state.$(OBJEXT) options.$(OBJEXT) unicode.$(OBJEXT) \
-	unicat.$(OBJEXT) cclass.$(OBJEXT) frag.$(OBJEXT) \
-	colors.$(OBJEXT)
+	cclass.$(OBJEXT) frag.$(OBJEXT) colors.$(OBJEXT) \
+	unicat-@UNICODE_VERSION@.$(OBJEXT)
 joe_OBJECTS = $(am_joe_OBJECTS)
 joe_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -261,6 +261,7 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SPELL = @SPELL@
 STRIP = @STRIP@
+UNICODE_VERSION = @UNICODE_VERSION@
 VERSION = @VERSION@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -338,7 +339,7 @@ joe_SOURCES = b.c blocks.c bw.c cmd.c hash.c help.c kbd.c macro.c main.c menu.c 
 	undo.c usearch.c ushell.c utag.c va.c vfile.c vs.c w.c utils.c syntax.c \
 	utf8.c selinux.c charmap.c mouse.c lattr.c gettext.c builtin.c \
 	builtins.c vt.c mmenu.c state.c options.c unicode.c \
-	unicat.c cclass.c frag.c colors.c
+	cclass.c frag.c colors.c unicat-@UNICODE_VERSION@.c
 
 termidx_SOURCES = termidx.c
 stringify_SOURCES = stringify.c
@@ -489,7 +490,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uisrch.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/umath.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/undo.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicat.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicat-@UNICODE_VERSION@.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unicode.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/usearch.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ushell.Po@am__quote@

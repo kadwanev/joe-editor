@@ -83,7 +83,7 @@ subdir = .
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure $(am__configure_deps) \
 	$(top_srcdir)/charmaps/klingon.in COPYING ChangeLog compile \
-	config.guess config.sub depcomp install-sh missing
+	config.guess config.sub install-sh missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
@@ -270,6 +270,7 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SPELL = @SPELL@
 STRIP = @STRIP@
+UNICODE_VERSION = @UNICODE_VERSION@
 VERSION = @VERSION@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -326,7 +327,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign
-SUBDIRS = man rc po syntax joe colors
+SUBDIRS = man rc po syntax joe colors desktop
 EXTRA_DIST = COPYING docs/hacking.md ChangeLog NEWS.md docs/README.old README.md INSTALL.md INSTALL.AMIGA \
 	docs/help-system.html charmaps/klingon.in \
 	cygbuild setup.hint autojoe docs/man.md
