@@ -145,7 +145,7 @@ int ubknd(BW *bw)
 
         sh=(unsigned char *)getenv("SHELL");
 
-        if (file_exists(sh) && strcmp((char *)sh,"/bin/sh")) goto ok;
+        if (file_exists(sh) && zcmp(sh,US "/bin/sh")) goto ok;
         if (file_exists(sh=US "/bin/bash")) goto ok;
         if (file_exists(sh=US "/usr/bin/bash")) goto ok;
         if (file_exists(sh=US "/bin/sh")) goto ok;
@@ -217,6 +217,28 @@ int ubuild(BW *bw)
 		}
 	} else {
 		if (wmkpw(bw->parent, US "Enter build command (for example, 'make'): ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map, 1)) {
+			return 0;
+		} else {
+		return -1;
+		}
+	}
+}
+
+B *grephist = NULL;
+
+int ugrep(BW *bw)
+{
+	if (grephist) {
+		if (bw=wmkpw(bw->parent, US "Grep command: ", &grephist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map, 1)) {
+			uuparw(bw);
+			u_goto_eol(bw);
+			bw->cursor->xcol = piscol(bw->cursor);
+			return 0;
+		} else {
+		return -1;
+		}
+	} else {
+		if (wmkpw(bw->parent, US "Enter grep command (for example, 'grep -n foo *.c'): ", &grephist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map, 1)) {
 			return 0;
 		} else {
 		return -1;

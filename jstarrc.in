@@ -95,6 +95,10 @@
 		looks like an ANSI terminal (support bold and capability starts with
 		ESC [).
 
+ -assume_256color
+		Assume terminal has xterm 256 color support (ESC [ 38 ; 5 ; NNN m and
+                ESC [ 48 ; 5 ; NNN m).
+
 -guess_crlf     Automatically detect MS-DOS files and set -crlf appropriately
 
 -guess_indent	Guess indent character (tab or space).
@@ -116,7 +120,22 @@
 
  -mouse		Enable mouse support
 
+ -joexterm	If you are using Joe's modified Xterm, which makes -mouse
+		mode work better (cut & paste work transparently).
+
  -square	Rectangular block mode
+
+ -bg_text color	Set background color for text.
+ -bg_help color	Set background color for help.
+ -bg_menu color	Set background color for menus.
+ -bg_prompt color
+		Set background color for prompts.
+ -bg_msg color	Set background color for messages.
+
+		For example: -bg_text bg_blue
+
+ -search_prompting
+		Search prompts with previous search request.
 
  Status line definition strings.  -lmsg defines the left-justified string and
  -rmsg defines the right-justified string.  The first character of -rmsg is
@@ -300,7 +319,7 @@
 -wordwrap
 
  News/mail files.
-*.article
+*.article*
 -wordwrap
 -syntax mail
 
@@ -407,6 +426,103 @@
 -pound_comment
 -single_quoted
 
+ SQL file
+*.sql
+-autoindent
+-syntax sql
+-smarthome
+-smartbacks
+-purify
+-single_quoted
+-c_comment
+-vhdl_comment
+-cpp_comment
+-text_delimiters BEGIN|Begin|begin=END|End|end
+
+ AWK language file
+*.awk
+-autoindent
+-syntax awk
+-smarthome
+-smartbacks
+-purify
+-pound_comment
+
+ YACC
+*.y
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
+
+ LEX
+*.l
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
+
+*.lex
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
+
+ ADA
+*.adb
+-syntax ada
+-autoindent
+-istep 2
+-smarthome
+-smartbacks
+-purify
+-vhdl_comment
+-text_delimiters declare|Declare|DECLARE|exception|Exception|EXCEPTION|if|If|IF|loop|Loop|LOOP|case|Case|CASE|package|Package|PACKAGE|procedure|Procedure|PROCEDURE|record|Record|RECORD|function|Function|FUNCTION=end|End|END
+
+*.ads
+-syntax ada
+-autoindent
+-istep 2
+-smarthome
+-smartbacks
+-purify
+-vhdl_comment
+-text_delimiters declare|Declare|DECLARE|exception|Exception|EXCEPTION|if|If|IF|loop|Loop|LOOP|case|Case|CASE|package|Package|PACKAGE|procedure|Procedure|PROCEDURE|record|Record|RECORD|function|Function|FUNCTION=end|End|END
+
+ COBOL
+*.cbl
+-syntax cobol
+-smarthome
+
+*.cob
+-syntax cobol
+
+ sed
+*.sed
+-syntax sed
+
+ Postscript
+*.ps
+-syntax ps
+
+*.eps
+-syntax ps
+
  C language file
 *.c
 -autoindent
@@ -420,6 +536,17 @@
 -text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 
 *.cpp
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
+
+*.cc
 -autoindent
 -syntax c
 -smarthome
@@ -721,16 +848,6 @@
 -autoindent
 -syntax fortran
 
- YACC
-*.y
--autoindent
--syntax yacc
-
- LEX
-*.l
--autoindent
--syntax lex
-
  TCL
 *.tcl
 -autoindent
@@ -989,6 +1106,8 @@ xtmouse		^[ [ M		Introduces an xterm mouse event
 
  Compile macro
 :def compile querysave,query,scratch,"* Build Log *",rtn,markb,eof," ",markk,blkdel,build
+
+paste			^[ [ 2 0 0 ~		Bracketed paste
 
 insc			^[ [ 2 ~
 insc			^[ [ L			SCO
@@ -1304,6 +1423,7 @@ uparwmenu	^E
 uparwmenu	^[ [ A
 uparwmenu	^# A
 uparwmenu	^[ O A
+defm2down	M2DOWN		Hits return key
 
 :query			Single-key query window
 :inherit windows

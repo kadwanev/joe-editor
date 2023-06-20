@@ -1,16 +1,53 @@
 
-Short (infinite) list for 3.2:
+Short (infinite) list for 3.3:
+
+- test i18n in cygwin
+- better grep-find (trigger in ^KE)
+- reformat/reindent function on ^KJ
+- insert last word (last word typed/copied/etc.).
+- orthogonal jump
+- regex for compiler
+- safer hex edit mode
+- win32? DOS?
+- improve mnew/mold etc so we can gzip/gunzip files being
+  edited (maybe recursive call to file recognizer with .gz removed).
+- fix/check formatter for tex files
+- man page
+
+- cygwin- make sure we put files in the right place.
+- dynamic spell checking with highlighter- there should be a way
+- smart-end key
+
+- need current directory for grep-find.
+
+Mouse issues:
+
+- autoscroll: keep track of selection type (double-click or triple-click)
+- just scroll window with right button down?
+
+  help screen mouse commands?
+  double-click at prompts hits enter?
+  double-click empty prompt, hits tab?
+  right-click pops directory?
+  right-click is cancel?
+  double-click is yes?
+
+- i18n issues:
+
+   hex is screwed up.  utf-8 file encoding needs to be off for hex mode.
+   also crlf mode.
 
 - - - -
 
 Dangerous situations:
   assume maint->curwin->object is a BW *
-  call interactive functions (like doedit) an expect them
+  call interactive functions (like doedit) and expect them
   to leave maint a buffer window (it could start a prompt).
 
   should check plain file checking.
 
-Querysave is sometimes not saving all files in ESC c?
+  vs, zstring, cstring, there are too many, each with its own
+  memory management.
 
 - - - - - - - -
 
@@ -58,18 +95,7 @@ Querysave is sometimes not saving all files in ESC c?
 
 - - - - - - - -
 
-- better editing in shell windows
-
-- - - - - - - -
-
-jmacs glitches:
-    history for incremental search
-    ^S return supposed to be normal search
-    ^[ 0 ^K  delete line bkwd (arg set)
-    ^[ @   set mark arg words away
-    ^X ^P  mark page
-    ^X h   mark entire buffer
-    ^X .  set left margin (fill prefix)
+- better editing in shell windows: use for calculator mode too?
 
 - - - - - - - -
 
@@ -107,15 +133,13 @@ can we highlight backup files? files ending in .in?
 - search: automatically use 'k' mode if there is a block selected?  Cursor should
   jump to top of block when done?  Modes for this?
 
+- stop macro execution at ^KK?
+
 - - - - - - - -
   exemac for first change: it should be run with cursor in window.
 
   -orphan will break -mnew, -mold macros (because macros are run without a
 window on the screen).
-
-- - - - - - - -
-
-- egmont's Ctrl-selection bug
 
 - - - - - - - -
 
@@ -127,11 +151,6 @@ window on the screen).
 - .joe_state file:
  - try for previous screen configuration?
  - multiple joes: the last one who exits wins: merge them
-
-- - - - - - - -
-
-More colors: UI for using 256 color xterms.
-  - Problems: tgoto takes only two params, so we have to switch to tparm.
 
 - - - - - - - -
 
@@ -152,13 +171,10 @@ Others:
   shell window.
 
 - do not use ^[^[ for anything.  it prevents Alt-arrow
-  from being useful.
+  from being useful.  It's usually bound to options, so at least
+  make options pass unknown characters back to keysequence parser.
 
 - save all files without asking thing for quick compile
-
-- continued search mode for jpico?
-
-- make ^K F prompt with previous text (PICO)?
 
 options are screwed up: we copy window to buffer (to get buffer options
 to the buffer).  But if we have multiple windows, buffer options will have
@@ -225,6 +241,15 @@ Jmacs:
  exiting options and i-search with ESC is not pretty
  (it isn't in emacs either)
 
+jmacs glitches:
+    history for incremental search
+    ^S return supposed to be normal search
+    ^[ 0 ^K  delete line bkwd (arg set)
+    ^[ @   set mark arg words away
+    ^X ^P  mark page
+    ^X h   mark entire buffer
+    ^X .  set left margin (fill prefix)
+
 Shell windows:
 
  Better environment settings for shell windows.
@@ -271,12 +296,6 @@ Terminal handling:
  Emit ESC c to reset terminal on startup?
 
  Look into clearing right-most column.
-
-Mouse:
-
- ` and autoindent mode are a problem for drag and drop.
- any way we can distinguish normal typing from a drop?
- modify xterm...
 
 Major new display modes:
 
@@ -687,19 +706,19 @@ ESC c  compile (supposed to be center line)
 -----------------
 notepad/cua mode?
 -----------------
-^A	select all
-^F	find
-^G	goto line
-^H	replace
-^J	return
-^N	new blank file
-^O	edit file (asks to save current)
+- ^A	select all
+- ^F	find
+- ^G	goto line
+X ^H	replace
+X ^J	return
+- ^N	new blank file
+- ^O	edit file (asks to save current)
 ^P	print
-^S	save
-^V	paste
-^Z	undo
-^X	cut
-^C	copy
-F3	find next
-F5	date/time
+- ^S	save
+- ^V	paste
+- ^Z	undo
+- ^X	cut
+- ^C	copy
+- F3	find next
+- F5	date/time
 

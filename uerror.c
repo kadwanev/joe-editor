@@ -45,7 +45,7 @@ void inserr(unsigned char *name, long int where, long int n, int bol)
 
 	if (name) {
 		for (e = errors.link.next; e != &errors; e = e->link.next) {
-			if (!strcmp(e->file, name)) {
+			if (!zcmp(e->file, name)) {
 				if (e->line > where)
 					e->line += n;
 				else if (e->line == where && bol)
@@ -61,7 +61,7 @@ void delerr(unsigned char *name, long int where, long int n)
 
 	if (name) {
 		for (e = errors.link.next; e != &errors; e = e->link.next) {
-			if (!strcmp(e->file, name)) {
+			if (!zcmp(e->file, name)) {
 				if (e->line > where + n)
 					e->line -= n;
 				else if (e->line > where)
@@ -79,7 +79,7 @@ void abrerr(unsigned char *name)
 
 	if (name)
 		for (e = errors.link.next; e != &errors; e = e->link.next)
-			if (!strcmp(e->file, name))
+			if (!zcmp(e->file, name))
 				e->line = e->org;
 }
 
@@ -91,7 +91,7 @@ void saverr(unsigned char *name)
 
 	if (name)
 		for (e = errors.link.next; e != &errors; e = e->link.next)
-			if (!strcmp(e->file, name))
+			if (!zcmp(e->file, name))
 				e->org = e->line;
 }
 
@@ -123,12 +123,11 @@ static void freeall(void)
 /* First word (allowing ., /, _ and -) with a . is the file name.  Next number
    is line number.  Then there should be a ':' */
 
-static int parseit(struct charmap *map,unsigned char *s, long int row)
+static void parseone(struct charmap *map,unsigned char *s,unsigned char **rtn_name,long *rtn_line)
 {
 	int x, y, flg;
 	unsigned char *name = NULL;
 	long line = -1;
-	ERROR *err;
 
 	y=0;
 	flg=0;
@@ -169,8 +168,23 @@ static int parseit(struct charmap *map,unsigned char *s, long int row)
 		++y;
 	}
 
+	if (!flg)
+		line = -1;
+
+	*rtn_name = name;
+	*rtn_line = line;
+}
+
+static int parseit(struct charmap *map,unsigned char *s, long int row)
+{
+	unsigned char *name = NULL;
+	long line = -1;
+	ERROR *err;
+
+	parseone(map,s,&name,&line);
+
 	if (name) {
-		if (line != -1 && flg) {
+		if (line != -1) {
 			/* We have an error */
 			err = (ERROR *) alitem(&errnodes, sizeof(ERROR));
 			err->file = name;
@@ -266,52 +280,83 @@ int uparserr(BW *bw)
 	return 0;
 }
 
-int unxterr(BW *bw)
+int jump_to_file_line(BW *bw,unsigned char *file,int line,unsigned char *msg)
 {
 	int omid;
+	if (!bw->b->name || zcmp(file, bw->b->name)) {
+		if (doswitch(bw, vsdup(file), NULL, NULL))
+			return -1;
+		bw = (BW *) maint->curwin->object;
+	}
+	omid = mid;
+	mid = 1;
+	pline(bw->cursor, line);
+	dofollows();
+	mid = omid;
+	bw->cursor->xcol = piscol(bw->cursor);
+	msgnw(bw->parent, msg);
+	return 0;
+}
 
+/* Find line in error database: return pointer to message */
+
+unsigned char *srcherr(BW *bw,unsigned char *file,long line)
+{
+	ERROR *p;
+	for (p = errors.link.next; p != &errors; p=p->link.next)
+		if (!zcmp(p->file,file) && p->org==line) {
+			errptr = p;
+			setline(errbuf, errptr->src);
+			return errptr->msg;
+			}
+	return 0;
+}
+
+int ujump(BW *bw)
+{
+	int rtn = -1;
+	P *p = pdup(bw->cursor);
+	P *q = pdup(p);
+	unsigned char *s;
+	p_goto_bol(p);
+	p_goto_eol(q);
+	s = brvs(p, (int) (q->byte - p->byte));
+	prm(p);
+	prm(q);
+	if (s) {
+		unsigned char *name = NULL;
+		long line = -1;
+		parseone(bw->b->o.charmap,s,&name,&line);
+		if (name && line != -1) {
+			unsigned char *msg = srcherr(bw, name, line);
+			unextw((BASE *)bw);
+			/* Check that we made it to a tw */
+			rtn = jump_to_file_line(maint->curwin->object,name,line,msg);
+			vsrm(name);
+		}
+		vsrm(s);
+	}
+	return rtn;
+}
+
+int unxterr(BW *bw)
+{
 	if (errptr->link.next == &errors) {
 		msgnw(bw->parent, US "No more errors");
 		return -1;
 	}
 	errptr = errptr->link.next;
-	if (!bw->b->name || strcmp(errptr->file, bw->b->name)) {
-		if (doswitch(bw, vsdup(errptr->file), NULL, NULL))
-			return -1;
-		bw = (BW *) maint->curwin->object;
-	}
-	omid = mid;
-	mid = 1;
-	pline(bw->cursor, errptr->line);
 	setline(errbuf, errptr->src);
-	dofollows();
-	mid = omid;
-	bw->cursor->xcol = piscol(bw->cursor);
-	msgnw(bw->parent, errptr->msg);
-	return 0;
+	return jump_to_file_line(bw,errptr->file,errptr->line,errptr->msg);
 }
 
 int uprverr(BW *bw)
 {
-	int omid;
-
 	if (errptr->link.prev == &errors) {
 		msgnw(bw->parent, US "No more errors");
 		return -1;
 	}
 	errptr = errptr->link.prev;
-	if (!bw->b->name || strcmp(errptr->file, bw->b->name)) {
-		if (doswitch(bw, vsdup(errptr->file), NULL, NULL))
-			return -1;
-		bw = (BW *) maint->curwin->object;
-	}
-	omid = mid;
-	mid = 1;
-	pline(bw->cursor, errptr->line);
 	setline(errbuf, errptr->src);
-	dofollows();
-	mid = omid;
-	bw->cursor->xcol = piscol(bw->cursor);
-	msgnw(bw->parent, errptr->msg);
-	return 0;
+	return jump_to_file_line(bw,errptr->file,errptr->line,errptr->msg);
 }

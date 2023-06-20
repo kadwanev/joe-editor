@@ -8,8 +8,8 @@
 #include "config.h"
 #include "types.h"
 
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
@@ -33,6 +33,7 @@ int marking = 0;
 extern int square;
 extern int staen;
 extern SCREEN *maint;
+extern int bg_text;
 
 static P *getto(P *p, P *cur, P *top, long int line)
 {
@@ -70,59 +71,65 @@ static P *getto(P *p, P *cur, P *top, long int line)
 
 int mid = 0;
 
-void bwfllw(BW *w)
+/* For hex */
+
+void bwfllwh(BW *w)
+{
+	/* Top must be a muliple of 16 bytes */
+	if (w->top->byte%16) {
+		pbkwd(w->top,w->top->byte%16);
+	}
+
+	/* Move backward */
+	if (w->cursor->byte < w->top->byte) {
+		long new_top = w->cursor->byte/16;
+		if (mid) {
+			if (new_top >= w->h / 2)
+				new_top -= w->h / 2;
+			else
+				new_top = 0;
+		}
+		if (w->top->byte/16 - new_top < w->h)
+			nscrldn(w->t->t, w->y, w->y + w->h, (int) (w->top->byte/16 - new_top));
+		else
+			msetI(w->t->t->updtab + w->y, 1, w->h);
+		pgoto(w->top,new_top*16);
+	}
+
+	/* Move forward */
+	if (w->cursor->byte >= w->top->byte+(w->h*16)) {
+		long new_top;
+		if (mid) {
+			new_top = w->cursor->byte/16 - w->h / 2;
+		} else {
+			new_top = w->cursor->byte/16 - (w->h - 1);
+		}
+		if (new_top - w->top->byte/16 < w->h)
+			nscrlup(w->t->t, w->y, w->y + w->h, (int) (new_top - w->top->byte/16));
+		else {
+			msetI(w->t->t->updtab + w->y, 1, w->h);
+		}
+		pgoto(w->top, new_top*16);
+	}
+
+	/* Adjust scroll offset */
+	if (w->cursor->byte%16+60 < w->offset) {
+		w->offset = w->cursor->byte%16+60;
+		msetI(w->t->t->updtab + w->y, 1, w->h);
+	} else if (w->cursor->byte%16+60 >= w->offset + w->w) {
+		w->offset = w->cursor->byte%16+60 - (w->w - 1);
+		msetI(w->t->t->updtab + w->y, 1, w->h);
+	}
+}
+
+/* For text */
+
+void bwfllwt(BW *w)
 {
 	P *newtop;
 	int x;
 
-	if (w->o.hex) {
-		/* Top must be a muliple of 16 bytes */
-		if (w->top->byte%16) {
-			pbkwd(w->top,w->top->byte%16);
-		}
-
-		/* Move backward */
-		if (w->cursor->byte < w->top->byte) {
-			long new_top = w->cursor->byte/16;
-			if (mid) {
-				if (new_top >= w->h / 2)
-					new_top -= w->h / 2;
-				else
-					new_top = 0;
-			}
-			if (w->top->byte/16 - new_top < w->h)
-				nscrldn(w->t->t, w->y, w->y + w->h, (int) (w->top->byte/16 - new_top));
-			else
-				msetI(w->t->t->updtab + w->y, 1, w->h);
-			pgoto(w->top,new_top*16);
-		}
-
-		/* Move forward */
-		if (w->cursor->byte >= w->top->byte+(w->h*16)) {
-			long new_top;
-			if (mid) {
-				new_top = w->cursor->byte/16 - w->h / 2;
-			} else {
-				new_top = w->cursor->byte/16 - (w->h - 1);
-			}
-			if (new_top - w->top->byte/16 < w->h)
-				nscrlup(w->t->t, w->y, w->y + w->h, (int) (new_top - w->top->byte/16));
-			else {
-				msetI(w->t->t->updtab + w->y, 1, w->h);
-			}
-			pgoto(w->top, new_top*16);
-		}
-
-		/* Adjust scroll offset */
-		if (w->cursor->byte%16+60 < w->offset) {
-			w->offset = w->cursor->byte%16+60;
-			msetI(w->t->t->updtab + w->y, 1, w->h);
-		} else if (w->cursor->byte%16+60 >= w->offset + w->w) {
-			w->offset = w->cursor->byte%16+60 - (w->w - 1);
-			msetI(w->t->t->updtab + w->y, 1, w->h);
-		}
-		return;
-	} if (!pisbol(w->top)) {
+	if (!pisbol(w->top)) {
 		p_goto_bol(w->top);
 	}
 
@@ -170,6 +177,16 @@ void bwfllw(BW *w)
 		w->offset = w->cursor->xcol - (w->w - 1);
 		msetI(w->t->t->updtab + w->y, 1, w->h);
 	}
+}
+
+/* For either */
+
+void bwfllw(BW *w)
+{
+	if (w->o.hex)
+		bwfllwh(w);
+	else
+		bwfllwt(w);
 }
 
 /* Determine highlighting state of a particular line on the window.
@@ -330,7 +347,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
         int *syn;
         P *tmp;
         int idx=0;
-        int atr = 0;
+        int atr = BG_COLOR(bg_text); 
 
 	utf8_init(&utf8_sm);
 
@@ -362,8 +379,11 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 				bc = ungetit;
 				ungetit = -1;
 			}
-			if(st.state!=-1)
+			if(st.state!=-1) {
 				atr = syn[idx++];
+				if (!((atr & BG_VALUE) >> BG_SHIFT))
+					atr |= BG_COLOR(bg_text);
+			}
 			if (p->b->o.crlf && bc == '\r') {
 				++byte;
 				if (!--amnt) {
@@ -478,8 +498,11 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 				bc = ungetit;
 				ungetit = -1;
 			}
-			if(st.state!=-1)
-				atr=syn[idx++];
+			if(st.state!=-1) {
+				atr = syn[idx++];
+				if (!(atr & BG_MASK))
+					atr |= BG_COLOR(bg_text);
+			}
 			if (p->b->o.crlf && bc == '\r') {
 				++byte;
 				if (!--amnt) {
@@ -601,7 +624,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 	++p->line;
       eof:
 	if (x != w)
-		done = eraeol(t, x, y);
+		done = eraeol(t, x, y, BG_COLOR(bg_text));
 	else
 		done = 0;
 
@@ -791,16 +814,16 @@ static void gennum(BW *w, int *screen, int *attr, SCRN *t, int y, int *comp)
 	if (lin <= w->b->eof->line)
 		joe_snprintf_1((char *)buf, sizeof(buf), "%5ld ", w->top->line + y - w->y + 1);
 	else
-		strcpy((char *)buf, "      ");
+		zcpy(buf, US "      ");
 	for (z = 0; buf[z]; ++z) {
-		outatr(w->b->o.charmap, t, screen + z, attr + z, z, y, buf[z], 0);
+		outatr(w->b->o.charmap, t, screen + z, attr + z, z, y, buf[z], BG_COLOR(bg_text)); 
 		if (ifhave)
 			return;
 		comp[z] = buf[z];
 	}
 }
 
-void bwgenh(BW *w,long from,long to)
+void bwgenh(BW *w)
 {
 	int *screen;
 	int *attr;
@@ -809,6 +832,39 @@ void bwgenh(BW *w,long from,long to)
 	int y;
 	SCRN *t = w->t->t;
 	int flg = 0;
+	long from;
+	long to;
+	int dosquare = 0;
+
+	from = to = 0;
+
+	if (markv(0) && markk->b == w->b)
+		if (square) {
+			from = markb->xcol;
+			to = markk->xcol;
+			dosquare = 1;
+		} else {
+			from = markb->byte;
+			to = markk->byte;
+		}
+	else if (marking && w==maint->curwin->object && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
+		if (square) {
+			from = long_min(w->cursor->xcol, markb->xcol);
+			to = long_max(w->cursor->xcol, markb->xcol);
+			dosquare = 1;
+		} else {
+			from = long_min(w->cursor->byte, markb->byte);
+			to = long_max(w->cursor->byte, markb->byte);
+		}
+	}
+
+	if (marking && w==maint->curwin->object)
+		msetI(t->updtab + w->y, 1, w->h);
+
+	if (dosquare) {
+		from = 0;
+		to = 0;
+	}
 
 	y=w->y;
 	attr = t->attr + y*w->t->w;
@@ -818,7 +874,7 @@ void bwgenh(BW *w,long from,long to)
 		unsigned char bf[16];
 		int x;
 		memset(txt,' ',76);
-		msetI(fmt,0,76);
+		msetI(fmt,BG_COLOR(bg_text),76);
 		txt[76]=0;
 		if (!flg) {
 			sprintf((char *)bf,"%8x ",q->byte);
@@ -826,13 +882,13 @@ void bwgenh(BW *w,long from,long to)
 			for (x=0; x!=8; ++x) {
 				int c;
 				if (q->byte==w->cursor->byte && !flg) {
-					fmt[10+x*3] = INVERSE;
-					fmt[10+x*3+1] = INVERSE;
+					fmt[10+x*3] |= INVERSE;
+					fmt[10+x*3+1] |= INVERSE;
 				}
 				if (q->byte>=from && q->byte<to && !flg) {
 					fmt[10+x*3] |= UNDERLINE;
 					fmt[10+x*3+1] |= UNDERLINE;
-					fmt[60+x] = INVERSE;
+					fmt[60+x] |= INVERSE;
 				}
 				c = pgetb(q);
 				if (c >= 0) {
@@ -849,13 +905,13 @@ void bwgenh(BW *w,long from,long to)
 			for (x=8; x!=16; ++x) {
 				int c;
 				if (q->byte==w->cursor->byte && !flg) {
-					fmt[11+x*3] = INVERSE;
-					fmt[11+x*3+1] = INVERSE;
+					fmt[11+x*3] |= INVERSE;
+					fmt[11+x*3+1] |= INVERSE;
 				}
 				if (q->byte>=from && q->byte<to && !flg) {
 					fmt[11+x*3] |= UNDERLINE;
 					fmt[11+x*3+1] |= UNDERLINE;
-					fmt[60+x] = INVERSE;
+					fmt[60+x] |= INVERSE;
 				}
 				c = pgetb(q);
 				if (c >= 0) {
@@ -916,15 +972,6 @@ void bwgen(BW *w, int linums)
 
 	if (marking && w==maint->curwin->object)
 		msetI(t->updtab + w->y, 1, w->h);
-
-	if (w->o.hex) {
-		if (dosquare) {
-			from = 0;
-			to = 0;
-		}
-		bwgenh(w,from,to);
-		return;
-	}
 
 	q = pdup(w->cursor);
 

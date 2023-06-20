@@ -486,6 +486,20 @@ int wshrink(W *w)
 	return 0;
 }
 
+/* Grow window up */
+
+int wgrowup(W *w)
+{
+	return wshrink(w->link.prev->main);
+}
+
+/* Grow window down */
+
+int wgrowdown(W *w)
+{
+	return wgrow(w->link.prev->main);
+}
+
 /* Show all windows */
 
 void wshowall(SCREEN *t)
@@ -717,6 +731,8 @@ int wabort(W *w)
 
 /* Display a message and skip the next key */
 
+int bg_msg;
+
 static void mdisp(SCRN *t, int y, unsigned char *s)
 {
 	int ofst;
@@ -727,7 +743,7 @@ static void mdisp(SCRN *t, int y, unsigned char *s)
 		ofst = 0;
 	else
 		ofst = len - (t->co - 1);
-	genfmt(t, 0, y, ofst, s, 1);
+	genfmt(t, 0, y, ofst, s, BG_COLOR(bg_msg), 1);
 	t->updtab[y] = 1;
 }
 

@@ -8,7 +8,6 @@
 #include "config.h"
 #include "types.h"
 
-#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -33,6 +32,7 @@
 
 /* The current directory */
 
+int bg_prompt;
 int nocurdir;
 unsigned char *current_dir;
 
@@ -92,7 +92,7 @@ static void disppw(BW *bw, int flg)
 
 	/* Generate prompt */
 	w->t->t->updtab[w->y] = 1;
-	genfmt(w->t->t, w->x, w->y, pw->promptofst, pw->prompt, 0);
+	genfmt(w->t->t, w->x, w->y, pw->promptofst, pw->prompt, BG_COLOR(bg_prompt), 0);
 
 	/* Position and size buffer */
 	bwmove(bw, w->x + pw->promptlen - pw->promptofst, w->y);
@@ -246,7 +246,7 @@ static int abortpw(BW *b)
 static WATOM watompw = {
 	US "prompt",
 	disppw,
-	bwfllw,
+	bwfllwt,
 	abortpw,
 	rtnpw,
 	utypebw,
@@ -281,7 +281,7 @@ BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned cha
 	pw->abrt = abrt;
 	pw->tab = tab;
 	pw->object = object;
-	pw->prompt = joe_strdup(prompt);
+	pw->prompt = zdup(prompt);
 	pw->promptlen = fmtlen(prompt);
 	pw->promptofst = 0;
 	pw->pfunc = func;

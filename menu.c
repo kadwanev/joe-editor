@@ -8,7 +8,6 @@
 #include "config.h"
 #include "types.h"
 
-#include <string.h>
 
 #include "scrn.h"
 #include "utils.h"
@@ -16,6 +15,8 @@
 #include "vs.h"
 #include "utf8.h"
 #include "w.h"
+
+int bg_menu;
 
 extern int dostaupd;
 
@@ -44,9 +45,9 @@ static void menudisp(MENU *m)
 			int atr, z, lcol;
 	
 			if (x + y*m->perline + m->top == m->cursor && m->t->curwin==m->parent)
-				atr = INVERSE;
+				atr = INVERSE|BG_COLOR(bg_menu);
 			else
-				atr = 0;
+				atr = BG_COLOR(bg_menu);
 
 			if (col == m->w)
 				break;
@@ -59,7 +60,7 @@ static void menudisp(MENU *m)
 			         m->y + y,
 			         0,
 			         m->list[x + y*m->perline + m->top],
-			         strlen((char *)m->list[x + y*m->perline + m->top]),
+			         zlen(m->list[x + y*m->perline + m->top]),
 			         atr,
 			         m->width,
 			         0,NULL);
@@ -68,18 +69,18 @@ static void menudisp(MENU *m)
 
 			/* Space between columns */
 			if (col != m->w) {
-				outatr(locale_map, m->t->t, s + col, a + col, m->x + col, m->y+y, ' ', 0);
+				outatr(locale_map, m->t->t, s + col, a + col, m->x + col, m->y+y, ' ', BG_COLOR(bg_menu));
 				++col;
 			}
 		}
 		/* Clear to end of line */
 		if (col != m->w)
-			eraeol(m->t->t, m->x + col, m->y + y);
+			eraeol(m->t->t, m->x + col, m->y + y, BG_COLOR(bg_menu));
 		s += m->t->t->co;
 		a += m->t->t->co;
 	}
 	m->parent->cury = (m->cursor - m->top) / m->perline;
-	col = txtwidth(m->list[m->cursor],strlen((char *)m->list[m->cursor]));
+	col = txtwidth(m->list[m->cursor],zlen(m->list[m->cursor]));
 	if (col < m->width)
 		m->parent->curx = ((m->cursor - m->top) % m->perline) * (m->width + 1) + col;
 	else
@@ -101,7 +102,7 @@ static int mlines(unsigned char **s, int w)
 	int perline;
 
 	for (x = 0, width = 0; s[x]; ++x) {
-		int d = txtwidth(s[x],strlen((char *)(s[x])));
+		int d = txtwidth(s[x],zlen(s[x]));
 		if (d > width)
 			width = d;
 	}
@@ -124,7 +125,7 @@ static void mconfig(MENU *m)
 
 		m->top = 0;
 		for (x = 0, m->width = 0; m->list[x]; ++x) {
-			int d = txtwidth(m->list[x],strlen((char *)(m->list[x])));
+			int d = txtwidth(m->list[x],zlen(m->list[x]));
 			if (d > m->width)
 				m->width = d;
 		}
@@ -233,9 +234,20 @@ int umdnarw(MENU *m)
 	}
 }
 
-int umpgup(MENU *m)
+void menujump(MENU *m,int x,int y)
 {
-	int amnt = (m->h+1)/2;
+	int pos = m->top;
+	pos += y * m->perline;
+	pos += x / (m->width + 1);
+	if (pos >= m->nitems)
+		pos = m->nitems - 1;
+	if (pos < 0)
+		pos = 0;
+	m->cursor = pos;
+}
+
+int mscrup(MENU *m,int amnt)
+{
 	if (m->top >= amnt*m->perline) {
 		m->top -= amnt*m->perline;
 		m->cursor -= amnt*m->perline;
@@ -251,9 +263,18 @@ int umpgup(MENU *m)
 		return -1;
 }
 
-int umpgdn(MENU *m)
+int umscrup(MENU *m)
 {
-	int amnt = (m->h+1)/2;
+	return mscrup(m, 1);
+}
+
+int umpgup(MENU *m)
+{
+	return mscrup(m, (m->h + 1) / 2);
+}
+
+int mscrdn(MENU *m, int amnt)
+{
 	int col = m->cursor % m->perline;
 	int y = m->cursor / m->perline;
 	int h = (m->nitems + m->perline - 1) / m->perline;
@@ -297,7 +318,16 @@ int umpgdn(MENU *m)
 		m->cursor += col;
 		return -1;
 	}
+}
 
+int umscrdn(MENU *m)
+{
+	return mscrdn(m, 1);
+}
+
+int umpgdn(MENU *m)
+{
+	return mscrdn(m, (m->h + 1) / 2);
 }
 
 static int umrtn(MENU *m)

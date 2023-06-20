@@ -9,28 +9,30 @@ EXTRA_DIST = COPYING LIST HACKING ChangeLog NEWS README INSTALL INSTALL.AMIGA IN
 	syntax/java.jsf.in syntax/xml.jsf.in syntax/tcl.jsf.in charmaps/klingon.in HINTS \
 	syntax/lisp.jsf.in syntax/csh.jsf.in syntax/mail.jsf.in syntax/mason.jsf.in \
 	syntax/diff.jsf.in syntax/asm.jsf.in syntax/tex.jsf.in syntax/css.jsf.in \
-	syntax/ocaml.jsf.in syntax/4gl.jsf.in syntax/sml.jsf.in
+	syntax/ocaml.jsf.in syntax/4gl.jsf.in syntax/sml.jsf.in syntax/sql.jsf.in \
+	syntax/awk.jsf.in syntax/cobol.jsf.in syntax/sed.jsf.in syntax/ps.jsf.in \
+	cygbuild setup.hint xterm-patch xterm-readme syntax/ada.jsf.in
 
 sysconf_joedir = $(sysconfdir)/joe
 sysconf_joe_DATA = joerc jmacsrc jstarrc rjoerc jpicorc
 
 joerc : joerc.in
-	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < joerc.in > $@
+	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < $(srcdir)/joerc.in > $@
 
 jmacsrc : jmacsrc.in
-	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < jmacsrc.in > $@
+	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < $(srcdir)/jmacsrc.in > $@
 
 jstarrc : jstarrc.in
-	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < jstarrc.in > $@
+	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < $(srcdir)/jstarrc.in > $@
 
 jpicorc : jpicorc.in
-	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < jpicorc.in > $@
+	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < $(srcdir)/jpicorc.in > $@
 
 rjoerc : rjoerc.in
-	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < rjoerc.in > $@
+	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,' < $(srcdir)/rjoerc.in > $@
 
 joe.1 : joe.1.in
-	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,; s,@BINDIR\@,$(DESTDIR)$(bindir),' < joe.1.in > $@
+	sed 's,@JOERC\@,$(DESTDIR)$(sysconf_joedir),; s,@SPELL\@,@SPELL@,; s,@BINDIR\@,$(DESTDIR)$(bindir),' < $(srcdir)/joe.1.in > $@
 
 MOSTLYCLEANFILES = joerc jmacsrc jstarrc rjoerc jpicorc joe.1
 
@@ -41,7 +43,8 @@ sysconf_syntax_DATA = syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf \
 	syntax/fortran.jsf syntax/java.jsf syntax/xml.jsf syntax/tcl.jsf \
 	syntax/lisp.jsf syntax/csh.jsf syntax/mason.jsf syntax/diff.jsf \
 	syntax/asm.jsf syntax/tex.jsf syntax/css.jsf syntax/ocaml.jsf \
-	syntax/4gl.jsf syntax/sml.jsf
+	syntax/4gl.jsf syntax/sml.jsf syntax/sql.jsf syntax/awk.jsf \
+	syntax/cobol.jsf syntax/sed.jsf syntax/ps.jsf syntax/ada.jsf
 
 sysconf_charmapsdir = $(sysconf_joedir)/charmaps
 sysconf_charmaps_DATA = charmaps/klingon

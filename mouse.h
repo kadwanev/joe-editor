@@ -30,6 +30,9 @@ int gpmopen();		/* initialize the connection. returns 0 on failure. */
 void gpmclose();	/* close the connection. */
 #endif
 
+void mouseopen();	/* initialize mouse */
+void mouseclose();	/* de-initialize mouse */
+
 /* mousedn(int x, int y) - handle a mouse-down event */
 void mousedn(int x, int y);
 
@@ -51,6 +54,9 @@ int udefm2drag(BW *);
 int udefm3down(BW *);
 int udefm3up(BW *);
 int udefm3drag(BW *);
+
+int mnow();
+void reset_trig_time();
 
 /* options */
 extern int floatmouse, rtbutton;

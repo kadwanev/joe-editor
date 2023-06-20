@@ -96,35 +96,55 @@ extern unsigned atab[];
 #define DIM		4096
 #define AT_MASK		(INVERSE+UNDERLINE+BOLD+BLINK+DIM)
 
-#define BG_SHIFT 13
-#define BG_VALUE (7<<BG_SHIFT)
-#define BG_NOT_DEFAULT (8<<BG_SHIFT)
-#define BG_MASK (15<<BG_SHIFT)
+#define BG_SHIFT	13
+#define BG_VALUE	(255<<BG_SHIFT)
+#define BG_NOT_DEFAULT	(256<<BG_SHIFT)
+#define BG_MASK		(511<<BG_SHIFT)
 
-#define BG_DEFAULT (0<<BG_SHIFT) /* default */
-#define BG_BLACK (8<<BG_SHIFT)
-#define BG_RED (9<<BG_SHIFT)
-#define BG_GREEN (10<<BG_SHIFT)
-#define BG_YELLOW (11<<BG_SHIFT)
-#define BG_BLUE (12<<BG_SHIFT)
-#define BG_MAGENTA (13<<BG_SHIFT)
-#define BG_CYAN (14<<BG_SHIFT)
-#define BG_WHITE (15<<BG_SHIFT)
+#define BG_DEFAULT	(0<<BG_SHIFT)
 
-#define FG_SHIFT 17
-#define FG_VALUE (7<<FG_SHIFT)
-#define FG_NOT_DEFAULT (8<<FG_SHIFT)
-#define FG_MASK (15<<FG_SHIFT)
+/* #define BG_COLOR(color)	(BG_NOT_DEFAULT^(color)<<BG_SHIFT) */
+#define BG_COLOR(color)	(color)
 
-#define FG_DEFAULT (0<<FG_SHIFT)
-#define FG_WHITE (8<<FG_SHIFT) /* default */
-#define FG_CYAN (9<<FG_SHIFT)
-#define FG_MAGENTA (10<<FG_SHIFT)
-#define FG_BLUE (11<<FG_SHIFT)
-#define FG_YELLOW (12<<FG_SHIFT)
-#define FG_GREEN (13<<FG_SHIFT)
-#define FG_RED (14<<FG_SHIFT)
-#define FG_BLACK (15<<FG_SHIFT)
+#define BG_BLACK	(BG_NOT_DEFAULT|(0<<BG_SHIFT))
+#define BG_RED		(BG_NOT_DEFAULT|(1<<BG_SHIFT))
+#define BG_GREEN	(BG_NOT_DEFAULT|(2<<BG_SHIFT))
+#define BG_YELLOW	(BG_NOT_DEFAULT|(3<<BG_SHIFT))
+#define BG_BLUE		(BG_NOT_DEFAULT|(4<<BG_SHIFT))
+#define BG_MAGENTA	(BG_NOT_DEFAULT|(5<<BG_SHIFT))
+#define BG_CYAN		(BG_NOT_DEFAULT|(6<<BG_SHIFT))
+#define BG_WHITE	(BG_NOT_DEFAULT|(7<<BG_SHIFT))
+#define BG_BBLACK	(BG_NOT_DEFAULT|(8<<BG_SHIFT))
+#define BG_BRED		(BG_NOT_DEFAULT|(9<<BG_SHIFT))
+#define BG_BGREEN	(BG_NOT_DEFAULT|(10<<BG_SHIFT))
+#define BG_BYELLOW	(BG_NOT_DEFAULT|(11<<BG_SHIFT))
+#define BG_BBLUE	(BG_NOT_DEFAULT|(12<<BG_SHIFT))
+#define BG_BMAGENTA	(BG_NOT_DEFAULT|(13<<BG_SHIFT))
+#define BG_BCYAN	(BG_NOT_DEFAULT|(14<<BG_SHIFT))
+#define BG_BWHITE	(BG_NOT_DEFAULT|(15<<BG_SHIFT))
+
+#define FG_SHIFT	22
+#define FG_VALUE	(255<<FG_SHIFT)
+#define FG_NOT_DEFAULT	(256<<FG_SHIFT)
+#define FG_MASK		(511<<FG_SHIFT)
+
+#define FG_DEFAULT	(0<<FG_SHIFT)
+#define FG_BWHITE	(FG_NOT_DEFAULT|(15<<FG_SHIFT))
+#define FG_BCYAN	(FG_NOT_DEFAULT|(14<<FG_SHIFT))
+#define FG_BMAGENTA	(FG_NOT_DEFAULT|(13<<FG_SHIFT))
+#define FG_BBLUE	(FG_NOT_DEFAULT|(12<<FG_SHIFT))
+#define FG_BYELLOW	(FG_NOT_DEFAULT|(11<<FG_SHIFT))
+#define FG_BGREEN	(FG_NOT_DEFAULT|(10<<FG_SHIFT))
+#define FG_BRED		(FG_NOT_DEFAULT|(9<<FG_SHIFT))
+#define FG_BBLACK	(FG_NOT_DEFAULT|(8<<FG_SHIFT))
+#define FG_WHITE	(FG_NOT_DEFAULT|(7<<FG_SHIFT))
+#define FG_CYAN		(FG_NOT_DEFAULT|(6<<FG_SHIFT))
+#define FG_MAGENTA	(FG_NOT_DEFAULT|(5<<FG_SHIFT))
+#define FG_BLUE		(FG_NOT_DEFAULT|(4<<FG_SHIFT))
+#define FG_YELLOW	(FG_NOT_DEFAULT|(3<<FG_SHIFT))
+#define FG_GREEN	(FG_NOT_DEFAULT|(2<<FG_SHIFT))
+#define FG_RED		(FG_NOT_DEFAULT|(1<<FG_SHIFT))
+#define FG_BLACK	(FG_NOT_DEFAULT|(0<<FG_SHIFT))
 
 void outatr PARAMS((struct charmap *map,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a));
 
@@ -140,7 +160,7 @@ void xlat_utf_ctrl PARAMS((int *attr, unsigned char *c));
  *
  * Erase from screen coordinate to end of line.
  */
-int eraeol PARAMS((SCRN *t, int x, int y));
+int eraeol PARAMS((SCRN *t, int x, int y, int atr));
 
 /* void nscrlup(SCRN *t,int top,int bot,int amnt);
  *
@@ -162,7 +182,7 @@ void nscrldn PARAMS((SCRN *t, int top, int bot, int amnt));
  *
  * Execute buffered scroll requests
  */
-void nscroll PARAMS((SCRN *t));
+void nscroll PARAMS((SCRN *t, int atr));
 
 /* void magic(SCRN *t,int y,int *cur,int *new);
  *
@@ -181,7 +201,7 @@ void genfield PARAMS((SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned 
 int txtwidth PARAMS((unsigned char *s,int len));
 
 /* Generate a field: formatted */
-void genfmt PARAMS((SCRN *t, int x, int y, int ofst, unsigned char *s, int flg));
+void genfmt PARAMS((SCRN *t, int x, int y, int ofst, unsigned char *s, int atr, int flg));
 
 /* Column width of formatted string */
 int fmtlen PARAMS((unsigned char *s));

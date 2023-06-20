@@ -35,6 +35,8 @@ extern WATOM watommenu;
 
 /******** i don't like global var ******/
 
+extern int bg_text;
+
 /* 
  * Move cursor to beginning of line
  */
@@ -651,7 +653,7 @@ int tomatch_word(BW *bw,unsigned char *set,unsigned char *group)
 					}
 				} else if(is_in_group(last_of_set,buf)) {
 					/* VHDL hack */
-					if (bw->o.vhdl_comment && (!strcmp(buf,"end") || !strcmp(buf,"END")))
+					if (bw->o.vhdl_comment && (!zcmp(buf,US "end") || !zcmp(buf,US "END")))
 						while((c=pgetc(p))!=NO_MORE_DATA)
 							if (c==';' || c=='\n')
 								break;
@@ -712,7 +714,7 @@ int tomatch_xml(BW *bw,unsigned char *word,int dir)
 					buf[x] = buf[len-x-1];
 					buf[len-x-1] = d;
 				}
-				if (!strcmp(word,buf) && !xml_startend(p)) {
+				if (!zcmp(word,buf) && !xml_startend(p)) {
 					if (c=='<') {
 						if (!--cnt) {
 							pset(bw->cursor,p);
@@ -755,7 +757,7 @@ int tomatch_xml(BW *bw,unsigned char *word,int dir)
 					if (c!=NO_MORE_DATA)
 						prgetc(p);
 					buf[len]=0;
-					if (!strcmp(word,buf) && !xml_startend(p)) {
+					if (!zcmp(word,buf) && !xml_startend(p)) {
 						if (e) {
 							++cnt;
 						}
@@ -1855,13 +1857,15 @@ int utypebw(BW *bw, int k)
 			simple = 0;
 		if (simple && k != '\t' && k != '\n' && !curmacro) {
 			int a;
-			int atr = 0;
+			int atr;
 			unsigned char c = k;
 			SCRN *t = bw->parent->t->t;
 			int y = bw->y + bw->cursor->line - bw->top->line;
 			int *screen = t->scrn + y * t->co;
 			int *attr = t->attr + y * t->co;
 			x += bw->x;
+
+			atr = BG_COLOR(bg_text);
 
 			if (!upd && piseol(bw->cursor) && !bw->o.highlight)
 				t->updtab[y] = 0;
@@ -1871,7 +1875,7 @@ int utypebw(BW *bw, int k)
 			    markk->b == bw->b &&
 			   ((!square && bw->cursor->byte >= markb->byte && bw->cursor->byte < markk->byte) ||
 			    ( square && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line && piscol(bw->cursor) >= markb->xcol && piscol(bw->cursor) < markk->xcol)))
-				atr = INVERSE;
+				atr |= INVERSE;
 			outatr(bw->b->o.charmap, t, screen + x, attr + x, x, y, k, atr);
 		}
 #endif
@@ -2135,7 +2139,7 @@ int rtntw(BW *bw)
 
 		binsc(bw->cursor, '\n'), pgetc(bw->cursor);
 		/* Suppress autoindent if we're on a space or tab... */
-		if (bw->o.autoindent && (brch(bw->cursor)!=' ' && brch(bw->cursor)!='\t')) {
+		if (bw->o.autoindent /* && (brch(bw->cursor)!=' ' && brch(bw->cursor)!='\t')*/) {
 			p_goto_bol(p);
 			while (joe_isspace(bw->b->o.charmap,(c = pgetc(p))) && c != '\n') {
 				binsc(bw->cursor, c);
@@ -2295,7 +2299,7 @@ static int domsg(BASE *b, unsigned char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
-	strcpy((char *)msgbuf, (char *)s);
+	zcpy(msgbuf, s);
 	vsrm(s);
 	msgnw(b->parent, msgbuf);
 	return 0;
@@ -2343,5 +2347,74 @@ int uname_joe(BW *bw)
 	while (*s)
 		if (utypebw(bw,*s++))
 			return -1;
+	return 0;
+}
+
+/* Insert until non-base64 character received */
+
+int upaste(BW  *bw, int k)
+{
+	int c;
+	int accu;
+	int count;
+	int tmp_ww = bw->o.wordwrap;
+	int tmp_ai = bw->o.autoindent;
+
+	bw->o.wordwrap = 0;
+	bw->o.autoindent = 0;
+	count = 0;
+
+	while ((c = ttgetc()) != -1) {
+		if (c >= 'A' && c <= 'Z')
+			c = c - 'A';
+		else if (c >= 'a' && c <= 'z')
+			c = c - 'a' + 26;
+		else if (c >= '0' && c <= '9')
+			c = c - '0' + 52;
+		else if (c == '+')
+			c = 62;
+		else if (c == '/')
+			c = 63;
+		else if (c == '=')
+			continue;
+		else
+			break;
+
+		switch (count) {
+			case 0:
+				accu = c;
+				count = 6;
+				break;
+			case 2:
+				accu = (accu << 6) + c;
+				if (accu == 13)
+					rtntw(bw);
+				else
+					utypebw(bw, accu);
+				count = 0;
+				break;
+			case 4:
+				accu = (accu << 4) + (c >> 2);
+				if (accu == 13)
+					rtntw(bw);
+				else
+					utypebw(bw, accu);
+				accu = (c & 0x3);
+				count = 2;
+				break;
+			case 6:
+				accu = (accu << 2) + (c >> 4);
+				if (accu == 13)
+					rtntw(bw);
+				else
+					utypebw(bw, accu);
+				accu = (c & 0xF);
+				count = 4;
+				break;
+		}
+	}
+	bw->o.wordwrap = tmp_ww;
+	bw->o.autoindent = tmp_ai;
+
 	return 0;
 }

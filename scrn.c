@@ -21,15 +21,18 @@
 #include "utf8.h"
 #include "syntax.h"
 #include "utils.h"
+#include "mouse.h"
 
+int bg_text = 0; /* Background color for text */
 int skiptop = 0;
 int lines = 0;
 int columns = 0;
 int notite = 0;
 int usetabs = 0;
 int assume_color = 0;
+int assume_256color = 0;
 
-extern int mid, ttisxterm;
+extern int mid;
 
 /* How to display characters (especially the control ones) */
 /* here are characters ... */
@@ -176,11 +179,19 @@ int set_attr(SCRN *t, int c)
 		if (t->mh)
 			texec(t->cap, t->mh, 1, 0, 0, 0, 0);
 
-	if ((t->attrib&FG_MASK)!=(c&FG_MASK))
-		if (t->Sf) texec(t->cap,t->Sf,1,7-(((c&FG_VALUE)>>FG_SHIFT)),0,0,0);
+	if ((t->attrib & FG_MASK) != (c & FG_MASK))
+		if (t->Sf)
+			if (t->Co & (t->Co - 1))
+				texec(t->cap, t->Sf, 1, ((c & FG_VALUE) >> FG_SHIFT) % t->Co, 0, 0, 0);
+			else
+				texec(t->cap, t->Sf, 1, ((c & FG_VALUE) >> FG_SHIFT) & (t->Co - 1), 0, 0, 0);
 
-	if ((t->attrib&BG_MASK)!=(c&BG_MASK))
-		if (t->Sb) texec(t->cap,t->Sb,1,((c&BG_VALUE)>>BG_SHIFT),0,0,0);
+	if ((t->attrib & BG_MASK) != (c & BG_MASK))
+		if (t->Sb)
+			if (t->Co & (t->Co - 1))
+				texec(t->cap, t->Sb, 1, ((c & BG_VALUE) >> BG_SHIFT) % t->Co, 0, 0, 0);
+			else
+				texec(t->cap, t->Sb, 1, ((c & BG_VALUE) >> BG_SHIFT) & (t->Co - 1), 0, 0, 0);
 
 	t->attrib = c;
 
@@ -371,7 +382,7 @@ int clrins(SCRN *t)
 
 /* Erase from given screen coordinate to end of line */
 
-int eraeol(SCRN *t, int x, int y)
+int eraeol(SCRN *t, int x, int y, int atr)
 {
 	int *s, *ss, *a, *aa;
 	int w = t->co - x - 1;	/* Don't worry about last column */
@@ -386,28 +397,29 @@ int eraeol(SCRN *t, int x, int y)
 		if (*--ss != ' ') {
 			++ss;
 			break;
-		} else if (*--aa != 0) {
+		} else if (*--aa != atr) {
 			++ss;
 			++aa;
 			break;
 		}
 	} while (ss != s);
-	if ((ss - s > 3 || s[w] != ' ' || a[w] != 0) && t->ce) {
+	if ((ss - s > 3 || s[w] != ' ' || a[w] != atr) && t->ce) {
 		cpos(t, x, y);
-		set_attr(t, 0);
+		if(t->attrib != atr)
+			set_attr(t, atr); 
 		texec(t->cap, t->ce, 1, 0, 0, 0, 0);
 		msetI(s, ' ', w);
-		msetI(a, 0, w);
+		msetI(a, atr, w);
 	} else if (s != ss) {
 		if (t->ins)
 			clrins(t);
 		if (t->x != x || t->y != y)
 			cpos(t, x, y);
-		if (t->attrib)
-			set_attr(t, 0);
+		if (t->attrib != atr)
+			set_attr(t, atr); 
 		while (s != ss) {
 			*s = ' ';
-			*a = 0;
+			*a = atr;
 			ttputc(' ');
 			++t->x;
 			++s;
@@ -488,16 +500,14 @@ SCRN *nopen(CAP *cap)
 	else
 		t->te = jgetstr(t->cap,US "te");
 
-	if (ttisxterm) {
-		ttputs(US "\33[?1002l");
-		ttflsh();
-	}
-
 	t->ut = getflag(t->cap,US "ut");
 	t->Sb = jgetstr(t->cap,US "AB");
 	if (!t->Sb) t->Sb = jgetstr(t->cap,US "Sb");
 	t->Sf = jgetstr(t->cap,US "AF");
 	if (!t->Sf) t->Sf = jgetstr(t->cap,US "Sf");
+	t->Co = getnum(t->cap,US "Co");
+	if (t->Co == -1)
+		t->Co = 8;
 
 	t->mb = NULL;
 	t->md = NULL;
@@ -518,18 +528,37 @@ SCRN *nopen(CAP *cap)
 
 
 	if (assume_color) {
-		/* Install color support if it looks like an ansi terminal (it has bold which begins with ESC [) */
+		/* Install 8 color support if it looks like an ansi terminal (it has bold which begins with ESC [) */
 #ifndef TERMINFO
 		if (!t->Sf && t->md && t->md[0]=='\\' && t->md[1]=='E' && t->md[2]=='[') { 
 			t->ut = 1;
-			t->Sf =US "\\E[3%dm";
-			t->Sb =US "\\E[4%dm";
+			t->Sf = US "\\E[3%dm";
+			t->Sb = US "\\E[4%dm";
+			t->Co = 8;
 		}
 #else
 		if (!t->Sf && t->md && t->md[0]=='\033' && t->md[1]=='[') { 
 			t->ut = 1;
-			t->Sf =US "\033[3%p1%dm";
-			t->Sb =US "\033[4%p1%dm";
+			t->Sf = US "\033[3%p1%dm";
+			t->Sb = US "\033[4%p1%dm";
+		}
+#endif
+	}
+
+      	if (assume_256color && t->Co < 256) {
+      		t->Co = 256;
+		/* Force 256 color support */
+#ifndef TERMINFO
+		if (!t->Sf && t->md && t->md[0]=='\\' && t->md[1]=='E' && t->md[2]=='[') { 
+			t->ut = 1;
+			t->Sf = US "\\E[38;5;%dm";
+			t->Sb = US "\\E[48;5;%dm";
+		}
+#else
+		if (!t->Sf && t->md && t->md[0]=='\033' && t->md[1]=='[') { 
+			t->ut = 1;
+			t->Sf = US "\033[38;5%p1%dm";
+			t->Sb = US "\033[48;5%p1%dm";
 		}
 #endif
 	}
@@ -725,6 +754,9 @@ SCRN *nopen(CAP *cap)
 	t->htab = (struct hentry *) joe_malloc(256 * sizeof(struct hentry));
 
 	nresize(t, t->co, t->li);
+
+/* Initialize mouse */
+	mouseopen();
 
 	return t;
 }
@@ -1320,7 +1352,7 @@ static void dodelchr(SCRN *t, int x, int y, int n)
 	mmove(t->scrn + t->co * y + x, t->scrn + t->co * y + x + n, (t->co - (x + n)) * sizeof(int));
 	mmove(t->attr + t->co * y + x, t->attr + t->co * y + x + n, (t->co - (x + n)) * sizeof(int));
 	msetI(t->scrn + t->co * y + t->co - n, ' ', n);
-	msetI(t->attr + t->co * y + t->co - n, 0, n);
+	msetI(t->attr + t->co * y + t->co - n, (t->attrib & FG_MASK), n);
 }
 
 /* Insert/Delete within line */
@@ -1432,14 +1464,14 @@ void magic(SCRN *t, int y, int *cs, int *ca,int *s, int *a, int placex)
 	}
 }
 
-static void doupscrl(SCRN *t, int top, int bot, int amnt)
+static void doupscrl(SCRN *t, int top, int bot, int amnt, int atr)
 {
 	int a = amnt;
 	int q;
 
 	if (!amnt)
 		return;
-	set_attr(t, 0);
+	set_attr(t, atr);
 	if (top == 0 && bot == t->li && (t->sf || t->SF)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, t->li - 1);
@@ -1503,18 +1535,18 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 			invalidate_state(t->syntab + t->li - amnt + q);
 	} else {
 		msetI(t->scrn + (bot - amnt) * t->co, ' ', amnt * t->co);
-		msetI(t->attr + (bot - amnt) * t->co, 0, amnt * t->co);
+		msetI(t->attr + (bot - amnt) * t->co, 0, amnt * t->co); 
 	}
 }
 
-static void dodnscrl(SCRN *t, int top, int bot, int amnt)
+static void dodnscrl(SCRN *t, int top, int bot, int amnt, int atr)
 {
 	int a = amnt;
 	int q;
 
 	if (!amnt)
 		return;
-	set_attr(t, 0);
+	set_attr(t, atr); 
 	if (top == 0 && bot == t->li && (t->sr || t->SR)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, 0);
@@ -1577,11 +1609,11 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 			invalidate_state(t->syntab + q);
 	} else {
 		msetI(t->scrn + t->co * top, ' ', amnt * t->co);
-		msetI(t->attr + t->co * top, 0, amnt * t->co);
+		msetI(t->attr + t->co * top, 0, amnt * t->co); 
 	}
 }
 
-void nscroll(SCRN *t)
+void nscroll(SCRN *t,int atr)
 {
 	int y, z, q, r, p;
 
@@ -1593,7 +1625,7 @@ void nscroll(SCRN *t)
 			if (q > 0) {
 				for (z = y; z != t->li && t->sary[z] == q; ++z)
 					t->sary[z] = 0;
-				doupscrl(t, y, z + q, q);
+				doupscrl(t, y, z + q, q, atr);
 				y = z - 1;
 			} else {
 				for (r = y; r != t->li && (t->sary[r] < 0 || t->sary[r] == t->li); ++r) ;
@@ -1602,7 +1634,7 @@ void nscroll(SCRN *t)
 					q = t->sary[p];
 					if (q && q != t->li) {
 						for (z = p; t->sary[z] = 0, (z && t->sary[z - 1] == q); --z) ;
-						dodnscrl(t, z + q, p + 1, -q);
+						dodnscrl(t, z + q, p + 1, -q, atr);
 						p = z + 1;
 					}
 				} while (p-- != y);
@@ -1615,24 +1647,24 @@ void nscroll(SCRN *t)
 
 void npartial(SCRN *t)
 {
-	set_attr(t, 0);
+	set_attr(t, BG_COLOR(bg_text)); 
 	clrins(t);
 	setregn(t, 0, t->li);
 }
 
 void nescape(SCRN *t)
 {
+	mouseclose();
 	npartial(t);
 	cpos(t, 0, t->li - 1);
-	eraeol(t, 0, t->li - 1);
+	eraeol(t, 0, t->li - 1, 0);
 	if (t->te)
 		texec(t->cap, t->te, 1, 0, 0, 0, 0);
 }
 
 void nreturn(SCRN *t)
 {
-	if (ttisxterm)
-		ttputs(US "\33[?1002h");
+	mouseopen();
 	if (t->ti)
 		texec(t->cap, t->ti, 1, 0, 0, 0, 0);
 	if (!skiptop && t->cl)
@@ -1642,6 +1674,7 @@ void nreturn(SCRN *t)
 
 void nclose(SCRN *t)
 {
+	mouseclose();
 	leave = 1;
 	set_attr(t, 0);
 	clrins(t);
@@ -1725,9 +1758,9 @@ void nredraw(SCRN *t)
 	int x;
 	dostaupd = 1;
 	msetI(t->scrn, ' ', t->co * skiptop);
-	msetI(t->attr, 0, t->co * skiptop);
+	msetI(t->attr, BG_COLOR(bg_text), t->co * skiptop);  
 	msetI(t->scrn + skiptop * t->co, -1, (t->li - skiptop) * t->co);
-	msetI(t->attr + skiptop * t->co, 0, (t->li - skiptop) * t->co);
+	msetI(t->attr + skiptop * t->co, BG_COLOR(bg_text), (t->li - skiptop) * t->co); 
 	msetI(t->sary, 0, t->li);
 	msetI(t->updtab + skiptop, -1, t->li - skiptop);
 	for(x=0; x!=t->li - skiptop; ++x)
@@ -1738,7 +1771,7 @@ void nredraw(SCRN *t)
 	t->bot = 0;
 	t->attrib = -1;
 	t->ins = -1;
-	set_attr(t, 0);
+	set_attr(t, BG_COLOR(bg_text)); 
 	clrins(t);
 	setregn(t, 0, t->li);
 
@@ -1748,12 +1781,12 @@ void nredraw(SCRN *t)
 			t->x = 0;
 			t->y = 0;
 			msetI(t->scrn, ' ', t->li * t->co);
-			msetI(t->attr, 0, t->li * t->co);
+			msetI(t->attr, BG_COLOR(bg_text), t->li * t->co); 
 		} else if (t->cd) {
 			cpos(t, 0, 0);
 			texec(t->cap, t->cd, 1, 0, 0, 0, 0);
 			msetI(t->scrn, ' ', t->li * t->co);
-			msetI(t->attr, 0, t->li * t->co);
+			msetI(t->attr, BG_COLOR(bg_text), t->li * t->co); 
 		}
 	}
 }
@@ -1762,48 +1795,110 @@ void nredraw(SCRN *t)
 
 int meta_color(unsigned char *s)
 {
-	if(!strcmp((char *)s,"inverse"))
+	if(!zcmp(s,US "inverse"))
 		return INVERSE;
-	else if(!strcmp((char *)s,"underline"))
+	else if(!zcmp(s,US "underline"))
 		return UNDERLINE;
-	else if(!strcmp((char *)s,"bold"))
+	else if(!zcmp(s,US "bold"))
 		return BOLD;
-	else if(!strcmp((char *)s,"blink"))
+	else if(!zcmp(s,US "blink"))
 		return BLINK;
-	else if(!strcmp((char *)s,"dim"))
+	else if(!zcmp(s,US "dim"))
 		return DIM;
-	else if(!strcmp((char *)s,"white"))
+
+	/* ISO colors */
+	else if(!zcmp(s,US "white"))
 		return FG_WHITE;
-	else if(!strcmp((char *)s,"cyan"))
+	else if(!zcmp(s,US "cyan"))
 		return FG_CYAN;
-	else if(!strcmp((char *)s,"magenta"))
+	else if(!zcmp(s,US "magenta"))
 		return FG_MAGENTA;
-	else if(!strcmp((char *)s,"blue"))
+	else if(!zcmp(s,US "blue"))
 		return FG_BLUE;
-	else if(!strcmp((char *)s,"yellow"))
+	else if(!zcmp(s,US "yellow"))
 		return FG_YELLOW;
-	else if(!strcmp((char *)s,"green"))
+	else if(!zcmp(s,US "green"))
 		return FG_GREEN;
-	else if(!strcmp((char *)s,"red"))
+	else if(!zcmp(s,US "red"))
 		return FG_RED;
-	else if(!strcmp((char *)s,"black"))
+	else if(!zcmp(s,US "black"))
 		return FG_BLACK;
-	else if(!strcmp((char *)s,"bg_white"))
+	else if(!zcmp(s,US "bg_white"))
 		return BG_WHITE;
-	else if(!strcmp((char *)s,"bg_cyan"))
+	else if(!zcmp(s,US "bg_cyan"))
 		return BG_CYAN;
-	else if(!strcmp((char *)s,"bg_magenta"))
+	else if(!zcmp(s,US "bg_magenta"))
 		return BG_MAGENTA;
-	else if(!strcmp((char *)s,"bg_blue"))
+	else if(!zcmp(s,US "bg_blue"))
 		return BG_BLUE;
-	else if(!strcmp((char *)s,"bg_yellow"))
+	else if(!zcmp(s,US "bg_yellow"))
 		return BG_YELLOW;
-	else if(!strcmp((char *)s,"bg_green"))
+	else if(!zcmp(s,US "bg_green"))
 		return BG_GREEN;
-	else if(!strcmp((char *)s,"bg_red"))
+	else if(!zcmp(s,US "bg_red"))
 		return BG_RED;
-	else if(!strcmp((char *)s,"bg_black"))
+	else if(!zcmp(s,US "bg_black"))
 		return BG_BLACK;
+
+	/* 16 color xterm support: codes 8 - 15 are brighter versions of above */
+	else if(!zcmp(s,US "WHITE"))
+		return FG_BWHITE;
+	else if(!zcmp(s,US "CYAN"))
+		return FG_BCYAN;
+	else if(!zcmp(s,US "MAGENTA"))
+		return FG_BMAGENTA;
+	else if(!zcmp(s,US "BLUE"))
+		return FG_BBLUE;
+	else if(!zcmp(s,US "YELLOW"))
+		return FG_BYELLOW;
+	else if(!zcmp(s,US "GREEN"))
+		return FG_BGREEN;
+	else if(!zcmp(s,US "RED"))
+		return FG_BRED;
+	else if(!zcmp(s,US "BLACK"))
+		return FG_BBLACK;
+	else if(!zcmp(s,US "bg_WHITE"))
+		return BG_BWHITE;
+	else if(!zcmp(s,US "bg_CYAN"))
+		return BG_BCYAN;
+	else if(!zcmp(s,US "bg_MAGENTA"))
+		return BG_BMAGENTA;
+	else if(!zcmp(s,US "bg_BLUE"))
+		return BG_BBLUE;
+	else if(!zcmp(s,US "bg_YELLOW"))
+		return BG_BYELLOW;
+	else if(!zcmp(s,US "bg_GREEN"))
+		return BG_BGREEN;
+	else if(!zcmp(s,US "bg_RED"))
+		return BG_BRED;
+	else if(!zcmp(s,US "bg_BLACK"))
+		return BG_BBLACK;
+
+	/* Look at the "256colres.pl" PERL script in the xterm source
+	   distribution to see how these work. */
+
+	/* 256 color xterm support: bg_RGB and fg_RGB, where R, G, and B range from 0 - 5 */
+	/* Codes 16 - 231 are a 6x6x6 color cube */
+	else if(s[0]=='f' && s[1]=='g' && s[2]=='_' &&
+		s[3]>='0' && s[3]<='5' &&
+		s[4]>='0' && s[4]<='5' &&
+		s[5]>='0' && s[5]<='5' && !s[6])
+	        return FG_NOT_DEFAULT | ((16 + (s[3]-'0')*6*6 + (s[4]-'0')*6 + (s[5]-'0')) << FG_SHIFT);
+
+	else if(s[0]=='b' && s[1]=='g' && s[2]=='_' &&
+		  s[3]>='0' && s[3]<='5' &&
+		  s[4]>='0' && s[4]<='5' &&
+		  s[5]>='0' && s[5]<='5' && !s[6])
+	        return BG_NOT_DEFAULT | ((16 + (s[3]-'0')*6*6 + (s[4]-'0')*6 + (s[5]-'0')) << BG_SHIFT);
+
+	/* 256 color xterm support: shades of grey */
+	/* Codes 232 - 255 are shades of grey */
+	else if(s[0]=='f' && s[1]=='g' && s[2]=='_' && atoi((char *)(s+3)) >= 0 && atoi((char *)(s+3)) <= 23)
+		return FG_NOT_DEFAULT | (232 + (atoi((char *)(s+3)) << FG_SHIFT));
+
+	else if(s[0]=='b' && s[1]=='g' && s[2]=='_' && atoi((char *)(s+3)) >= 0 && atoi((char *)(s+3)) <= 23)
+		return BG_NOT_DEFAULT | (232 + (atoi((char *)(s+3)) << BG_SHIFT));
+
 	else
 		return 0;
 }
@@ -1878,14 +1973,14 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 	}
 	/* Fill balance of field with spaces */
 	while (x < last_col) {
-		outatr(locale_map, t, scrn, attr, x, y, ' ', 0);
+		outatr(locale_map, t, scrn, attr, x, y, ' ', atr);
 		++x;
 		++scrn;
 		++attr;
 	}
 	/* Erase to end of line */
 	if (flg)
-		eraeol(t, x, y);
+		eraeol(t, x, y, atr);
 }
 
 /* Width function for above */
@@ -1910,11 +2005,10 @@ int txtwidth(unsigned char *s,int len)
 
 /* Generate text with formatting escape sequences */
 
-void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int flg)
+void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int atr, int flg)
 {
 	int *scrn = t->scrn + y * t->co + x;
 	int *attr = t->attr + y * t->co + x;
-	int atr = 0;
 	int col = 0;
 	int c;
 	struct utf8_sm sm;
@@ -1994,7 +2088,7 @@ void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int flg)
 					col += wid;
 		}
 	if (flg)
-		eraeol(t, x, y);
+		eraeol(t, x, y, atr);
 }
 
 /* Determine column width of string with format codes */

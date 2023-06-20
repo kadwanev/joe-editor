@@ -8,7 +8,6 @@
 #include "config.h"
 #include "types.h"
 
-#include <string.h>
 
 #include "b.h"
 #include "bw.h"
@@ -93,7 +92,7 @@ CMD cmds[] = {
 	{US "defmdown", TYPETW+TYPEPW+TYPEQW+TYPEMENU, udefmdown, 0, 0, 0 },
 	{US "defmup", TYPETW+TYPEPW, udefmup, 0, 0, 0 },
 	{US "defmdrag", TYPETW+TYPEPW, udefmdrag, 0, 0, 0 },
-	{US "defm2down", TYPETW+TYPEPW, udefm2down, 0, 0, 0 },
+	{US "defm2down", TYPETW+TYPEPW+TYPEMENU, udefm2down, 0, 0, 0 },
 	{US "defm2up", TYPETW+TYPEPW, udefm2up, 0, 0, 0 },
 	{US "defm2drag", TYPETW+TYPEPW, udefm2drag, 0, 0, 0 },
 	{US "defm3down", TYPETW+TYPEPW, udefm3down, 0, 0, 0 },
@@ -107,6 +106,7 @@ CMD cmds[] = {
 	{US "dnarw", TYPETW + TYPEPW + EMOVE, udnarw, NULL, 1, US "uparw"},
 	{US "dnarwmenu", TYPEMENU, umdnarw, NULL, 1, US "uparwmenu"}, 
 	{US "dnslide", TYPETW + TYPEPW + TYPEMENU + TYPEQW + EMOVE, udnslide, NULL, 1, US "upslide"},
+	{US "dnslidemenu", TYPEMENU, umscrdn, NULL, 1, US "upslidemenu"},
 	{US "drop", TYPETW + TYPEPW, udrop, NULL, 0, NULL},
 	{US "dupw", TYPETW, uduptw, NULL, 0, NULL},
 	{US "edit", TYPETW, uedit, NULL, 0, NULL},
@@ -129,9 +129,11 @@ CMD cmds[] = {
 	{US "fmtblk", TYPETW + EMOD + EFIXXCOL + EBLOCK, ufmtblk, NULL, 1, NULL},
 	{US "fwrdc", TYPETW + TYPEPW, ufwrdc, NULL, 1, US "bkwdc"},
 	{US "gomark", TYPETW + TYPEPW + EMOVE, ugomark, NULL, 0, NULL},
+	{US "grep", TYPETW, ugrep, NULL, 0, NULL},
 	{US "groww", TYPETW, ugroww, NULL, 1, US "shrinkw"},
 	{US "if", TYPETW+TYPEPW+TYPEMENU+TYPEQW+EMETA, uif, 0, 0, 0 },
 	{US "isrch", TYPETW + TYPEPW, uisrch, NULL, 0, NULL},
+	{US "jump", TYPETW, ujump, NULL, 0, NULL },
 	{US "killjoe", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ukilljoe, NULL, 0, NULL},
 	{US "killproc", TYPETW + TYPEPW, ukillpid, NULL, 0, NULL},
 	{US "help", TYPETW + TYPEPW + TYPEQW, u_help, NULL, 0, NULL},
@@ -165,6 +167,7 @@ CMD cmds[] = {
 	{US "nxterr", TYPETW, unxterr, NULL, 1, US "prverr"},
 	{US "open", TYPETW + TYPEPW + EFIXXCOL + EMOD, uopen, NULL, 1, US "deleol"},
 	{US "parserr", TYPETW, uparserr, NULL, 0, NULL},
+	{US "paste", TYPETW + TYPEPW + EMOD, upaste, NULL, 0, NULL },
 	{US "pbuf", TYPETW, upbuf, NULL, 1, US "nbuf"},
 	{US "pedge", TYPETW + TYPEPW + EFIXXCOL, upedge, NULL, 1, US "nedge"}, 
 	{US "pgdn", TYPETW + TYPEPW + TYPEMENU + TYPEQW + EMOVE, upgdn, NULL, 1, US "pgup"},
@@ -226,6 +229,7 @@ CMD cmds[] = {
 	{US "uparwmenu", TYPEMENU, umuparw, NULL, 1, US "dnarwmenu"}, 
 	{US "upper", TYPETW + TYPEPW + EMOD + EBLOCK, uupper, NULL, 0, NULL},
 	{US "upslide", TYPETW + TYPEPW + TYPEMENU + TYPEQW + EMOVE, uupslide, NULL, 1, US "dnslide"},
+	{US "upslidemenu", TYPEMENU, umscrup, NULL, 1, US "dnslidemenu"},
 	{US "xtmouse", TYPETW+TYPEPW+TYPEMENU+TYPEQW, uxtmouse, 0, 0, 0 },
 	{US "yank", TYPETW + TYPEPW + EFIXXCOL + EMOD, uyank, NULL, 1, NULL},
 	{US "yapp", TYPETW + TYPEPW + EKILL, uyapp, NULL, 0, NULL},
@@ -455,6 +459,28 @@ int execmd(CMD *cmd, int k)
 	return ret;
 }
 
+extern int auto_scroll;
+
+void do_auto_scroll()
+{
+	static CMD *scrup = 0;
+	static CMD *scrdn = 0;
+	static CMD *drag = 0;
+	if (!scrup) {
+		scrup = findcmd(US "upslide");
+		scrdn = findcmd(US "dnslide");
+		drag = findcmd(US "defmdrag");
+	}
+	if (auto_scroll > 0)
+		execmd(scrdn,0);
+	else if (auto_scroll < 0)
+		execmd(scrup,0);
+
+	execmd(drag,0);
+		
+	reset_trig_time();
+}
+
 /* Return command table index for given command name */
 
 HASH *cmdhash = NULL;
@@ -481,7 +507,7 @@ void addcmd(unsigned char *s, MACRO *m)
 
 	if (!cmdhash)
 		izcmds();
-	cmd->name = joe_strdup(s);
+	cmd->name = zdup(s);
 	cmd->flag = 0;
 	cmd->func = NULL;
 	cmd->m = m;

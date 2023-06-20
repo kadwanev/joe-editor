@@ -28,6 +28,7 @@
 #include "path.h"
 #include "w.h"
 
+extern int bg_text;
 extern unsigned char *exmsg;
 extern int square;
 int staen = 0;
@@ -112,7 +113,7 @@ unsigned char *get_context(BW *bw)
 			    stdbuf[0]=='B' && stdbuf[1]=='E' && stdbuf[2]=='G' && stdbuf[3]=='I' && stdbuf[4]=='N' ||
 			    stdbuf[0]=='-' && stdbuf[1]=='-' ||
 			    stdbuf[0]==';')) {
-			    	/* strcpy((char *)buf1,(char *)stdbuf); */
+			    	/* zcpy(buf1,stdbuf); */
  				/* replace tabs to spaces and remove adjoining spaces */
  				for (i=0,j=0,spc=0; stdbuf[i]; i++) {
  					if (stdbuf[i]=='\t' || stdbuf[i]==' ') {
@@ -403,12 +404,15 @@ static void disptw(BW *bw, int flg)
 			tw->stalin = vsncpy(tw->stalin, fmtpos(tw->stalin, w->w - fmtlen(tw->staright)), sv(tw->staright));
 		}
 		tw->stalin = vstrunc(tw->stalin, fmtpos(tw->stalin, w->w));
-		genfmt(w->t->t, w->x, w->y, 0, tw->stalin, 0);
+		genfmt(w->t->t, w->x, w->y, 0, tw->stalin, BG_COLOR(bg_text), 0);
 		w->t->t->updtab[w->y] = 0;
 	}
 
 	if (flg)
-		bwgen(bw, bw->o.linums);
+		if (bw->o.hex)
+			bwgenh(bw);
+		else
+			bwgen(bw, bw->o.linums);
 }
 
 /* Split current window */

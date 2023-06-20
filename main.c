@@ -16,7 +16,6 @@
 #ifdef MOUSE_GPM
 #include <gpm.h>
 #endif
-#include <string.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
@@ -41,12 +40,13 @@
 extern int mid, dspasis, force, help, pgamnt, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, marking, joe_beep;
 
 extern int idleout;		/* Clear to use /dev/tty for screen */
+extern int bg_text;
 extern unsigned char *joeterm;
 int help = 0;			/* Set to have help on when starting */
 int nonotice = 0;		/* Set to prevent copyright notice */
 int orphan = 0;
 unsigned char *exmsg = NULL;		/* Message to display when exiting the editor */
-int ttisxterm=0;
+int usexmouse=0;
 int xmouse=0;
 
 SCREEN *maint;			/* Main edit screen */
@@ -92,7 +92,7 @@ void edupd(int flg)
 	}
 	dofollows();
 	ttflsh();
-	nscroll(maint->t);
+	nscroll(maint->t, BG_COLOR(bg_text));
 	help_display(maint);
 	w = maint->curwin;
 	do {
@@ -198,7 +198,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 
 #ifdef __MSDOS__
 	_fmode = O_BINARY;
-	strcpy(stdbuf, argv[0]);
+	zcpy(stdbuf, argv[0]);
 	joesep(stdbuf);
 	run = namprt(stdbuf);
 	rundir = dirprt(stdbuf);
@@ -350,19 +350,14 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 		}
 	}
 
+	/* initialize mouse support */
+	if (xmouse && (s=(unsigned char *)getenv("TERM")) && strstr((char *)s,"xterm"))
+		usexmouse=1;
+
 	if (!(n = nopen(cap)))
 		return 1;
 	maint = screate(n);
 	vmem = vtmp();
-
-#ifdef MOUSE_XTERM
-	/* initialize mouse */
-	if (xmouse && (s=(unsigned char *)getenv("TERM")) && strstr((char *)s,"xterm")) {
-		ttisxterm=1;
-		ttputs(US "\33[?1002h");
-		ttflsh();
-	}
-#endif
 
 	load_state();
 
@@ -474,12 +469,6 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	brmall();
 
 	vclose(vmem);
-#ifdef MOUSE_XTERM
-	if(ttisxterm) {
-		ttputs(US "\33[?1002l");
-		ttflsh();
-	}
-#endif
 	nclose(n);
 
 	if (exmsg)
