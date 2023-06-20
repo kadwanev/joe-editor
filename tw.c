@@ -125,6 +125,22 @@ unsigned char *get_context(BW *bw)
 	return buf1;
 }
 
+unsigned char *duplicate_backslashes(unsigned char *s, int len)
+{
+	unsigned char *m;
+	int x, count;
+	for (x = count = 0; x != len; ++x)
+		if (s[x] == '\\')
+			++count;
+	m = vsmk(len + count);
+	for (x = 0; x != len; ++x) {
+		m = vsadd(m, s[x]);
+		if (s[x] == '\\')
+			m = vsadd(m, '\\');
+	}
+	return m;
+}
+
 /* static */unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, int fill)
 {
 	unsigned char buf[80];
@@ -174,34 +190,49 @@ unsigned char *get_context(BW *bw)
 					stalin = vsncpy(sv(stalin), d + 13, 3);
 				}
 				break;
-			    case 'd':
+			case 'd':
 				{
-				int l;
-				if (s[1]) switch (*++s) {
-					case 'd' : sprintf(buf,"%02d",cas->tm_mday); break;
-					case 'm' : sprintf(buf,"%02d",cas->tm_mon + 1); break;
-					case 'y' : sprintf(buf,"%02d",cas->tm_year % 100); break;
-					case 'Y' : sprintf(buf,"%04d",cas->tm_year + 1900); break;
-					case 'w' : sprintf(buf,"%d",cas->tm_wday); break;
-					case 'D' : sprintf(buf,"%03d",cas->tm_yday); break;
-					default : buf[0]='d'; buf[1]=*s; buf[2]=0;
+					if (s[1]) switch (*++s) {
+						case 'd' : joe_snprintf_1(buf, sizeof(buf), "%02d",cas->tm_mday); break;
+						case 'm' : joe_snprintf_1(buf, sizeof(buf), "%02d",cas->tm_mon + 1); break;
+						case 'y' : joe_snprintf_1(buf, sizeof(buf), "%02d",cas->tm_year % 100); break;
+						case 'Y' : joe_snprintf_1(buf, sizeof(buf), "%04d",cas->tm_year + 1900); break;
+						case 'w' : joe_snprintf_1(buf, sizeof(buf), "%d",cas->tm_wday); break;
+						case 'D' : joe_snprintf_1(buf, sizeof(buf), "%03d",cas->tm_yday); break;
+						default : buf[0]='d'; buf[1]=*s; buf[2]=0;
+					} else {
+						buf[0]='d'; buf[1]=0;
 					}
-				else { buf[0]='d'; buf[1]=0;}
-				stalin=vsncpy(sv(stalin),sz(buf));
+					stalin=vsncpy(sv(stalin),sz(buf));
 				}
 				break;
 
-				case 'E':
+			case 'E':
 				{
-				int l;
-				char *ch;
-				buf[0]=0;
-				for(l=0;s[l+1] && s[l+1] != '%'; l++) buf[l]=s[l+1];
-				if (s[l+1]=='%' && buf[0]) {
-					buf[l]=0;
-					s+=l+1;
-					ch=getenv(buf);
-					if (ch) stalin=vsncpy(sv(stalin),sz(ch));
+					unsigned char *ch;
+					int l;
+					buf[0]=0;
+					for(l=0;s[l+1] && s[l+1] != '%'; l++) buf[l]=s[l+1];
+					if (s[l+1]=='%' && buf[0]) {
+						buf[l]=0;
+						s+=l+1;
+						ch=(unsigned char *)getenv((char *)buf);
+						if (ch) stalin=vsncpy(sv(stalin),sz(ch));
+					} 
+				}
+				break;
+
+			case 'Z':
+				{
+					unsigned char *ch;
+					int l;
+					buf[0]=0;
+					for(l=0;s[l+1] && s[l+1] != '%'; l++) buf[l]=s[l+1];
+					if (s[l+1]=='%' && buf[0]) {
+						buf[l]=0;
+						s+=l+1;
+						ch=get_status(bw, buf);
+						if (ch) stalin=vsncpy(sv(stalin),sz(ch));
 					} 
 				}
 				break;
@@ -242,8 +273,10 @@ unsigned char *get_context(BW *bw)
 				{
 				if (bw->b->name) {
 					unsigned char *tmp = simplify_prefix(bw->b->name);
-					stalin = vsncpy(sv(stalin), sv(tmp));
+					unsigned char *tmp1 = duplicate_backslashes(sv(tmp));
 					vsrm(tmp);
+					stalin = vsncpy(sv(stalin), sv(tmp1));
+					vsrm(tmp1);
 				} else {
 					stalin = vsncpy(sv(stalin), sz(joe_gettext(_("Unnamed"))));
 				}
@@ -286,7 +319,7 @@ unsigned char *get_context(BW *bw)
 				break;
 			case 'a':
 				if (!piseof(bw->cursor))
-					joe_snprintf_1(buf, sizeof(buf), "%3d", 255 & brc(bw->cursor));
+					joe_snprintf_1(buf, sizeof(buf), "%3d", brch(bw->cursor));
 				else
 					joe_snprintf_0(buf, sizeof(buf), "   ");
 				for (x = 0; buf[x]; ++x)
@@ -296,7 +329,7 @@ unsigned char *get_context(BW *bw)
 				break;
 			case 'A':
 				if (!piseof(bw->cursor))
-					joe_snprintf_1(buf, sizeof(buf), "%2.2X", 255 & brc(bw->cursor));
+					joe_snprintf_1(buf, sizeof(buf), "%2.2X", brch(bw->cursor));
 				else
 					joe_snprintf_0(buf, sizeof(buf), "  ");
 				for (x = 0; buf[x]; ++x)

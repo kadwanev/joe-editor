@@ -130,6 +130,8 @@ Files
 save		Save file
 savenow		Save immediately, unless file name is not known
 insf		Insert a file
+reload		Reload current file
+reloadall	Reload all unmodified files
 
 Formatting
 ----------
@@ -186,6 +188,7 @@ beep		Beep
 execmd		Execute a joe command
 math		Calculator
 mode		Mode prompt
+menu		Menu prompt
 msg		Display a message
 notmod		Clear the modified flag
 retype		Refresh screen

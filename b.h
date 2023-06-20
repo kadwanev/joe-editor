@@ -70,7 +70,7 @@ struct options {
 	int	crlf;
 	int	highlight;	/* Set to enable highlighting */
 	unsigned char *syntax_name;	/* Name of syntax to use */
-	struct high_syntax *syntax;	/* Syntax for highlighting (load_dfa() from syntax_name happens in setopt()) */
+	struct high_syntax *syntax;	/* Syntax for highlighting (load_syntax() from syntax_name happens in setopt()) */
 	unsigned char *map_name;	/* Name of character set */
 	struct charmap *charmap;	/* Character set */
 	unsigned char *language;	/* Language of this buffer (for spell) */
@@ -130,6 +130,8 @@ struct buffer {
 	                 long *rtn_line);
 	                        /* Error parser for this buffer */
 };
+
+extern B bufs;
 
 /* 31744 */
 extern unsigned char stdbuf[stdsiz];	/* Convenient global buffer */
@@ -298,5 +300,9 @@ extern int break_links; /* Break hard links on write */
 extern int break_symlinks; /* Break symbolic links on write */
 
 void set_file_pos_orphaned();
+
+void breplace(B *b, B *n);
+
+unsigned char *dequote(unsigned char *);
 
 #endif

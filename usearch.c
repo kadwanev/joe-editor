@@ -673,15 +673,24 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 
 /* Unescape for text going to genfmt */
 
-void unesc_genfmt(unsigned char *d, unsigned char *s, int max)
+void unesc_genfmt(unsigned char *d, unsigned char *s, int len,int max)
 {
-	while (max && *s) {
-		if (*s == '\\')
+	while (max > 0 && len) {
+		if (!*s) {
 			*d++ = '\\';
-		*d++ = *s++;
+			*d++ = '@';
+			++s;
+		} else {
+			if (*s == '\\') {
+				*d++ = '\\';
+				--max;
+			}
+			*d++ = *s++;
+		}
+		--len;
 		--max;
 	}
-	if (*s)
+	if (len)
 		*d++ = '$';
 	*d = 0;
 }
@@ -713,7 +722,7 @@ int dofirst(BW *bw, int back, int repl, unsigned char *hint)
 	srch->wrap_p = pdup(bw->cursor, USTR "dofirst");
 	srch->wrap_p->owner = &srch->wrap_p;
 	if (pico && globalsrch && globalsrch->pattern) {
-		unesc_genfmt(bf1, globalsrch->pattern, 30);
+		unesc_genfmt(bf1, sv(globalsrch->pattern), 30);
 		joe_snprintf_1(buf,sizeof(buf),joe_gettext(_("Find (^C to abort) [%s]: ")),bf1);
 	} else
 		zcpy(buf, joe_gettext(_("Find (^C to abort): ")));
@@ -816,7 +825,8 @@ unsigned char *backup_key = (unsigned char *) _("|backup|bB");
 static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
 {
 	srch->addr = bw->cursor->byte;
-	if (c == NO_CODE || yncheck(no_key, c))
+	/* Backspace means no for jmacs */
+	if (c == NO_CODE || c == 8 || c == 127 || yncheck(no_key, c))
 		return dopfnext(bw, srch, notify);
 	else if (c == YES_CODE || yncheck(yes_key, c) || c == ' ') {
 		srch->recs.link.prev->yn = 1;
@@ -825,12 +835,12 @@ static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
 			return -1;
 		} else
 			return dopfnext(bw, srch, notify);
-	} else if (yncheck(rest_key, c)) {
+	} else if (yncheck(rest_key, c) || c == '!') {
 		if (doreplace(bw, srch))
 			return -1;
 		srch->rest = 1;
 		return dopfnext(bw, srch, notify);
-	} else if (c == 8 || c == 127 || yncheck(backup_key, c)) {
+	} else if (/* c == 8 || c == 127 || */ yncheck(backup_key, c)) {
 		W *w = bw->parent;
 		goback(srch, bw);
 		goback(srch, (BW *)w->object);

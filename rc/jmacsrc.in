@@ -203,7 +203,7 @@
   \f  Blink
 
 -lmsg \i%k%T%W%I%X %* [%n] %y %M
--rmsg  %S Row %r Col %c %t  Ctrl-X H for help
+-rmsg  %S Row %r Col %c %t  ^X^H for help
 
  SECOND SECTION: File name dependant local option settings:
 
@@ -332,6 +332,122 @@
 
 :include ftyperc
 
+ SECOND and 1/2 SECTION: Option menu layout
+
+	:defmenu name	Defines a menu.
+
+	macro string comment
+			A menu entry.  Macro is any JOE macro- see "Macros:"
+			below. String is the label to be used for the macro
+			in the menu.  It is in the same format as the -lmsg
+			and -rmsg options above.
+
+			Two whitespace characters in a row begins a comment.
+			Use '% ' for a leading space in the string.
+
+:defmenu root
+mode,"overwrite",rtn	T Overtype %Zoverwrite%
+mode,"hex",rtn	% % Hex edit mode
+mode,"autoindent",rtn	I Autoindent %Zautoindent%
+mode,"wordwrap",rtn	W Word wrap %Zwordwrap%
+mode,"tab",rtn	D Tab width %Ztab%
+mode,"lmargin",rtn	L Left margin %Zlmargin%
+mode,"rmargin",rtn	R Right margin %Zrmargin%
+mode,"square",rtn	X Rectangle mode %Zsquare%
+mode,"indentc",rtn	% % Indent char %Zindentc%
+mode,"istep",rtn	% % Indent step %Zistep%
+mode,"highlight",rtn	H Highlighting %Zhighlight%
+mode,"crlf",rtn	Z CR-LF (MS-DOS) %Zcrlf%
+mode,"linums",rtn	N Line numbers %Zlinums%
+mode,"beep",rtn	B Beep %Zbeep%
+mode,"rdonly",rtn	O Read only %Zrdonly%
+mode,"syntax",rtn	Y Syntax
+mode,"encoding",rtn	E Encoding
+mode,"asis",rtn	% % Meta chars as-is
+mode,"language",rtn	V Language
+mode,"picture",rtn	P picture %Zpicture%
+menu,"more-options",rtn	  % % More options...
+
+:defmenu more-options
+menu,"^G",rtn	% % ^G options
+menu,"search",rtn	% % search options
+menu,"paragraph",rtn	% % paragraph options
+menu,"file",rtn	% % file options
+menu,"menu",rtn	% % menu options
+menu,"global",rtn	% % global options
+menu,"cursor",rtn	% % cursor options
+menu,"marking",rtn	% % marking options
+menu,"tab",rtn	% % tab/indent options
+
+:defmenu menu
+mode,"menu_explorer",rtn	% % Menu explorer %Zmenu_explorer%
+mode,"menu_above",rtn	% % Menu position %Zmenu_above%
+mode,"menu_jump",rtn	% % Jump into menu %Zmenu_jump%
+mode,"transpose",rtn	% % Transpose menus %Ztranspose%
+
+:defmenu ^G
+mode,"single_quoted",rtn	% % ^G ignores '...' %Zsingle_quoted%
+mode,"no_double_quoted",rtn	% % ^G no ignore "..." %Zno_double_quoted%
+mode,"c_comment",rtn	% % ^G ignores /*...*/ %Zc_comment%
+mode,"cpp_comment",rtn	% % ^G ignores //... %Zcpp_comment%
+mode,"pound_comment",rtn	% % ^G ignores #... %Zpound_comment%
+mode,"vhdl_comment",rtn	% % ^G ignores --... %Zvhdl_comment%
+mode,"semi_comment",rtn	% % ^G ignores ;... %Zsemi_comment%
+mode,"tex_comment",rtn % % ^G ignores %... %Ztex_comment%
+mode,"text_delimiters",rtn % % Text delimiters %Ztext_delimiters%
+
+:defmenu search
+mode,"icase",rtn	% % Case insensitivity %Zicase%
+mode,"wrap",rtn	% % Search wraps %Zwrap%
+mode,"search_prompting",rtn	% % Search prompting %Zsearch_prompting%
+mode,"csmode",rtn	% % Continued search %Zcsmode%
+
+:defmenu paragraph
+mode,"french",rtn	% % French spacing %Zfrench%
+mode,"flowed",rtn	% % Flowed text %Zflowed%
+mode,"cpara",rtn	% % Paragraph indent chars %Zcpara%
+
+:defmenu file
+mode,"restore",rtn	% % Restore cursor %Zrestore%
+mode,"guess_crlf",rtn	% % Auto detect CR-LF %Zguess_crlf%
+mode,"guess_indent",rtn	% % Guess indent %Zguess_indent%
+mode,"guess_non_utf8",rtn	% % Guess non-UTF-8 %Zguess_non_utf8%
+mode,"guess_utf8",rtn	% % Guess UTF-8 %Zguess_utf8%
+mode,"force",rtn	% % Force last NL %Zforce%
+mode,"nobackup",rtn	% % No backup %Znobackup%
+
+:defmenu global
+mode,"nolocks",rtn	% % Disable locks %Znolocks%
+mode,"nobackups",rtn	% % Disable backups %Znobackups%
+mode,"nomodcheck",rtn	% % Disable mtime check %Znomodcheck%
+mode,"nocurdir",rtn	% % Disable current dir %Znocurdir%
+mode,"exask",rtn	% % Exit ask %Zexask%
+mode,"nosta",rtn	% % Disable status line %Znosta%
+mode,"keepup",rtn	% % Fast status line %Zkeepup%
+mode,"break_hardlinks",rtn	% % Break hard links %Zbreak_hardlinks%
+mode,"break_links",rtn	% % Break links %Zbreak_links%
+mode,"joe_state",rtn	% % Joe_state file %Zjoe_state%
+mode,"undo_keep",rtn	% % No. undo records %Zundo_keep%
+mode,"backpath",rtn	% % Path to backup files %Zbackpath%
+
+:defmenu cursor
+mode,"pg",rtn	% % No. PgUp/PgDn lines %Zpg%
+mode,"mid",rtn	C Center on scroll %Zmid%
+mode,"floatmouse",rtn	% % Click past end %Zfloatmouse%
+mode,"rtbutton",rtn	% % Right button %Zrtbutton%
+
+:defmenu marking
+mode,"autoswap",rtn	% % Autoswap mode %Zautoswap%
+mode,"marking",rtn	% % Marking %Zmarking%
+mode,"lightoff",rtn	% % Auto unmask %Zlightoff%
+
+:defmenu tab
+mode,"smarthome",rtn	% % Smart home key %Zsmarthome%
+mode,"smartbacks",rtn	% % Smart backspace %Zsmartbacks%
+mode,"indentfirst",rtn	% % To indent first %Zindentfirst%
+mode,"purify",rtn	% % Clean up indents %Zpurify%
+mode,"spaces",rtn	% % No tabs %Zspaces%
+
  THIRD SECTION: Named help screens:
 
  Use \i to turn on/off inverse video
@@ -341,34 +457,34 @@
  Use \f to turn on/off flash
 
 {Basic
-\i   Help Screen    \|turn off with ^XH   more help with ^X.                       \i
+\i   Help Screen    \|turn off with ^X^H  more help with ^X.                       \i
 \i \i\|\uCURSOR\u           \|\uGO TO\u           \|\uUNDO\u      \|\uMISC\u        \|\uREGION\u     \|\uFILE/EXIT\u  \|\i \i
 \i \i\|^B left ^F right \|^[V prev screen \|^_  undo  \|^[^[ option \|^@  mark   \|^X^C exit  \|\i \i
-\i \i\|^P up   ^N down  \|^V  next screen \|^^  redo  \|^[Q format  \|^X^X swap  \|^Z   shell \|\i \i
-\i \i\|^[B prev. word   \|^A  beg of line \|\uDELETE\u    \|^L  refresh \|^W  cut    \|^XK  abort \|\i \i
+\i \i\|^P up   ^N down  \|^V  next screen \|^^  redo  \|^[Q format  \|^X^X swap  \|^X^F find  \|\i \i
+\i \i\|^[B prev. word   \|^A  beg of line \|\uDELETE\u    \|^L  refresh \|^W  cut    \|^X^V revert\|\i \i
 \i \i\|^[F next word    \|^E  end of line \|^D  char  \|^[$ spell   \|^[W copy   \|^X^S save  \|\i \i
 \i \i\|\uSEARCH\u           \|^X[ prev page   \|^K  >line \|^[M math    \|^Y  paste  \|^XS  all   \|\i \i
 \i \i\|^S  forward      \|^X] next page   \|^[D >word \|^[X command \|^[Y switch \|^XI  insert\|\i \i
-\i \i\|^R  backward     \|^[G to line No. \|^[ DEL word<\|^XL status\|^XA file   \|^X^F edit  \|\i \i
-\i \i\|^[% find&replace \|^XG matching ([{\|            \|^U  repeat\|^X| filter \|^X^B switch\|\i \i
+\i \i\|^R  backward     \|^[G to line No. \|^[ DEL    \|^XL status  \|^XA file   \|^XK  kill  \|\i \i
+\i \i\|^[% find&replace \|^XG matching ([{\|    word< \|^U  repeat  \|^X| filter \|^X^B switch\|\i \i
 }
 
 {Editing 
-\i   Help Screen    \|turn off with ^XH   prev. screen ^X,  next screen ^X.        \i
+\i   Help Screen    \|turn off with ^X^H  prev. screen ^X,  next screen ^X.        \i
 \i \i\|\uCASE\u           \|\uTRANSPOSE\u  \|\uINSERT\u    \|\uMACROS\u            \|\uPROGRAMS\u               \|\i \i
 \i \i\|^[U  Up word   \|^T   Chars \|^O  line  \|^X( record        \|^X^I Indent region     \|\i \i
 \i \i\|^[L  Down word \|^[T  Words \|^C  space \|^X) stop          \|^[.  Tags file find    \|\i \i
-\i \i\|^[C  Cap. word \|^X^T Lines \|`   Ctrl- \|^XE play          \|^X4. Tags other window \|\i \i
+\i \i\|^[C  Cap. word \|^X^T Lines \|^Q  Ctrl- \|^XE play          \|^X4. Tags other window \|\i \i
 \i \i\|^X^U Up region \|           \|^[( ()    \|^XQ query suspend \|^XC  Compile           \|\i \i
 \i \i\|^X^L Down region\|          \|          \|                  \|^XN / ^XP next/prev err\|\i \i
 }
 
 {Window
-\i   Help Screen    \|turn off with ^XH   prev. screen ^X,  next screen ^X.        \i
+\i   Help Screen    \|turn off with ^X^H  prev. screen ^X,  next screen ^X.        \i
 \i \i\|\uWINDOW\u                      \|\uSCROLL\u     \|\uMODE\u        \|\uCURSOR\u                    \|\i \i
 \i \i\|^X2  Split window in half   \|^X^P up    \|^XF rght mgn\|^[P prev. paragraph       \|\i \i
 \i \i\|^XO  Switch to other window \|^X^N down  \|^X^Q rdonly \|^[N next paragraph        \|\i \i
-\i \i\|^XZ  Grow window            \|^X<  left  \|^[~ not mod \|DELETE                    \|\i \i
+\i \i\|^XZ  Grow window            \|^X<  left  \|^[~ not mod \|\uDELETE\u                    \|\i \i
 \i \i\|^X^Z Shrink window          \|^X>  right \|            \|^[ SP just one space      \|\i \i
 \i \i\|^X0  Kill window            \|\uSHELL\u      \|\uBOOKMARK\u    \|^[ \\  no spaces           \|\i \i
 \i \i\|^X1  Kill all other windows \|^[! Command\|^XJ set     \|^X^O  cut blank lines     \|\i \i
@@ -376,7 +492,7 @@
 }
 
 {Search
-\i   Help Screen    \|turn off with ^XH   prev. screen ^X,  next screen ^X.        \i
+\i   Help Screen    \|turn off with ^X^H  prev. screen ^X,  next screen ^X.        \i
 \i \iSpecial search sequences:                                                    \|\i \i
 \i \i    \\^  \\$  matches beg./end of line      \\?     match any single char       \|\i \i
 \i \i    \\<  \\>  matches beg./end of word      \\*     match 0 or more chars       \|\i \i
@@ -390,7 +506,7 @@
 }
 
 {SearchOptions
-\i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
+\i   Help Screen    \|turn off with ^X^H   prev. screen ^X,    next screen ^X.     \i
 \i \iSearch options:                                                              \|\i \i
 \i \i   r Replace                                                                 \|\i \i
 \i \i   k Restrict search to highlighted block, which can be rectangular          \|\i \i
@@ -404,7 +520,7 @@
 }
 
 {Math
-\i   Help Screen    \|turn off with ^XH    prev. screen ^X,    next screen ^X.     \i
+\i   Help Screen    \|turn off with ^X^H   prev. screen ^X,    next screen ^X.     \i
 \i \i \uCOMMANDS\u (hit ESC m for math)  \uFUNCTIONS\u                                    \|\i \i
 \i \i     hex hex display mode       sin cos tab asin acos atan                   \|\i \i
 \i \i     dec decimal mode           sinh cosh tanh asinh acosh atanh             \|\i \i
@@ -419,7 +535,7 @@
 }
 
 {Names
-\i   Help Screen    \|turn off with ^XH    prev. screen ^X,    next screen ^X.     \i
+\i   Help Screen    \|turn off with ^X^H   prev. screen ^X,    next screen ^X.     \i
 \i \i Hit TAB at file name prompts to generate menu of file names                 \|\i \i
 \i \i Or use up/down keys to access history of previously entered names           \|\i \i
 \i \i Special file names:                                                         \|\i \i
@@ -431,15 +547,16 @@
 }
 
 {Joe
-\i   Help Screen    \|turn off with ^XH    prev. screen ^X,    next screen ^X.     \i
+\i   Help Screen    \|turn off with ^X^H   prev. screen ^X,    next screen ^X.     \i
 \i \i Send bug reports to: http://sourceforge.net/projects/joe-editor \|\i \i
 \i \i \|\i \i
-\i \i  default jmacsrc file is here @JOERC@/jmacsrc \|\i \i
-\i \i  additional documentation can be found here @JOERC@/doc \|\i \i
+\i \i  default joerc file is here @JOERC@/joerc \|\i \i
+\i \i  default syntax and i18n files are here @JOEDATA@ \|\i \i
+\i \i  additional documentation can be found here @JOEDOC@ \|\i \i
 }
 
 {CharTable
-\i   Help Screen    \|turn off with ^XH    prev. screen ^X,                        \i
+\i   Help Screen    \|turn off with ^X^H   prev. screen ^X,                        \i
 \i \i\| Dec  \u 0123 4567  8901 2345    0123 4567  8901 2345 \u  Dec \|\i \i
 \i \i\|     |                                              |     \|\i \i
 \i \i\|   0 | \u@ABC\u \uDEFG\u  \uHIJK\u \uLMNO\u    \i\u@ABC\u\i \i\uDEFG\u\i  \i\uHIJK\u\i \i\uLMNO\u\i | 128 \|\i \i
@@ -516,8 +633,10 @@ tw1		^X 1		Delete other windows: can make orphan buffers
 uarg		^U		Repeat prefix
 uarg		^[ -
 uarg		^[ 0 TO 9
-help		^X h		Help
 help		^X ^H
+help		.k1
+help		^[ O P
+help		^[ [ 1 1 ~
 hnext		^X .
 hprev		^X ,
 math		^[ m		Calculator
@@ -608,6 +727,13 @@ eol			^[ [ 8 ~		RxVT
 
   Macros for non-existant Emacs functions
 
+ Better off not having this: JOE automatically figure out the fill
+ prefix.  If you really want to set the left margin, use ^[ ^[ L.
+ mode,"lmargin",rtn,"col",rtn	^X .			Left fill prefix (left margin)
+
+eof,drop,msg,"Mark set",rtn,bof	^X H			Select entire file
+eof,drop,msg,"Mark set",rtn,bof	^X h
+
 psh,nextword-,markk,prevword-,markb,
 upper,nextword-	^[ u		Upcase word
 
@@ -664,7 +790,7 @@ bol,insc,delw		^[ ^			Delete indentation
 
 psh,markk,copy,msg,"Region saved",rtn	^[ w	Yank copy
 
-mode,"Rcol",rtn,
+mode,"rmargin",rtn,"col",rtn,
 msg,"Fill-column set",rtn		^X f	Set right margin
 
 bol,rtn,backw,rtn,rtn,uparw,delw	^X ^O	Delete blank lines
@@ -707,7 +833,8 @@ querysave,query,killjoe	^X ^C			Query to save files, then exit
 
 lose,query		^X k			Kill buffer in window
 
-lose,query,edit		^X ^V			Edit a file: no orphaned buffers
+ lose,query,edit		^X ^V		Edit a file: no orphaned buffers
+reload			^X ^V			Reload current file
 
 psh,drop,fwrdc-,query,markk,blkdel	^[ z	Cut to char
 
@@ -722,7 +849,7 @@ psh,markk,swap,math,"z=line",rtn,
 swap,math,"line-z",rtn,msg,math,"ans",rtn,
 " lines in region",rtn			^[ =	Count lines region
 
-mode,"O"				^X ^Q	Toggle read-only
+mode,"rdonly",rtn	^X ^Q	Toggle read-only
 
 compile					^X c	Compile
 mwind,mfit,prevw,nxterr					^X n
@@ -789,7 +916,8 @@ ltarw		^B
 ltarw		^[ O D
 ltarw		^[ [ D
  ltarw          ^# D
-mode		^[ ^[		Change modes
+ mode		^[ ^[		Change modes
+menu,"root",rtn	^[ ^[
 nbuf		^X ^B		Next buffer in current window
 nbuf		^X x		(uemacs)
  nextpos		^K =		Goto next position in position history

@@ -46,4 +46,7 @@ extern unsigned char *no_key;
 int yncheck PARAMS((unsigned char *string, int c));
 int ynchecks PARAMS((unsigned char *string, unsigned char *s));
 
+int ureload(BW *bw);
+int ureload_all(BW *bw);
+
 #endif

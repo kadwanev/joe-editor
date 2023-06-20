@@ -154,7 +154,7 @@ static int cp(unsigned char *from, unsigned char *to)
 	utbuf.actime = sbuf.st_atime;
 	utbuf.modtime = sbuf.st_mtime;
 #endif
-	utime(to, &utbuf);
+	utime((char *)to, &utbuf);
 #endif
 
 #ifdef WITH_SELINUX
@@ -207,10 +207,10 @@ static int backup(BW *bw)
 		if (backpath) {
 			unsigned char *t = vsncpy(NULL, 0, sz(backpath));
 			t = canonical(t);
-			joe_snprintf_3(name, sizeof(name), "%s/%s%s", t, namepart(tmp, bw->b->name), simple_backup_suffix);
+			joe_snprintf_3(name, sizeof(name), "%s/%s%s", t, namepart(tmp, dequote(bw->b->name)), simple_backup_suffix);
 			vsrm(t);
 		} else {
-			joe_snprintf_2(name, sizeof(name), "%s%s", bw->b->name, simple_backup_suffix);
+			joe_snprintf_2(name, sizeof(name), "%s%s", dequote(bw->b->name), simple_backup_suffix);
 		}
 		
 		/* Attempt to delete backup file first */
@@ -219,7 +219,7 @@ static int backup(BW *bw)
 #endif
 
 		/* Copy original file to backup file */
-		if (cp(bw->b->name, name)) {
+		if (cp(dequote(bw->b->name), name)) {
 			return 1;
 		} else {
 			bw->b->backup = 1;
@@ -332,7 +332,7 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 	if (bw->b->er == 0 && bw->o.msold) {
 		exmacro(bw->o.msold,1);
 	}
-	if ((fl = bsave(bw->b->bof, req->name, bw->b->eof->byte, 1)) != 0) {
+	if ((fl = bsave(bw->b->bof, req->name, bw->b->eof->byte, req->rename ? 2 : 1)) != 0) {
 		msgnw(bw->parent, joe_gettext(msgs[-fl]));
 		if (req->callback) {
 			return req->callback(bw, req, -1, notify);
@@ -344,7 +344,8 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 			return -1;
 		}
 	} else {
-		if (req->rename) {
+		if (req->rename && req->name[0] != '!' && req->name[0] != '>') {
+			bw_unlock(bw);
 			joe_free(bw->b->name);
 			bw->b->name = 0;
 		}
@@ -478,7 +479,7 @@ static int dosave1(BW *bw, unsigned char *s, struct savereq *req, int *notify)
 		/* It's a normal file: not a pipe or append */
 		if (!bw->b->name || zcmp(s, bw->b->name)) {
 			/* Newly named file or name is different than buffer */
-			f = open((char *)s, O_RDONLY);
+			f = open((char *)dequote(s), O_RDONLY);
 			if (f != -1) {
 				close(f);
 				/* char *msg = "File exists. Overwrite (y,n,^C)? ";
@@ -1185,4 +1186,66 @@ int ukilljoe(BW *bw)
 	/* FIXME: emacs checks for unsaved modified buffers at this point */
 	leave = 1;
 	return 0;
+}
+
+static int doreload(BW *bw, int c, void *object, int *notify)
+{
+	B *n;
+	if (notify) {
+		*notify = 1;
+	}
+	if (c != YES_CODE && !yncheck(yes_key, c)) {
+		return -1;
+	}
+	n = bload(bw->b->name);
+	if (berror) {
+		brm(n);
+		msgnw(bw->parent, joe_gettext(msgs[-berror]));
+		return -1;
+	}
+	breplace(bw->b, n);
+	nredraw(bw->parent->t->t);
+	msgnw(bw->parent, joe_gettext(_("File reloaded")));
+	return 0;
+}
+
+int ureload(BW *bw)
+{
+	if (!plain_file(bw->b)) {
+		msgnw(bw->parent, joe_gettext(_("Can only reload plain files")));
+		return -1;
+	}
+	if (bw->b->changed) {
+		if (mkqw(bw->parent, sz(joe_gettext(_("Lose changes to this file (y,n,^C)? "))), doreload, NULL, NULL, NULL)) {
+			return 0;
+		} else {
+			return -1;
+		}
+	}
+	return doreload(bw, YES_CODE, NULL, NULL);
+}
+
+int ureload_all(BW *bw)
+{
+	int count = 0;
+	int er = 0;
+	B *b;
+	for (b = bufs.link.next; b != &bufs; b = b->link.next)
+		if (!b->changed && plain_file(b)) {
+			B *n = bload(b->name);
+			if (berror) {
+				msgnw(bw->parent, joe_gettext(msgs[-berror]));
+				er = -1;
+				brm(n);
+			} else {
+				breplace(b, n);
+				++count;
+			}
+		}
+	nredraw(bw->parent->t->t);
+	if (!er) {
+		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("%d files reloaded")), count);
+		msgnw(bw->parent, msgbuf);
+	}
+	return er;
 }

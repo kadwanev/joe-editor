@@ -1,3 +1,64 @@
+- backspace/DEL means 'n' in replace prompt for better emacs
+  compatibility
+
+- Menus are now made up of macros instead of options.
+
+	New commands:
+		menu	Prompt for a menu to display with tab
+			completion.
+
+		mode	Prompt for an option to change with tab
+			completion.
+
+	Menus are defined in joerc file with :defmenu command.
+
+	Menu entries are the pair: macro string.  String is a
+	format string displayed in the menu.  Macro is executed
+	when then menu entry is selected.
+
+	Use this to add your own macros to ^T.
+
+- ^T is now a user definable menu system
+
+- Treat \ as a quote character for file I/O.  Now you can edit
+  files like !test with \!test
+
+- Print NULs in default search string.  Handle many \s properly.
+
+- Allow backslashes in file names
+
+- Fix %A to print unicode
+
+- Charles Tabony's (vectorshifts's) highlighter stack patch
+
+- ! is relace all in replace prompt
+
+- Turn off UTF-8 when we enter hex mode
+
+- Call ttsig on vfile I/O errors.
+
+- Abort cleanly when malloc returns NULL
+
+- Add reload command to reload file from disk
+
+- Modify configure scrips to use docdir for extra documents and
+  datadir/joe for syntax and i18n files.
+
+- Don't use bold yellow, it's bad for white screens
+
+- Fix TeX highlighter: don't highlight "
+
+- Make mail.jsf more forgiving for those of us who still use old UNIX mail
+
+- Fix file rename bugs
+
+- Improve ubop: can reformat a block of paragraphs again.  Reformat
+  of adjacent indented paragraphs working again.
+
+- Improve XML highlighter: allow \r in whitespace
+
+JOE 3.6
+
 - Preserve setuid bit
 
 - Fix bug where backup file did not get modtime of original

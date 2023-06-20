@@ -138,7 +138,7 @@ static void pfree(P *p)
 }
 
 /* Doubly linked list of buffers and free buffer structures */
-static B bufs = { {&bufs, &bufs} };
+B bufs = { {&bufs, &bufs} };
 static B frebufs = { {&frebufs, &frebufs} };
 
 void set_file_pos_orphaned()
@@ -288,10 +288,12 @@ void brm(B *b)
 			errbuf = NULL;
 		if (b->undo)
 			undorm(b->undo);
-		hfreechn(b->eof->hdr);
-		while (!qempty(P, link, b->bof))
-			prm(b->bof->link.next);
-		prm(b->bof);
+		if (b->eof) {
+			hfreechn(b->eof->hdr);
+			while (!qempty(P, link, b->bof))
+				prm(b->bof->link.next);
+			prm(b->bof);
+		}
 		if (b->name)
 			joe_free(b->name);
 		if (b->db)
@@ -304,6 +306,113 @@ void brmall()
 {
 	while (!qempty(B, link, &bufs))
 		brm(bufs.link.next);
+}
+
+/* Replace contents of b with n.  n is destroyed. */
+
+void breplace(B *b, B *n)
+{
+	P *p, *next;
+
+	/* Take out many references to b */
+
+	abrerr(b->name);
+
+	if (b->locked && !b->ignored_lock && plain_file(b)) {
+		unlock_it(b->name);
+		b->locked = 0;
+	}
+
+	if (b == errbuf)
+		errbuf = NULL;
+
+	if (b->undo) {
+		undorm(b->undo);
+		b->undo = 0;
+	}
+
+	/* Remove all vfile references */
+	for (p = b->eof->link.next; p != b->eof; p = p->link.next)
+		if (p->ptr)
+			vunlock(p->ptr);
+	if (b->eof->ptr)
+		vunlock(b->eof->ptr);
+
+	/* Delete buffer */
+	hfreechn(b->eof->hdr);
+
+	/* Delete file name */
+	if (b->name)
+		joe_free(b->name);
+
+	reset_all_lattr_db(b->db);
+	
+	/* Take new name */
+	b->name = zdup(n->name);
+
+	/* Take bof Pointer */
+	/* Taking n->bof's vlock */
+	b->bof->ofst = n->bof->ofst;
+	b->bof->ptr = n->bof->ptr;
+	b->bof->hdr = n->bof->hdr;
+	b->bof->byte = 0;
+	b->bof->line = 0;
+	b->bof->col = 0;
+	b->bof->xcol = 0;
+	b->bof->valcol = 1;
+	b->bof->end = 0;
+
+	/* Take eof Pointer */
+	/* Taking b->eof's vlock */
+	b->eof->ofst = n->eof->ofst;
+	b->eof->ptr = n->eof->ptr;
+	b->eof->hdr = n->eof->hdr;
+	b->eof->byte = n->eof->byte;
+	b->eof->line = n->eof->line;
+	b->eof->col = n->eof->col;
+	b->eof->xcol = n->eof->xcol;
+	b->eof->valcol = n->eof->valcol;
+	b->eof->end = 1;
+
+	/* Reset other pointers */
+	for (p = b->eof->link.next; p != b->eof; p = p->link.next)
+		if (p != b->bof) {
+			long goal_line = p->line;
+			long goal_col = p->xcol;
+			p->ptr = 0; /* No need for pset to unlock: we already did it */
+			if (goal_line > b->eof->line) {
+				pset(p, b->eof);
+				p_goto_bol(p);
+			} else {
+				pset(p, b->bof);
+				pline(p, goal_line);
+				pcol(p, goal_col);
+			}
+		}
+
+	/* OK, delete pointers from n */
+	for (p = n->eof->link.next; p != n->eof; p = next) {
+		next = p->link.next;
+		if (p != n->bof)
+			prm(p);
+	}
+
+	/* Delete bof and eof pointers */
+	/* Don't delete their locks, they were transferred. */
+	n->bof->ptr = 0;
+	prm(n->bof);
+	n->bof = 0;
+	n->eof->ptr = 0;
+	prm(n->eof);
+	n->eof = 0;
+
+	b->undo = undomk(b);
+	b->changed = 0;
+	b->rdonly = n->rdonly;
+	b->mod_time = n->mod_time;
+
+	/* Delete rest of n */
+	brm(n);
 }
 
 P *poffline(P *p)
@@ -2078,7 +2187,7 @@ unsigned char *parsens(unsigned char *s, off_t *skip, off_t *amnt)
 	x = sLEN(n) - 1;
 	if (x > 0 && n[x] >= '0' && n[x] <= '9') {
 		for (x = sLEN(n) - 1; x > 0 && ((n[x] >= '0' && n[x] <= '9') || n[x] == 'x' || n[x] == 'X'); --x) ;
-		if (n[x] == ',') {
+		if (n[x] == ',' && x && n[x-1] != '\\') {
 			n[x] = 0;
 
 #if SIZEOF_LONG_LONG && SIZEOF_OFF_T == SIZEOF_LONG_LONG
@@ -2103,7 +2212,7 @@ unsigned char *parsens(unsigned char *s, off_t *skip, off_t *amnt)
 			--x;
 			if (x > 0 && n[x] >= '0' && n[x] <= '9') {
 				for (; x > 0 && ((n[x] >= '0' && n[x] <= '9') || n[x] == 'x' || n[x] == 'X'); --x) ;
-				if (n[x] == ',') {
+				if (n[x] == ',' && x && n[x-1]!='\\') {
 					n[x] = 0;
 					*amnt = *skip;
 #if SIZEOF_LONG_LONG && SIZEOF_OFF_T == SIZEOF_LONG_LONG
@@ -2174,6 +2283,63 @@ unsigned char *canonical(unsigned char *n)
 	return n;
 }
 
+int euclid(int a, int b)
+{
+	if (!a)
+		return b;
+	while (b)
+		if (a > b)
+			a -= b;
+		else
+			b -= a;
+	return a;
+}
+
+/* return column of first nonblank character, but don't count comments */
+int found_space;
+int found_tab;
+
+long pisindentg(P *p)
+{
+	int i_spc = 0;
+	int i_tab = 0;
+	P *q = pdup(p, USTR "pisindentg");
+	long col;
+	int ch;
+
+	p_goto_bol(q);
+	while (joe_isblank(p->b->o.charmap,ch = brc(q))) {
+		if (ch == ' ')
+			i_spc = 1;
+		else if (ch == '\t')
+			i_tab = 1;
+		pgetc(q);
+	}
+	col = q->col;
+	if (ch == '*' || ch == '/' || ch == '-' || ch =='%' || ch == '#' || ch == '\r' || ch == '\n')
+		col = 0;
+	if (col) {
+		found_space |= i_spc;
+		found_tab |= i_tab;
+	}
+	prm(q);
+	return col;
+}
+
+unsigned char *dequote(unsigned char *s)
+{
+        static unsigned char buf[1024];
+        unsigned char *p = buf;
+        while (*s) {
+                if (*s =='\\')
+                        ++s;
+                if (*s)
+                        *p++ = *s++;
+        }
+        *p = 0;
+        return buf;
+}
+
 /* Load file into new buffer and return the new buffer */
 /* Returns with error set to 0 for success,
  * -1 for new file (file doesn't exist)
@@ -2210,7 +2376,7 @@ B *bload(unsigned char *s)
 	if (n[0] == '!') {
 		nescape(maint->t);
 		ttclsn();
-		fi = popen((char *)(n + 1), "r");
+		fi = popen((char *)dequote(n + 1), "r");
 	} else
 #endif
 	if (!zcmp(n, USTR "-")) {
@@ -2231,12 +2397,12 @@ B *bload(unsigned char *s)
 		b = bmk(NULL);
 		goto empty;
 	} else {
-		fi = fopen((char *)n, "r+");
+		fi = fopen((char *)dequote(n), "r+");
 		if (!fi)
 			nowrite = 1;
 		else
 			fclose(fi);
-		fi = fopen((char *)n, "r");
+		fi = fopen((char *)dequote(n), "r");
 		if (!fi)
 			nowrite = 0;
 		if (fi) {
@@ -2340,21 +2506,65 @@ opnerr:
 	/* Search backwards through file: if first indented line
 	   is indented with a tab, assume indentc is tab */
 	if (guessindent) {
+		int i, x, y;
+		int guessed_step = 0;
+		int hist[20];
+		int hist_val[20];
+		int nhist = 0;
+		int old_max;
+		int max;
+		int maxi;
+		found_space = 0;
+		found_tab = 0;
 		p=pdup(b->eof, USTR "bload");
-		for (x=0; x!=20; ++x) {
+		/* Create histogram of indentation values */
+		for (y = 0; y != 50; ++y) {
 			p_goto_bol(p);
-			if (pisindent(p)) {
-				if (brc(p)=='\t') {
-					b->o.indentc = '\t';
-					b->o.istep = 1;
-				} else {
-					b->o.indentc = ' ';
-					/* b->o.istep = 2; */
+			if ((i = pisindentg(p))) {
+				for (x = 0; x != nhist; ++x)
+					if (hist_val[x] == i)
+						break;
+				if (x == nhist && nhist != 20) {
+					hist[nhist] = 1;
+					hist_val[nhist] = i;
+					++nhist;
+				} else if (x != nhist) {
+					++hist[x];
 				}
-				break;
 			}
 			if (prgetc(p)==NO_MORE_DATA)
 				break;
+		}
+		/* Find GCM of top 3 most popular indentation values */
+		old_max = 0;
+		for (y = 0; y != 3; ++y) {
+			max = 0;
+			for (x = 0; x != nhist; ++x)
+				if (hist[x] > max) {
+					max = hist[x];
+					maxi = x;
+				}
+			if (max) {
+				if (!old_max)
+					old_max = max;
+				if (guessed_step)
+					guessed_step = euclid(guessed_step, hist_val[maxi]);
+				else
+					guessed_step = hist_val[maxi];
+				hist[maxi] = 0;
+			}
+		}
+		/* If guessed value is large, scale it down some */
+		while (!(guessed_step & 1) && guessed_step > 8)
+			guessed_step >>= 1;
+
+		if (found_tab && !found_space) {
+			b->o.indentc = '\t';
+			b->o.istep = 1;
+		} else if (found_space) {
+			b->o.indentc = ' ';
+			if (guessed_step)
+				b->o.istep = guessed_step;
 		}
 		prm(p);
 	}
@@ -2526,6 +2736,9 @@ err:
 /* If flag is set, update original time of file if it makes
  * sense to do so (it's a normal file, we're saving with
  * same name as buffer or is about to get this name).
+ *
+ * If flag is set to 2, we update original time even if file
+ * name changed (i.e., we're renaming the file).
  */
 
 int break_links; /* Set to break hard links on writes */
@@ -2548,19 +2761,19 @@ int bsave(P *p, unsigned char *s, off_t size, int flag)
 	if (s[0] == '!') {
 		nescape(maint->t);
 		ttclsn();
-		f = popen((char *)(s + 1), "w");
+		f = popen((char *)dequote(s + 1), "w");
 	} else
 #endif
 	if (s[0] == '>' && s[1] == '>')
-		f = fopen((char *)(s + 2), "a");
+		f = fopen((char *)dequote(s + 2), "a");
 	else if (!zcmp(s, USTR "-")) {
 		nescape(maint->t);
 		ttclsn();
 		f = stdout;
 	} else if (skip || amnt != MAXLONG)
-		f = fopen((char *)s, "r+");
+		f = fopen((char *)dequote(s), "r+");
 	else {
-		have_stat = !stat((char *)s, &sbuf);
+		have_stat = !stat((char *)dequote(s), &sbuf);
 		if (!have_stat)
 			sbuf.st_mode = 0666;
 		/* Normal file save */
@@ -2568,7 +2781,7 @@ int bsave(P *p, unsigned char *s, off_t size, int flag)
 			struct stat lsbuf;
 
 			/* Try to copy permissions */
-			if (!lstat((char *)s,&lsbuf)) {
+			if (!lstat((char *)dequote(s),&lsbuf)) {
 				int g;
 				if (!break_symlinks && S_ISLNK(lsbuf.st_mode)) {
 					goto nobreak;
@@ -2580,28 +2793,28 @@ int bsave(P *p, unsigned char *s, off_t size, int flag)
 					selinux_enabled = (is_selinux_enabled() > 0);
 				
 				if (selinux_enabled) {
-					if (getfilecon((char *)s, &se) < 0) {
+					if (getfilecon((char *)dequote(s), &se) < 0) {
 						berror = -4;
 						goto opnerr;
 					}
 				}
 #endif
-				unlink((char *)s);
-				g = creat((char *)s, sbuf.st_mode & ~(S_ISUID | S_ISGID));
+				unlink((char *)dequote(s));
+				g = creat((char *)dequote(s), sbuf.st_mode & ~(S_ISUID | S_ISGID));
 #ifdef WITH_SELINUX
 				if (selinux_enabled) {
-					setfilecon((char *)s, &se);
+					setfilecon((char *)dequote(s), &se);
 					freecon(se);
 				}
 #endif
 				close(g);
 				nobreak:;
 			} else {
-				unlink((char *)s);
+				unlink((char *)dequote(s));
 			}
 		}
 
-		f = fopen((char *)s, "w");
+		f = fopen((char *)dequote(s), "w");
 		norm = 1;
 	}
 	joesep(s);
@@ -2647,8 +2860,8 @@ err:
 
 	/* Update orignal date of file */
 	/* If it's not named, it's about to be */
-	if (!berror && norm && flag && (!p->b->name || !zcmp(s,p->b->name))) {
-		if (!stat((char *)s,&sbuf))
+	if (!berror && norm && flag && (!p->b->name || flag == 2 || !zcmp(s,p->b->name))) {
+		if (!stat((char *)dequote(s),&sbuf))
 			p->b->mod_time = sbuf.st_mtime;
 	}
 
@@ -2733,19 +2946,24 @@ unsigned char *brzs(P *p, unsigned char *buf, int size)
 
 /* Save edit buffers when editor dies */
 
+FILE *ttsig_f = 0;
+
 RETSIGTYPE ttsig(int sig)
 {
 	time_t tim = time(NULL);
 	B *b;
-	FILE *f;
 	int tmpfd;
 	struct stat sbuf;
 
+	/* Do not allow double-fault */
+	if (ttsig_f)
+		_exit(1);
+
 	if ((tmpfd = open("DEADJOE", O_RDWR | O_EXCL | O_CREAT, 0600)) < 0) {
 		if (lstat("DEADJOE", &sbuf) < 0)
-			_exit(-1);
+			_exit(1);
 		if (!S_ISREG(sbuf.st_mode) || sbuf.st_uid != geteuid())
-			_exit(-1);
+			_exit(1);
 		/*
 		   A race condition still exists between the lstat() and the open()
 		   systemcall, which leads to a possible denial-of-service attack
@@ -2754,30 +2972,40 @@ RETSIGTYPE ttsig(int sig)
 		   This can't be fixed w/o breacking the behavior of the orig. joe!
 		 */
 		if ((tmpfd = open("DEADJOE", O_RDWR | O_APPEND)) < 0)
-			_exit(-1);
+			_exit(1);
 		if (fchmod(tmpfd, S_IRUSR | S_IWUSR) < 0)
-			_exit(-1);
+			_exit(1);
 	}
-	if ((f = fdopen(tmpfd, "a")) == NULL)
-		_exit(-1);
+	if ((ttsig_f = fdopen(tmpfd, "a")) == NULL)
+		_exit(1);
 
-	fprintf(f, (char *)joe_gettext(_("\n*** These modified files were found in JOE when it aborted on %s")), ctime(&tim));
-	if (sig)
-		fprintf(f, (char *)joe_gettext(_("*** JOE was aborted by UNIX signal %d\n")), sig);
+	fprintf(ttsig_f, "\n*** These modified files were found in JOE when it aborted on %s", ctime(&tim));
+	if (sig == -2)
+		fprintf(ttsig_f, "*** JOE was aborted due to swap file I/O error\n");
+	else if (sig == -1)
+		fprintf(ttsig_f, "*** JOE was aborted due to malloc returning NULL\n");
+	else if (sig)
+		fprintf(ttsig_f, "*** JOE was aborted by UNIX signal %d\n", sig);
 	else
-		fprintf(f, (char *)joe_gettext(_("*** JOE was aborted because the terminal closed\n")));
-	fflush(f);
+		fprintf(ttsig_f, "*** JOE was aborted because the terminal closed\n");
+	fflush(ttsig_f);
 	for (b = bufs.link.next; b != &bufs; b = b->link.next)
 		if (b->changed) {
 			if (b->name)
-				fprintf(f, (char *)joe_gettext(_("\n*** File \'%s\'\n")), b->name);
+				fprintf(ttsig_f, (char *)joe_gettext(_("\n*** File \'%s\'\n")), b->name);
 			else
-				fprintf(f, (char *)joe_gettext(_("\n*** File \'(Unnamed)\'\n")));
-			fflush(f);
-			bsavefd(b->bof, fileno(f), b->eof->byte);
+				fprintf(ttsig_f, (char *)joe_gettext(_("\n*** File \'(Unnamed)\'\n")));
+			fflush(ttsig_f);
+			bsavefd(b->bof, fileno(ttsig_f), b->eof->byte);
 		}
 	if (sig)
 		ttclsn();
+	if (sig == -2)
+		fprintf(stderr,"\n*** JOE was aborted due to swap file I/O error\n");
+	else if (sig == -1)
+		fprintf(stderr,"\n*** JOE was aborted due to malloc returning NULL.  Buffers saved in DEADJOE\n");
+	else if (sig)
+		fprintf(stderr,"\n*** JOE was aborted by UNIX signal %d.  Buffers saved in DEADJOE\n", sig);
 	_exit(1);
 }
 
@@ -2786,8 +3014,9 @@ RETSIGTYPE ttsig(int sig)
    Return 0 for success or -1 for failure
 */
 
-int lock_it(unsigned char *path,unsigned char *bf)
+int lock_it(unsigned char *qpath,unsigned char *bf)
 {
+        unsigned char *path = dequote(qpath);
 	unsigned char *lock_name=dirprt(path);
 	unsigned char *name=namprt(path);
 	unsigned char buf[1024];
@@ -2815,8 +3044,9 @@ int lock_it(unsigned char *path,unsigned char *bf)
 	return -1;
 }
 
-void unlock_it(unsigned char *path)
+void unlock_it(unsigned char *qpath)
 {
+        unsigned char *path = dequote(qpath);
 	unsigned char *lock_name=dirprt(path);
 	unsigned char *name=namprt(path);
 	lock_name=vsncpy(sv(lock_name),sc(".#"));

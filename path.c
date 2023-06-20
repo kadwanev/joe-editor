@@ -67,18 +67,22 @@
 #endif
 
 #ifndef PATH_MAX
-#warning What should we include to have PATH_MAX defined?
+/* #warning is gcc extension
+  #warning What should we include to have PATH_MAX defined?
+*/
 #define PATH_MAX	4096
 #endif
 
 /********************************************************************/
 unsigned char *joesep(unsigned char *path)
 {
+#ifdef __MSDOS__
 	int x;
 
 	for (x = 0; path[x]; ++x)
 		if (path[x] == '\\')
 			path[x] = '/';
+#endif
 	return path;
 }
 /********************************************************************/
