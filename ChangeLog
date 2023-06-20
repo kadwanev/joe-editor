@@ -1,3 +1,441 @@
+Sat May 29 2004  Joe Allen <jhallen@world.std.com>
+
+	Use 'aspell' if it exists.
+	Set Home, End, Insert, Del key bindings, assuming termcap
+	entry is wrong.
+
+Fri May 28 2004  Joe Allen <jhallen@world.std.com>
+
+	Status line updates even if you keep typing.
+
+Fri May 28 2004  Joe Allen <jhallen@world.std.com>
+
+	Now it will use sprintf if snprintf does not exist.
+	Can now build on IRIX 6.2
+
+Thu May 27 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix segfault due to bad management of 'pieces' in rc/setopt().
+
+Thu May 27 2004  Joe Allen <jhallen@world.std.com>
+
+	Added asm.jsf.in.
+
+
+Thu May 27 2004  Joe Allen <jhallen@world.std.com>
+
+	Added diff.jsf.in.
+	Added improved xml.jsf.in
+
+Wed May 26 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix lockup problem: do not allow querysave in
+	prompt windows.
+
+Tue May 25 2004  Joe Allen <jhallen@world.std.com>
+
+	Character set aliases now appear in ^T E tab
+	completion.
+
+Mon May 24 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix bg_reg -> bg_red.
+
+	Now we understand aliases for character maps, like latin1 ->
+	iso-8859-1 and 8859-1 -> iso-8859-1.
+
+Mon May 24 2004  Joe Allen <jhallen@world.std.com>
+
+	Smart indent and backspace now work even if cursor
+	is not right at indentation point.  Also autoindent
+	does not happen if cursor is on a space or tab character.
+
+	Jmacs: ^W (cut) now works if mark is after point.  (Added -autoswap
+	mode).  Also: preserve mark and point positions during block
+	operations.
+
+Wed May 19 2004  Joe Allen <jhallen@world.std.com>
+
+	Allow options after strings in syntax files.
+
+Wed May 19 2004  Joe Allen <jhallen@world.std.com>
+
+	More fixes for Cygwin: shell windows now
+	work properly.
+
+Tue May 18 2004  Joe Allen <jhallen@world.std.com>
+
+	Changed ESC y to yank in joerc.  Left ESC ^Y
+	as yankpop.
+
+	Added "spring" escape sequence for help text.
+
+Mon May 17 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix backspace handling in shell windows.
+	Ring bell when we get ^G.
+
+Sun May 16 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix -syntax and -encoding on command line.
+
+	Check for "pty.h" when openpty is used.
+
+Sun May 16 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix mason bug.
+	Change ^K ^M back to move block.
+	^K H in jstar mode is "nmark".
+
+Fri May 14 2004  Joe Allen <jhallen@world.std.com>
+
+	Mason highlighter
+
+Fri May 14 2004  Joe Allen <jhallen@world.std.com>
+
+	Many jpicorc.in improvements.
+
+Thu May 13 2004  Joe Allen <jhallen@world.std.com>
+
+	Improve exit messages.
+
+	Improve 'lose' which is for jmacs.
+
+	Improve ^X for jpico.
+
+	Got rid of "end of processs" message in shell windows.
+
+	Shell windows can now be orphaned and duplicated (process
+	is associated with B instead of BW).
+
+	Shell window input taken from cmd.c instead of in
+	actual edit functions.
+
+	Improved 'lose' again- now it fill in windows with any
+	orphaned buffers it can find.
+
+Thu May 13 2004  Joe Allen <jhallen@world.std.com>
+
+	Small compile fix.
+
+Wed May 12 2004  Joe Allen <jhallen@world.std.com>
+
+	Compile now uses shell window (so you can hit ^C during the
+	compile.
+
+	Shell window termination code fix: now all of the output always
+	makes it to the window.
+
+	Added query save loop to save all modified files before build.
+
+	Added scratch buffers: they are ignored during ^K X, ^C and
+	querysave.
+
+	^X ^C is now much more like emacs.
+
+	Fixed annoying occasional screen update glitch: it was caused
+	by SIGALRM causing dropped output in Linux (doesn't happen on
+	SUN).  So now we arm SIGALRM only when waiting for input.  (SIGALRM
+	is used to keep the clock updated).
+
+Wed May 12 2004  Joe Allen <jhallen@world.std.com>
+
+	Applied Olexiy Avramchenko's <olexiy@irtech.cn.ua> patch
+	on configure.ac.  Also added mail.jsf.in to Makefile.am
+
+	Applied Yura Kalinichenko's <yuk@iceb.vinnitsa.com> "openpty"
+	patch.
+
+Tue May 11 2004  Joe Allen <jhallen@world.std.com>
+
+	Added "upper" and "lower" functions (no longer
+	depend on "tr" command).
+
+	Fix jmacs transpose word command.
+
+Tue May 11 2004  Joe Allen <jhallen@world.std.com>
+
+	Fix marking mode so only window with cursor is
+	effected.
+
+	Ctrl-space clears selection when cursor is in
+	selection, otherwise it starts a new one.
+
+	^K E prompts to load original file from disk.
+
+Tue May 11 2004  Joe Allen <jhallen@world.std.com>
+	* b.c ufile.c :
+
+	Update file date on save.
+	Improve Ctrl-<space> marking.
+
+Mon May 10 2004  Joe Allen <jhallen@world.std.com>
+	* ufile.c b.c :
+
+	Warns if file changed on save.
+
+	Add 'beep' function and updated jmacsrc.in
+
+Mon May 10 2004  Joe Allen <jhallen@world.std.com>
+	* usearch.c, uisrch.c:
+
+	Added '-wrap' flag.  Search wraps when set.
+
+Mon May 10 2004  Joe Allen <jhallen@world.std.com>
+	* *rc.in :
+
+	More globs: .cpp, .hpp, .c++, .h++
+
+Mon May 10 2004  Joe Allen <jhallen@world.std.com>
+	* b.c tw.c :
+
+	New status line escape sequence: %x shows current context (function
+	cursor is in).
+
+	More globs in *rc.in files.
+
+	csh.jsf lisp.jsf
+
+Sun May  9 02:30:41 EDT 2004
+	* sh.jsf.in :
+
+	Improved shell script highlighter.
+	Fix spelling errors in joe.1.in
+
+Sat May  8 2004  Joe Allen <jhallen@world.std.com>
+	* usearch.c :
+
+	Fixed bug in tab completion in text windows.
+	Change tab completion key to ^K <return>
+
+Fri May  7 22:37:49 EDT 2004
+	* usearch.c :
+
+	Tab completion at search prompt.
+
+	ESC-Tab completes within text windows.
+
+Fri May  7 16:02:21 EDT 2004
+	* usearch.c, uisrch.c :
+
+	Added case insensitive by default option.
+
+Fri May  7 2004  Joe Allen <jhallen@world.std.com>
+	* main.c, menu.c, pw.c, qw.c, rc.c, tab.c :
+
+	joe a b c, now windows are in order a, b, c.
+
+	TAB completion now works on last path in prompt window:
+	for example '!ls foo', tab will complete the foo.
+
+	Added menu_explorer option.  When set: menu stays up when
+	a directory is seleted.  When clear: directory is added
+	to path and menu is closed.
+
+	Menus are now 40% of window size (or smaller if they are
+	not filled).
+
+	Cursor is now position after selected menu entry.
+
+Thu May  6 2004  Joe Allen <jhallen@world.std.com>
+	* umenu.c :
+
+	TAB key now cycles through menu entries.  This is useful
+	for tab completion: just keep hitting tab until you see the
+	file you want, then hit enter.
+
+	TAB completion is more "bash"-like: if you complete a directory
+	name a menu does not appear, the directory just gets added to the
+	prompt.
+
+Thu May  6 2004  Joe Allen <jhallen@world.std.com>
+	* ublock.c :
+
+	Added "select" function for Ctrl-arrow selecting.
+	Ctrl-space drops anchor and sets marking mode.
+
+Thu May  6 2004  Joe Allen <jhallen@world.std.com>
+	* uerror.c :
+
+	Improve error parser: require ':' on error lines.
+	Make macro 'compile' for error parsing.
+	'compile' macro always uses same buffer.
+	^X ` in jmacs goes to next error.
+
+Thu May  6 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c :
+
+	Smart tab looks back 10 lines to determine indentation.
+
+Wed May  5 2004  Joe Allen <jhallen@world.std.com>
+	* charmap.c :
+
+	Now parses charmap files.
+
+Wed May  5 2004  Joe Allen <jhallen@world.std.com>
+ 	* bw.c charmap.c main.c qw.c qw.h regex.c regex.h 
+ 	syntax.c types.h uisrch.c usearch.c utf8.c utf8.h:
+
+	Regex search now works properly with UTF-8 chars.
+	Incremental search now works with UTF-8.
+
+Wed May  5 2004  Joe Allen <jhallen@world.std.com>
+	* utils.c, c.jsf.in:
+
+	Fix c++ keywords.
+	Fix parse_ident, which was breaking fortran highlighter.
+
+Tue May  4 2004  Joe Allen <jhallen@world.std.com>
+	* rc.c, selinux.c, syntax.c, ufile.c:
+
+	Applied new Selinux patch.
+
+	Checks ~/.joe/syntax for syntax files.
+
+Tue May  4 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c, charmap.c, main.c:
+
+	Print locale on startup line.
+
+	Print encoding for ^K <space>.
+
+	Change koi8-T to koi8-t.
+
+Tue May  4 2004  Joe Allen <jhallen@world.std.com>
+	* ChangeLog TODO b.c bw.c charmap.c charmap.h cmd.c help.c 
+ 	i18n.c i18n.h joerc.in jpicorc.in jstarrc.in macro.c main.c 
+ 	menu.c pw.c pw.h rc.c regex.c rjoerc.in scrn.c scrn.h syntax.c 
+ 	types.h ublock.c uedit.c uerror.c ufile.c uformat.c umath.c 
+ 	usearch.c ushell.c utag.c utf8.c utils.c utils.h w.c:
+
+	Everything about character set is now contained in struct charmap.
+
+	Deprecate ^T U.  Now use ^T E to select file encoding.
+
+Mon May  3 2004  Joe Allen <jhallen@world.std.com>
+	* :
+
+	Clean up pass: use internal ctype function everywhere.
+
+	Also: ^T E sets file encoding.
+
+Mon Mai  3 2004  Joe Allen <jhallen@world.std.com>
+	* utils.c, utils.h, utf8.c, syntax.c, configure.ac, Makefile.am,
+	charmap.c, charmap.h:
+
+	No longer use iconv().  Not 100% sure I'm going to leave it this
+	way.  Maybe optionally use iconv().
+
+Mon May  3 2004  Joe Allen <jhallen@world.std.com>
+	*:
+
+	Eliminate --pedantic warnings.
+
+Mon May  3 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c, i18n.c, i18n.h, b.c, configure.ac, regex.c, scrn.c, Makefile.am :
+
+	Fix highlighter when there are utf-8 characters in file.
+
+	No longer depend on wctype.h (working towards not depending on
+	iconv()).
+
+Sun May  2 2004  Joe Allen <jhallen@world.std.com>
+	* Makefile.am, configure.ac, *rc.in:
+
+	Fix mutt mode: need -wordwrap, not -autoindent.
+
+	Fix configure.ac and Makefile.am to link -liconv if
+	necessary.
+
+Sat May 30 2004  Joe Allen <jhallen@world.std.com>
+	* syntax.c :
+
+	Fix segfault problem with load_dfa.
+
+Fri Apr 30 2004  Joe Allen <jhallen@world.std.com>
+	*:
+
+	Improve Fortran again.
+
+	Added '-indentfirst' option to control
+	how smarthome works.
+
+	Now syntax files are loaded as needed.
+
+	New version of automake and autoconf.
+
+	Print UTF-8 (c) if terminal is utf-8.
+
+Thu Apr 29 2004  Joe Allen <jhallen@world.std.com>
+	*:
+
+	Improve Fortran syntax file.
+	Improve Perl syntax file.
+
+
+Wed Apr 28 2004  Joe Allen <jhallen@world.std.com>
+	*:
+
+	Improve C and Java syntax files.
+
+Wed Apr 28 2004  Joe Allen <jhallen@world.std.com>
+	* syntax.c :
+
+	More syntax files: tcl
+
+	Now 'noeat' implies 'recolor=-1', which reduces debug time
+	for syntax definition files.
+
+Tue Apr 27 2004  Joe Allen <jhallen@world.std.com>
+	*:
+
+	More syntax files: html, pascal, vhdl, fortran, java, xml.
+
+	Allow comment lines in syntax file string lists.
+
+Mon Apr 26 2004  Joe Allen <jhallen@world.std.com>
+	*  Makefile.am bw.c configure.ac *rc.in utf8.c syntax/perl.jsf.in
+	syntax/verilog.jsf.in:
+
+	Forgot .pm files for perl.
+
+	Update colors for perl and verilog.
+
+	Added mail.jsf: works nicely with mutt
+
+	Oops- was displaying characters between 0xA0 - 0xBF as
+	control characters in UTF-8.
+
+Mon Apr 26 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c ublock.c :
+
+	Smart backspace now always fixes the indentation.
+
+	Indent left and right always fix indentation.
+
+Mon Apr 26 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c tty.c uedit.c utf8.c *rc.in:
+
+	Fix rtarw: was not fixing xcol.
+
+	TAB key now does smart indenting.
+
+	smart home goes to real home first, then indentation point.
+
+Sun Apr 25 2004  Joe Allen <jhallen@world.std.com>
+	* b.c bw.c scrn.c uedit.c utf8.c utf8.h:
+
+	Better handling of iconv() conversion errors.
+
+	Better handling of error UTF-8 sequences.
+
+Sat Apr 24 2004  Joe Allen <jhallen@world.std.com>
+	* utf8.c, utf8.h, scrn.c, bw.c :
+
+	Fixed utf8 encoder for characters between 0x10000 and 0x1FFFF.
+
+	Print <XXXX> for unicode control characters.
+
 Fri Apr 23 2004  Joe Allen <jhallen@world.std.com>
 
 	Added -guess_crlf and -guess_indent options.

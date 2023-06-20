@@ -115,9 +115,12 @@ struct options {
 	int	spaces;
 	int	crlf;
 	int	highlight;	/* Set to enable highlighting */
-	struct high_syntax *syntax;	/* Syntax for highlighting */
-	int	utf8;		/* Set for UTF-8 mode */
+	unsigned char *syntax_name;	/* Name of syntax to use */
+	struct high_syntax *syntax;	/* Syntax for highlighting (load_dfa() from syntax_name happens in setopt()) */
+	unsigned char *map_name;	/* Name of character set */
+	struct charmap *charmap;	/* Character set */
 	int	smarthome;	/* Set for smart home key */
+	int	indentfirst;	/* Smart home goes to indentation point first */
 	int	smartbacks;	/* Set for smart backspace key */
 	int	purify;		/* Purify indentation */
 	int	picture;	/* Picture mode */
@@ -161,18 +164,22 @@ struct buffer {
 	P	*bof;
 	P	*eof;
 	unsigned char	*name;
+	long    mod_time;	/* Last modification time for file */
 	int	orphan;
 	int	count;
 	int	changed;
 	int	backup;
 	void	*undo;
-	P	*marks[10];	/* Bookmarks */
+	P	*marks[11];	/* Bookmarks */
 	OPTIONS	o;		/* Options */
 	P	*oldcur;	/* Last cursor position before orphaning */
 	P	*oldtop;	/* Last top screen position before orphaning */
 	int	rdonly;		/* Set for read-only */
 	int	internal;	/* Set for internal buffers */
+	int	scratch;	/* Set for scratch buffers */
 	int	er;		/* Error code when file was loaded */
+	pid_t	pid;		/* Process id */
+	int	out;		/* fd to write to process */
 };
 
 
@@ -309,8 +316,6 @@ struct bw {
 	OPTIONS	o;
 	void	*object;
 
-	pid_t	pid;		/* Process id */
-	int	out;		/* fd to write to process */
 	int	linums;
 	int	top_changed;	/* Top changed */
 };
@@ -535,6 +540,7 @@ struct tw {
 	int	staon;		/* Set if status line was on */
 	long	prevline;	/* Previous cursor line number */
 	int	changed;	/* Previous changed value */
+	B	*prev_b;	/* Previous buffer (we need to update status line on nbuf/pbuf) */
 };
 
 struct irec {
@@ -542,11 +548,13 @@ struct irec {
 	int	what;		/* 0 repeat, >0 append n chars */
 	long	start;		/* Cursor search position */
 	long	disp;		/* Original cursor position */
+	int	wrap_flag;	/* Wrap flag */
 };
 
 struct isrch {
 	IREC	irecs;		/* Linked list of positions */
-	unsigned char	*pattern;	/* Search pattern string/prompt */
+	unsigned char *pattern;	/* Search pattern string */
+	unsigned char *prompt;	/* Prompt (usually same as pattern unless utf-8/byte conversion) */
 	int	ofst;		/* Offset in pattern past prompt */
 	int	dir;		/* 0=fwrd, 1=bkwd */
 	int	quote;		/* Set to quote next char */
@@ -578,6 +586,7 @@ struct undo {
 struct srchrec {
 	LINK(SRCHREC)	link;	/* Linked list of search & replace locations */
 	int	yn;		/* Did we replace? */
+	int	wrap_flag;	/* Did we wrap? */
 	long	addr;		/* Where we were */
 };
 
@@ -594,6 +603,8 @@ struct search {
 	int	flg;		/* Set after prompted for first replace */
 	SRCHREC	recs;		/* Search & replace position history */
 	P	*markb, *markk;	/* Original marks */
+	P	*wrap_p;	/* Wrap point */
+	int	wrap_flag;	/* Set if we've wrapped */
 	int	valid;		/* Set if original marks are a valid block */
 	long	addr;		/* Addr of last replacement or -1 for none */
 	int	block_restrict;	/* Search restricted to marked block */

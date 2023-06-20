@@ -8,7 +8,6 @@
 #include "config.h"
 #include "types.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
@@ -18,6 +17,7 @@
 #include "blocks.h"
 #include "scrn.h"
 #include "termcap.h"
+#include "charmap.h"
 #include "utf8.h"
 #include "utils.h"
 
@@ -129,31 +129,6 @@ unsigned xlata[256] = {
 	INVERSE, INVERSE, INVERSE, INVERSE + UNDERLINE		/* 256 */
 };
 
-/* Write a multibyte character */
-
-void utf8_putc(int utf8_char)
-{
-	unsigned char buf[8];
-	int len = utf8_encode(buf,utf8_char);
-	ttputs(buf);
-}
-
-void xlat(int *attr, unsigned char *c)
-{
-	if(isprint(*c) || (dspasis && *c >= 128 ))
-		*attr = 0;
-	else {
-		*attr = xlata[*c];
-		*c = xlatc[*c];
-	}
-}
-
-void xlat_utf_ctrl(int *attr, unsigned char *c)
-{
-	*attr = xlata[*c];
-	*c = xlatc[*c];
-}
-
 /* Set attributes */
 
 int set_attr(SCRN *t, int c)
@@ -162,7 +137,7 @@ int set_attr(SCRN *t, int c)
 
 	c &= ~255;
 
-	// Attributes which have gone off
+	/* Attributes which have gone off */
 	e = ((AT_MASK|FG_NOT_DEFAULT|BG_NOT_DEFAULT)&t->attrib & ~c);
 
 	if (e) {	/* If any attribute go off, switch them all off: fixes bug on PCs */
@@ -177,7 +152,7 @@ int set_attr(SCRN *t, int c)
 		t->attrib = 0;
 	}
 
-	// Attributes which have turned on
+	/* Attributes which have turned on */
 	e = (c & ~t->attrib);
 
 	if (e & INVERSE) {
@@ -213,16 +188,32 @@ int set_attr(SCRN *t, int c)
 
 /* Output character with attributes */
 
-void outatr(int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
+void outatr(struct charmap *map,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
 {
-	if(wide)
-		if(utf8) {
+	if(map->type)
+		if(locale_map->type) {
 			/* UTF-8 char to UTF-8 terminal */
-			int zz;
+			int wid;
+			int uni_ctrl = 0;
+			unsigned char buf[16];
+
+			/* Deal with control characters */
+			if (c<32) {
+				c = c + '@';
+				a ^= UNDERLINE;
+			} else if (c==127) {
+				c = '?';
+				a ^= UNDERLINE;
+			} else if (unictrl(c)) {
+				a ^= UNDERLINE;
+				uni_ctrl = 1;
+			}
+
 			if(*scrn==c && *attrf==a)
 				return;
 
-			zz = mk_wcwidth(c);
+			wid = joe_wcwidth(1,c);
+
 			*scrn = c;
 			*attrf = a;
 			if(t->ins)
@@ -231,17 +222,35 @@ void outatr(int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
 				cpos(t, xx, yy);
 			if(t->attrib != a)
 				set_attr(t, a);
-			utf8_putc(c);
-			t->x+=zz;
-			if(zz==2) {
-				scrn[1]= -1;
-				attrf[1]= 0;
+			if (uni_ctrl) {
+				sprintf((char *)buf,"<%X>",c);
+				ttputs(buf);
+			} else {
+				utf8_encode(buf,c);
+				ttputs(buf);
+			}
+			t->x+=wid;
+			while (wid>1) {
+				*++scrn= -1;
+				*++attrf= 0;
+				--wid;
 			}
 		} else {
 			/* UTF-8 char to non-UTF-8 terminal */
-			unsigned char buf[10];
-			utf8_encode(buf,c);	/* Utf-8 encode character */
-			c = from_utf8(buf);	/* Convert to non-utf character */
+			/* Don't convert control chars below 256 */
+			if (c>=32 && c<=126 || c>=160) {
+				if (unictrl(c))
+					a ^= UNDERLINE;
+				c = from_uni(locale_map,c);
+				if (c==-1)
+					c = '?';
+			}
+
+			/* Deal with control characters */
+			if (!joe_isprint(locale_map,c) && !(dspasis && c>=128)) {
+				a ^= xlata[c];
+				c = xlatc[c];
+			}
 
 			if(*scrn==c && *attrf==a)
 				return;
@@ -258,13 +267,22 @@ void outatr(int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
 			t->x++;
 		}
 	else
-		if(!utf8) {
+		if (!locale_map->type) {
 			/* Non UTF-8 char to non UTF-8 terminal */
-			if(*scrn==c && *attrf==a)
+			/* Byte-byte Translate? */
+
+			/* Deal with control characters */
+			if (!joe_isprint(locale_map,c) && !(dspasis && c>=128)) {
+				a ^= xlata[c];
+				c = xlatc[c];
+			}
+
+			if (*scrn==c && *attrf==a)
 				return;
 
 			*scrn = c;
 			*attrf = a;
+
 			if(t->ins)
 				clrins(t);
 			if(t->x != xx || t->y != yy)
@@ -275,15 +293,24 @@ void outatr(int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
 			t->x++;
 		} else {
 			/* Non UTF-8 char to UTF-8 terminal */
-			unsigned char buf[10];
-			int zz;
-			to_utf8(buf,c);
-			c = utf8_decode_string(buf);
+			unsigned char buf[16];
+			int wid;
 
-			if(*scrn==c && *attrf==a)
+			/* Deal with control characters */
+			if (!(dspasis && c>=128) && !joe_isprint(map,c)) {
+				a ^= xlata[c];
+				c = xlatc[c];
+			}
+
+			c = to_uni(map,c);
+			if (c == -1)
+				c = '?';
+			utf8_encode(buf,c);
+
+			if (*scrn == c && *attrf == a)
 				return;
 
-			zz = mk_wcwidth(c);
+			wid = joe_wcwidth(0,c);
 			*scrn = c;
 			*attrf = a;
 			if(t->ins)
@@ -293,11 +320,11 @@ void outatr(int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
 			if(t->attrib != a)
 				set_attr(t, a);
 			ttputs(buf);
-			/* utf8_putc(c); */
-			t->x+=zz;
-			if(zz==2) {
-				scrn[1]= -1;
-				attrf[1]= 0;
+			t->x+=wid;
+			while(wid>1) {
+				*++scrn= -1;
+				*++attrf= 0;
+				--wid;
 			}
 		}
 }
@@ -394,6 +421,7 @@ int eraeol(SCRN *t, int x, int y)
 
 static void outatri(SCRN *t, int x, int y, int c, int a)
 {
+/*
 	if (c == -1)
 		c = ' ';
 	if (a != t->attrib)
@@ -401,7 +429,8 @@ static void outatri(SCRN *t, int x, int y, int c, int a)
 	if (t->haz && c == '~')
 		c = '\\';
 	utf8_putc(c);
-	t->x+=mk_wcwidth(c);
+	t->x+=joe_wcwidth(1,c);
+*/
 	/* ++t->x; */
 }
 
@@ -645,6 +674,8 @@ SCRN *nopen(CAP *cap)
 	leave = 1;
 	ttclose();
 	signrm();
+        fprintf(stderr,"cm=%d ch=%d cv=%d ho=%d lf=%d DO=%d ll=%d up=%d UP=%d cr=%d\n",
+                       t->cm, t->ch, t->cv, t->ho, t->lf, t->DO, t->ll, t->up, t->UP, t->cr);
 	fprintf(stderr,"Sorry, your terminal can't do absolute cursor positioning.\nIt's broken\n");
 	return NULL;
       ok:
@@ -1544,7 +1575,7 @@ void nscroll(SCRN *t)
 
 	for (y = 0; y != t->li; ++y) {
 		q = t->sary[y];
-		if (have)
+		if (ifhave)
 			return;
 		if (q && q != t->li) {
 			if (q > 0) {
@@ -1751,7 +1782,7 @@ int meta_color(unsigned char *s)
 		return BG_YELLOW;
 	else if(!strcmp((char *)s,"bg_green"))
 		return BG_GREEN;
-	else if(!strcmp((char *)s,"bg_reg"))
+	else if(!strcmp((char *)s,"bg_red"))
 		return BG_RED;
 	else if(!strcmp((char *)s,"bg_black"))
 		return BG_BLACK;
@@ -1782,64 +1813,51 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 
 	for (col = 0;len != 0 && x < last_col; len--) {
 		int c = *s++;
-		int a;
-		int wid = 0;
-		if (utf8) {
+		int wid = -1;
+		if (locale_map->type) {
 			/* UTF-8 mode: decode character and determine its width */
 			c = utf8_decode(&sm,c);
-			if (c >= 0) {
-				if (c<32 || c>126 && c<160) { /* Control character */
-					/* Note that this ignore dspasis */
-					a = xlata[c] ^ atr;
-					c = xlatc[c];
-					wid = 1;
-				} else { /* Normal character */
-					wid = mk_wcwidth(c);
-					a = atr;
-				}
-			}
+			if (c >= 0)
+				wid = joe_wcwidth(1,c);
 		} else {
 			/* Byte mode: character is one column wide */
-			unsigned char bc = c;
-			xlat (&a, &bc); /* Uses dspasis as it should */
-			c = bc;
-			a ^= atr;
 			wid = 1 ;
 		}
-		if (col >= ofst) {
-			if (x + wid > last_col) {
-				/* Character crosses end of field, so fill balance of field with '>' characters instead */
-				while (x < last_col) {
-					outatr(utf8, t, scrn, attr, x, y, '>', atr);
+		if (wid>=0)
+			if (col >= ofst) {
+				if (x + wid > last_col) {
+					/* Character crosses end of field, so fill balance of field with '>' characters instead */
+					while (x < last_col) {
+						outatr(locale_map, t, scrn, attr, x, y, '>', atr);
+						++scrn;
+						++attr;
+						++x;
+					}
+				} else if(wid) {
+					/* Emit character */
+					outatr(locale_map, t, scrn, attr, x, y, c, atr);
+					x += wid;
+					scrn += wid;
+					attr += wid;
+				}
+			} else if ((col + wid) > ofst) {
+				/* Wide character crosses left side of field */
+				wid -= ofst - col;
+				col = ofst;
+				while (wid) {
+					outatr(locale_map, t, scrn, attr, x, y, '<', atr);
 					++scrn;
 					++attr;
 					++x;
+					++col;
+					--wid;
 				}
-			} else if(wid) {
-				/* Emit character */
-				outatr(utf8, t, scrn, attr, x, y, c, a);
-				x += wid;
-				scrn += wid;
-				attr += wid;
-			}
-		} else if ((col + wid) > ofst) {
-			/* Wide character crosses left side of field */
-			wid -= ofst - col;
-			col = ofst;
-			while (wid) {
-				outatr(utf8, t, scrn, attr, x, y, '<', a);
-				++scrn;
-				++attr;
-				++x;
-				++col;
-				--wid;
-			}
-		} else
-			col += wid;
+			} else
+				col += wid;
 	}
 	/* Fill balance of field with spaces */
 	while (x < last_col) {
-		outatr(utf8, t, scrn, attr, x, y, ' ', 0);
+		outatr(locale_map, t, scrn, attr, x, y, ' ', 0);
 		++x;
 		++scrn;
 		++attr;
@@ -1853,7 +1871,7 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 
 int txtwidth(unsigned char *s,int len)
 {
-	if (utf8) {
+	if (locale_map->type) {
 		int col=0;
 		struct utf8_sm sm;
 		utf8_init(&sm);
@@ -1861,7 +1879,7 @@ int txtwidth(unsigned char *s,int len)
 		while(len--) {
 			int d = utf8_decode(&sm,*s++);
 			if (d >= 0)
-				col += mk_wcwidth(d);
+				col += joe_wcwidth(1,d);
 		}
 
 		return col;
@@ -1909,13 +1927,8 @@ void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int flg)
 				--s;
 				break;
 			default: {
-				unsigned char bc = (c&0x7F);	/* Allow only ASCII here */
-				int a;
-				xlat (&a, &bc); /* Uses dspasis as it should */
-				c = bc;
-				a ^= atr;
 				if (col++ >= ofst) {
-					outatr(utf8, t, scrn, attr, x, y, c, a);
+					outatr(locale_map, t, scrn, attr, x, y, (c&0x7F), atr);
 					++scrn;
 					++attr;
 					++x;
@@ -1924,52 +1937,40 @@ void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int flg)
 				}
 			}
 		} else {
-			int wid = 0;
-			int a;
-			if (utf8) {
+			int wid = -1;
+			if (locale_map->type) {
 				/* UTF-8 mode: decode character and determine its width */
 				c = utf8_decode(&sm,c);
 				if (c >= 0) {
-					if (c<32 || c>126 && c<160) { /* Control character */
-						/* Note that this ignores dspasis */
-						a = xlata[c] ^ atr;
-						c = xlatc[c];
-						wid = 1;
-					} else { /* Normal character */
-						wid = mk_wcwidth(c);
-						a = atr;
-					}
+						wid = joe_wcwidth(1,c);
 				}
 			} else {
 				/* Byte mode: character is one column wide */
-				unsigned char bc = c;
-				xlat (&a, &bc); /* Uses dspasis as it should */
-				c = bc;
-				a ^= atr;
 				wid = 1 ;
 			}
 
-			if (col >= ofst) {
-				outatr(utf8, t, scrn, attr, x, y, c, a);
-				scrn += wid;
-				attr += wid;
-				x += wid;
-				col += wid;
-			} else if (col+wid>ofst) {
-				while (col<ofst) {
-					++col;
-					--wid;
-				}
-				while (wid) {
-					outatr(utf8, t, scrn, attr, x, y, '<', atr);
-					++scrn;
-					++attr;
-					++x;
-					++col;
-					--wid;
-				}
-			} else
-				col += wid;
+			if (wid>=0)
+				if (col >= ofst) {
+					outatr(locale_map, t, scrn, attr, x, y, c, atr);
+					scrn += wid;
+					attr += wid;
+					x += wid;
+					col += wid;
+				} else if (col+wid>ofst) {
+					while (col<ofst) {
+						++col;
+						--wid;
+					}
+					while (wid) {
+						outatr(locale_map, t, scrn, attr, x, y, '<', atr);
+						++scrn;
+						++attr;
+						++x;
+						++col;
+						--wid;
+					}
+				} else
+					col += wid;
 		}
 	if (flg)
 		eraeol(t, x, y);
@@ -2007,10 +2008,10 @@ int fmtlen(unsigned char *s)
 			}
 		} else {
 			int wid = 0;
-			if(utf8) {
+			if(locale_map->type) {
 				c = utf8_decode(&sm,c);
 				if (c>=0)
-					wid = mk_wcwidth(c);
+					wid = joe_wcwidth(1,c);
 			} else {
 				wid = 1;
 			}
@@ -2058,10 +2059,10 @@ int fmtpos(unsigned char *s, int goal)
 			}
 		} else {
 			int wid = 0;
-			if(utf8) {
+			if(locale_map->type) {
 				c = utf8_decode(&sm,c);
 				if (c>=0)
-					wid = mk_wcwidth(c);
+					wid = joe_wcwidth(1,c);
 			} else {
 				wid = 1;
 			}

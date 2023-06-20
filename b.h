@@ -25,6 +25,9 @@ B *bmk PARAMS((B *prop));
 void brm PARAMS((B *b));
 
 B *bfind PARAMS((unsigned char *s));
+B *bfind_scratch PARAMS((unsigned char *s));
+B *bcheck_loaded PARAMS((unsigned char *s));
+B *bfind_reload PARAMS((unsigned char *s));
 
 P *pdup PARAMS((P *p));
 P *pdupown PARAMS((P *p, P **o));
@@ -125,7 +128,7 @@ B *bfind PARAMS((unsigned char *s));
 B *borphan PARAMS((void));
 
 /* Save 'size' bytes beginning at 'p' into file with name in 's' */
-int bsave PARAMS((P *p, unsigned char *s, long int size));
+int bsave PARAMS((P *p, unsigned char *s, long int size,int flag));
 int bsavefd PARAMS((P *p, int fd, long int size));
 
 unsigned char *parsens PARAMS((unsigned char *s, long int *skip, long int *amnt));
@@ -146,6 +149,10 @@ unsigned char *brs PARAMS((P *p, int size));
 
 /* Copy 'size' bytes from a buffer beginning at p into a variable length string. */
 unsigned char *brvs PARAMS((P *p, int size));
+
+/* Copy line into buffer.  Maximum of size bytes will be copied.  Buffer needs
+   to be one bigger for NIL */
+unsigned char *brzs PARAMS((P *p, unsigned char *buf, int size));
 
 B *bnext PARAMS((void));
 B *bprev PARAMS((void));

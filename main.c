@@ -28,6 +28,7 @@
 #include "vs.h"
 #include "w.h"
 #include "utf8.h"
+#include "charmap.h"
 #include "syntax.h"
 
 extern int mid, dspasis, force, help, pgamnt, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, marking, beep;
@@ -144,6 +145,7 @@ int edloop(int flg)
 		if (m)
 			ret = exemac(m);
 	}
+
 	if (term == -1)
 		return -1;
 	else
@@ -327,7 +329,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 			if (!orphan || !opened) {
 				bw = wmktw(maint, b);
 				if (er)
-					msgnwt(bw->parent, msgs[5 + er]);
+					msgnwt(bw->parent, msgs[-er]);
 			} else
 				b->orphan = 1;
 			if (bw) {
@@ -339,15 +341,19 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 						if (argv[backopt][0] == '+') {
 							sscanf((char *)(argv[backopt] + 1), "%ld", &lnum);
 							++backopt;
-						} else if (glopt(argv[backopt] + 1, argv[backopt + 1], &bw->o, 0) == 2)
-							backopt += 2;
-						else
-							backopt += 1;
+						} else {
+							if (glopt(argv[backopt] + 1, argv[backopt + 1], &bw->o, 0) == 2)
+								backopt += 2;
+							else
+								backopt += 1;
+							lazy_opts(&bw->o);
+						}
 					}
 				}
 				bw->b->o = bw->o;
 				bw->b->rdonly = bw->o.readonly;
-				maint->curwin = bw->parent;
+				if (!opened)
+					maint->curwin = bw->parent;
 				if (er == -1 && bw->o.mnew)
 					exemac(bw->o.mnew);
 				if (er == 0 && bw->o.mold)
@@ -376,8 +382,15 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	if (help) {
 		help_on(maint);
 	}
-	if (!nonotice)
-		msgnw(((BASE *)lastw(maint)->object)->parent, US ("\\i** Joe's Own Editor v" VERSION " ** Copyright (C) 2003 **\\i"));
+	if (!nonotice) {
+		if (locale_map->type)
+			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright © 2004 **\\i",locale_map->name);
+		else
+			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright (C) 2004 **\\i",locale_map->name);
+
+		msgnw(((BASE *)lastw(maint)->object)->parent, msgbuf);
+	}
+
 	edloop(0);
 	vclose(vmem);
 	nclose(n);

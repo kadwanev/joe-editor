@@ -1,4 +1,4 @@
-/*
+ /*
  *	Editor engine
  *	Copyright
  *		(C) 1992 Joseph H. Allen
@@ -18,7 +18,6 @@
 #endif
 #include <errno.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <string.h>
 #ifdef HAVE_TIME_H
 #include <time.h>
@@ -38,6 +37,7 @@
 #include "vfile.h"
 #include "vs.h"
 #include "utf8.h"
+#include "charmap.h"
 #include "w.h"
 
 unsigned char stdbuf[stdsiz];
@@ -51,11 +51,13 @@ int force = 0;
 VFILE *vmem;
 
 unsigned char *msgs[] = {
-	US "Error writing file",
-	US "Error opening file",
-	US "Error seeking file",
+	US "No error",
+	US "New File",
 	US "Error reading file",
-	US "New File"
+	US "Error seeking file",
+	US "Error opening file",
+	US "Error writing file",
+	US "File on disk is newer"
 };
 
 /* Get size of gap (amount of free space) */
@@ -195,6 +197,7 @@ static B *bmkchn(H *chn, B *prop, long amnt, long nlines)
 	b->oldtop = NULL;
 	b->backup = 1;
 	b->internal = 1;
+	b->scratch = 0;
 	b->changed = 0;
 	b->count = 1;
 	b->name = NULL;
@@ -221,6 +224,8 @@ static B *bmkchn(H *chn, B *prop, long amnt, long nlines)
 	b->eof->byte = amnt;
 	b->eof->line = nlines;
 	b->eof->valcol = 0;
+	b->pid = 0;
+	b->out = -1;
 	enquef(B, link, &bufs, b);
 	pcoalesce(b->bof);
 	pcoalesce(b->eof);
@@ -416,7 +421,7 @@ int pisbow(P *p)
 	int d = prgetc(q);
 
 	prm(q);
-	if (isalnum_(p->b->o.utf8,c) && (!isalnum_(p->b->o.utf8,d) || pisbof(p)))
+	if (joe_isalnum_(p->b->o.charmap,c) && (!joe_isalnum_(p->b->o.charmap,d) || pisbof(p)))
 		return 1;
 	else
 		return 0;
@@ -430,7 +435,7 @@ int piseow(P *p)
 	int c = prgetc(q);
 
 	prm(q);
-	if (isalnum_(p->b->o.utf8,c) && (!isalnum_(p->b->o.utf8,d) || piseof(p)))
+	if (joe_isalnum_(p->b->o.charmap,c) && (!joe_isalnum_(p->b->o.charmap,d) || piseof(p)))
 		return 1;
 	else
 		return 0;
@@ -442,7 +447,7 @@ int pisblank(P *p)
 	P *q = pdup(p);
 
 	p_goto_bol(q);
-	while (joe_isblank(brc(q)))
+	while (joe_isblank(p->b->o.charmap,brc(q)))
 		pgetb(q);
 	if (piseol(q)) {
 		prm(q);
@@ -458,7 +463,7 @@ int piseolblank(P *p)
 {
 	P *q = pdup(p);
 
-	while (joe_isblank(brc(q)))
+	while (joe_isblank(p->b->o.charmap,brc(q)))
 		pgetb(q);
 	if (piseol(q)) {
 		prm(q);
@@ -476,7 +481,7 @@ long pisindent(P *p)
 	long col;
 
 	p_goto_bol(q);
-	while (joe_isblank(brc(q)))
+	while (joe_isblank(p->b->o.charmap,brc(q)))
 		pgetc(q);
 	col = q->col;
 	prm(q);
@@ -553,7 +558,7 @@ int pgetb(P *p)
 /* return current character and move p to the next character.  column will be updated if it was valid. */
 int pgetc(P *p)
 {
-	if (p->b->o.utf8) {
+	if (p->b->o.charmap->type) {
 		int val;
 		int c, oc;
 		int d;
@@ -586,6 +591,7 @@ int pgetc(P *p)
 			n = 0;
 		} else { /* 128-191, 254, 255: Not a valid UTF-8 start character */
 			n = 0;
+			c = 'X';
 			/* c -= 384; */
 		}
 
@@ -594,7 +600,7 @@ int pgetc(P *p)
 		if (n) {
 			while (n) {
 				d = brc(p);
-				if((d&0xC0)!=0x80)
+				if ((d&0xC0)!=0x80)
 					break;
 				pgetb(p);
 				c = ((c<<6)|(d&0x3F));
@@ -607,7 +613,7 @@ int pgetc(P *p)
 				c = 'X';
 				wid = 1;
 			} else if (val)
-				wid = mk_wcwidth(c);
+				wid = joe_wcwidth(1,c);
 		} else {
 			wid = 1;
 		}
@@ -715,7 +721,26 @@ int prgetb(P *p)
 /* move p to the previous character (try to keep col updated) */
 int prgetc(P *p)
 {
-	if (p->b->o.utf8) {
+	if (p->b->o.charmap->type) {
+
+		if (pisbol(p))
+			return prgetb(p);
+		else {
+			P *q = pdup(p);
+			P *r;
+			p_goto_bol(q);
+			r = pdup(q);
+			while (q->byte<p->byte) {
+				pset(r, q);
+				pgetc(q);
+			}
+			pset(p,r);
+			prm(r);
+			prm(q);
+			return brch(p);
+		}
+
+#if 0
 		int d = 0;
 		int c;
 		int n = 0;
@@ -752,10 +777,11 @@ int prgetc(P *p)
 
 		if (val && c!='\t' && c!='\n') {
 			p->valcol = 1;
-			p->col -= mk_wcwidth(d);
+			p->col -= joe_wcwidth(1,d);
 		}
 		
 		return d;
+#endif
 	}
 	else {
 		return prgetb(p);
@@ -831,7 +857,7 @@ P *p_goto_indent(P *p, int c)
 /* move p to the end of line */
 P *p_goto_eol(P *p)
 {
-	if (p->b->o.crlf || p->b->o.utf8)
+	if (p->b->o.crlf || p->b->o.charmap->type)
 		while (!piseol(p))
 			pgetc(p);
 	else
@@ -936,7 +962,7 @@ P *pline(P *p, long line)
 P *pcol(P *p, long goalcol)
 {
 	p_goto_bol(p);
-	if(p->b->o.utf8) {
+	if(p->b->o.charmap->type) {
 		do {
 			int c;
 			int wid;
@@ -955,7 +981,7 @@ P *pcol(P *p, long goalcol)
 			if (c == '\t')
 				wid = p->b->o.tab - p->col % p->b->o.tab;
 			else
-				wid = mk_wcwidth(c);
+				wid = joe_wcwidth(1,c);
 
 			if (p->col + wid > goalcol)
 				break;
@@ -1008,7 +1034,7 @@ P *pcolwse(P *p, long goalcol)
 P *pcoli(P *p, long goalcol)
 {
 	p_goto_bol(p);
-	if (p->b->o.utf8) {
+	if (p->b->o.charmap->type) {
 		while (p->col < goalcol) {
 			int c;
 			c = brc(p);
@@ -1146,6 +1172,7 @@ static P *fifind(P *p, unsigned char *s, int len)
 {
 	long amnt = p->b->eof->byte - p->byte;
 	int x;
+	struct charmap *map = p->b->o.charmap;
 	unsigned char table[256], c;
 
 	if (len > amnt)
@@ -1160,7 +1187,7 @@ static P *fifind(P *p, unsigned char *s, int len)
 	amnt -= len;
 	x = len;
 	do {
-		if ((c = toupper(frgetc(p))) != s[--x]) {
+		if ((c = joe_tolower(map,frgetc(p))) != s[--x]) {
 			if (table[c] == 255) {
 				ffwrd(p, len + 1);
 				amnt -= x + 1;
@@ -1303,6 +1330,7 @@ static P *frifind(P *p, unsigned char *s, int len)
 	long amnt = p->byte;
 	int x;
 	unsigned char table[256], c;
+	struct charmap *map = p->b->o.charmap;
 
 	if (len > p->b->eof->byte - p->byte) {
 		x = len - (p->b->eof->byte - p->byte);
@@ -1318,7 +1346,7 @@ static P *frifind(P *p, unsigned char *s, int len)
 	for (x = len; --x; table[s[x]] = len - x - 1) ;
 	x = 0;
 	do {
-		if ((c = toupper(fpgetc(p))) != s[x++]) {
+		if ((c = joe_tolower(map,fpgetc(p))) != s[x++]) {
 			if (table[c] == 255) {
 				fbkwd(p, len + 1);
 				amnt -= len - x + 1;
@@ -1906,7 +1934,7 @@ P *binsbyte(P *p, unsigned char c)
 /* UTF-8 encode a character and insert it */
 P *binsc(P *p, int c)
 {
-	if (c>127 && p->b->o.utf8) {
+	if (c>127 && p->b->o.charmap->type) {
 		unsigned char buf[8];
 		int len = utf8_encode(buf,c);
 		return binsm(p,buf,len);
@@ -2064,6 +2092,8 @@ B *bload(unsigned char *s)
 	int nowrite = 0;
 	P *p;
 	int x;
+	long mod_time = 0;
+	struct stat sbuf;
 
 	if (!s || !s[0]) {
 		error = -1;
@@ -2095,6 +2125,10 @@ B *bload(unsigned char *s)
 		fi = fopen((char *)n, "r");
 		if (!fi)
 			nowrite = 0;
+		if (fi) {
+			fstat(fileno(fi),&sbuf);
+			mod_time = sbuf.st_mtime;
+		}
 	}
 	joesep(n);
 
@@ -2131,6 +2165,7 @@ B *bload(unsigned char *s)
 
 	/* Read from stream into new buffer */
 	b = bread(fileno(fi), amnt);
+	b->mod_time = mod_time;
 	setopt(b,n);
 	b->rdonly = b->o.readonly;
 
@@ -2245,6 +2280,64 @@ B *bfind(unsigned char *s)
 	return b;
 }
 
+/* Find already loaded buffer or load file into new buffer */
+B *bfind_scratch(unsigned char *s)
+{
+	B *b;
+
+	if (!s || !s[0]) {
+		error = -1;
+		b = bmk(NULL);
+		setopt(b,US "");
+		b->rdonly = b->o.readonly;
+		b->internal = 0;
+		b->er = error;
+		return b;
+	}
+	for (b = bufs.link.next; b != &bufs; b = b->link.next)
+		if (b->name && !strcmp(s, b->name)) {
+			if (!b->orphan)
+				++b->count;
+			else
+				b->orphan = 0;
+			error = 0;
+			b->internal = 0;
+			return b;
+		}
+	b = bmk(NULL);
+	error = -1;
+	setopt(b,s);
+	b->internal = 0;
+	b->rdonly = b->o.readonly;
+	b->er = error;
+	b->name = (unsigned char *)strdup((char *)s);
+	b->scratch = 1;
+	return b;
+}
+
+B *bfind_reload(unsigned char *s)
+{
+	B *b;
+	b = bload(s);
+	b->internal = 0;
+	return b;
+}
+
+B *bcheck_loaded(unsigned char *s)
+{
+	B *b;
+
+	if (!s || !s[0]) {
+		return NULL;
+	}
+	for (b = bufs.link.next; b != &bufs; b = b->link.next)
+		if (b->name && !strcmp(s, b->name)) {
+			return b;
+		}
+
+	return NULL;
+}
+
 unsigned char **getbufs(void)
 {
 	unsigned char **s = vamk(16);
@@ -2314,10 +2407,18 @@ err:
 }
 
 /* Save 'size' bytes beginning at 'p' in file 's' */
-int bsave(P *p, unsigned char *s, long int size)
+
+/* If flag is set, update original time of file if it makes
+ * sense to do so (it's a normal file, we're saving with
+ * same name as buffer or is about to get this name).
+ */
+
+int bsave(P *p, unsigned char *s, long int size, int flag)
 {
 	FILE *f;
 	long skip, amnt;
+	struct stat sbuf;
+	int norm = 0;
 
 	s = parsens(s, &skip, &amnt);
 
@@ -2339,8 +2440,10 @@ int bsave(P *p, unsigned char *s, long int size)
 		f = stdout;
 	} else if (skip || amnt != MAXLONG)
 		f = fopen((char *)s, "r+");
-	else
+	else {
 		f = fopen((char *)s, "w");
+		norm = 1;
+	}
 	joesep(s);
 
 	if (!f) {
@@ -2377,6 +2480,13 @@ err:
 	else
 		fflush(f);
 
+	/* Update orignal date of file */
+	/* If it's not named, it's about to be */
+	if (!error && norm && flag && (!p->b->name || !strcmp((char *)s,p->b->name))) {
+		if (!stat((char *)s,&sbuf))
+			p->b->mod_time = sbuf.st_mtime;
+	}
+
 opnerr:
 	if (s[0] == '!' || !strcmp(s, "-")) {
 		ttopnn();
@@ -2398,7 +2508,7 @@ int brc(P *p)
 
 int brch(P *p)
 {
-	if (p->b->o.utf8) {
+	if (p->b->o.charmap->type) {
 		P *q = pdup(p);
 		int c = pgetc(q);
 		prm(q);
@@ -2440,6 +2550,20 @@ unsigned char *brvs(P *p, int size)
 	unsigned char *s = vstrunc(NULL, size);
 
 	return brmem(p, (unsigned char *)s, size);
+}
+
+unsigned char *brzs(P *p, unsigned char *buf, int size)
+{
+	P *q=pdup(p);
+	p_goto_eol(q);
+
+	if(q->byte-p->byte<size)
+		size = q->byte - p->byte;
+
+	prm(q);
+	brmem(p,buf,size);
+	buf[size]=0;
+	return buf;
 }
 
 /* Save edit buffers when editor dies */

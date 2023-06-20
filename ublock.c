@@ -28,6 +28,8 @@
 #include "uedit.h"
 #include "utils.h"
 #include "vs.h"
+#include "utf8.h"
+#include "charmap.h"
 #include "w.h"
 
 /* Global options */
@@ -92,12 +94,21 @@ int upop(BW *bw)
 }
 
 /* Return true if markb/markk are valid */
+/* If r is set, swap markb with markk if necessary */
+
+int autoswap;
 
 int markv(int r)
 {
-	if (markb && markk && markb->b == markk->b && markk->byte > markb->byte && (!square || markk->xcol > markb->xcol))
+	if (markb && markk && markb->b == markk->b && markk->byte > markb->byte && (!square || markk->xcol > markb->xcol)) {
 		return 1;
-	else
+	} else if(autoswap && r && markb && markk && markb->b == markk->b && markb->byte > markk->byte && (!square || markk->xcol < markb->xcol)) {
+		P *p = pdup(markb);
+		prm(markb); markb=0; pdupown(markk, &markb);
+		prm(markk); markk=0; pdupown(p, &markk);
+		prm(p);
+		return 1;
+	} else
 		return 0;
 }
 
@@ -253,6 +264,76 @@ int udrop(BW *bw)
 	if (marking && markb)
 		prm(markb);
 	else
+		umarkb(bw);
+	return 0;
+}
+
+int ubegin_marking(BW *bw)
+{
+	if (marking)
+		/* We're marking now... don't stop */
+		return 0;
+	else if (markv(0) && bw->cursor->b==markb->b)
+		/* Try to extend current block */
+		if (bw->cursor->byte==markb->byte) {
+			pset(markb,markk);
+			prm(markk); markk=0;
+			marking = 1;
+			return 0;
+		} else if(bw->cursor->byte==markk->byte) {
+			prm(markk); markk=0;
+			marking = 1;
+			return 0;
+		}
+	/* Start marking - no message */
+	prm(markb); markb=0;
+	prm(markk); markk=0;
+	updall();
+	marking = 1;
+	return umarkb(bw);
+}
+
+int utoggle_marking(BW *bw)
+{
+	if (markv(0) && bw->cursor->b==markb->b && bw->cursor->byte>=markb->byte && bw->cursor->byte<=markk->byte) {
+		/* Just clear selection */
+		prm(markb); markb=0;
+		prm(markk); markk=0;
+		updall();
+		marking = 0;
+		msgnw(bw->parent, US "Selection cleared.");
+		return 0;
+	} else if (markk) {
+		/* Clear selection and start new one */
+		prm(markb); markb=0;
+		prm(markk); markk=0;
+		updall();
+		marking = 1;
+		msgnw(bw->parent, US "Selection started.");
+		return umarkb(bw);
+	} else if (markb && markb->b==bw->cursor->b) {
+		marking = 0;
+		if (bw->cursor->byte<markb->byte) {
+			pdupown(markb, &markk);
+			prm(markb); markb=0;
+			pdupown(bw->cursor, &markb);
+			markb->xcol = bw->cursor->xcol;
+		} else {
+			pdupown(bw->cursor, &markk);
+			markk->xcol = bw->cursor->xcol;
+		}
+		updall(); /* Because other windows could be changed */
+		return 0;
+	} else {
+		marking = 1;
+		msgnw(bw->parent, US "Selection started.");
+		return umarkb(bw);
+	}
+}
+
+int uselect(BW *bw)
+{
+	if (!markb)
 		umarkb(bw);
 	return 0;
 }
@@ -506,8 +587,8 @@ int dowrite(BW *bw, unsigned char *s, void *object, int *notify)
 					  markk->line - markb->line + 1,
 					  markk->xcol);
 
-			if ((fl = bsave(tmp->bof, s, tmp->eof->byte)) != 0) {
-				msgnw(bw->parent, msgs[5 + fl]);
+			if ((fl = bsave(tmp->bof, s, tmp->eof->byte, 0)) != 0) {
+				msgnw(bw->parent, msgs[-fl]);
 				ret = -1;
 			}
 			brm(tmp);
@@ -519,8 +600,8 @@ int dowrite(BW *bw, unsigned char *s, void *object, int *notify)
 			int fl;
 			int ret = 0;
 
-			if ((fl = bsave(markb, s, markk->byte - markb->byte)) != 0) {
-				msgnw(bw->parent, msgs[5 + fl]);
+			if ((fl = bsave(markb, s, markk->byte - markb->byte, 0)) != 0) {
+				msgnw(bw->parent, msgs[-fl]);
 				ret = -1;
 			}
 			if (lightoff)
@@ -645,7 +726,7 @@ int urindent(BW *bw)
 	} else {
 		if (!markb || !markk || markb->b != markk->b || bw->cursor->byte < markb->byte || bw->cursor->byte > markk->byte || markb->byte == markk->byte) {
 			setindent(bw);
-		} else if (bw->o.purify) {
+		} else if ( 1 /* bw->o.purify */) {
 			P *p = pdup(markb);
 			P *q = pdup(markb);
 			int indwid;
@@ -684,7 +765,7 @@ int urindent(BW *bw)
 			prm(p);
 		} else {
 			/* Purity failure */
-			msgnw(bw->parent,"Selected lines not properly indented");
+			msgnw(bw->parent,US "Selected lines not properly indented");
 			return 1;
 		}
 	}
@@ -725,7 +806,7 @@ int ulindent(BW *bw)
 	} else {
 		if (!markb || !markk || markb->b != markk->b || bw->cursor->byte < markb->byte || bw->cursor->byte > markk->byte || markb->byte == markk->byte) {
 			setindent(bw);
-		} else if (bw->o.purify && lindent_check(bw->o.indentc,bw->o.istep)) {
+		} else if (1 /* bw->o.purify */ && lindent_check(bw->o.indentc,bw->o.istep)) {
 			P *p = pdup(markb);
 			P *q = pdup(markb);
 			int indwid;
@@ -767,7 +848,7 @@ int ulindent(BW *bw)
 			prm(q);
 		} else {
 			/* Purity failure */
-			msgnw(bw->parent,"Selected lines not properly indented");
+			msgnw(bw->parent,US "Selected lines not properly indented");
 			return 1;
 		}
 	}
@@ -791,7 +872,7 @@ int doinsf(BW *bw, unsigned char *s, void *object, int *notify)
 
 			tmp = bload(s);
 			if (error) {
-				msgnw(bw->parent, msgs[error + 5]);
+				msgnw(bw->parent, msgs[-error]);
 				brm(tmp);
 				return -1;
 			}
@@ -822,7 +903,7 @@ int doinsf(BW *bw, unsigned char *s, void *object, int *notify)
 		B *tmp = bload(s);
 
 		if (error) {
-			msgnw(bw->parent, msgs[error + 5]), brm(tmp);
+			msgnw(bw->parent, msgs[-error]), brm(tmp);
 			ret = -1;
 		} else
 			binsb(bw->cursor, tmp);
@@ -841,12 +922,14 @@ static int dofilt(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	int fr[2];
 	int fw[2];
+	int flg = 0;
 
 	if (notify)
 		*notify = 1;
-	if (markb && markk && !square && markb->b == bw->b && markk->b == bw->b && markb->byte == markk->byte)
+	if (markb && markk && !square && markb->b == bw->b && markk->b == bw->b && markb->byte == markk->byte) {
+		flg = 1;
 		goto ok;
-	if (!markv(1)) {
+	} if (!markv(1)) {
 		msgnw(bw->parent, US "No block");
 		return -1;
 	}
@@ -887,8 +970,6 @@ static int dofilt(BW *bw, unsigned char *s, void *object, int *notify)
 	close(fr[1]);
 	close(fw[0]);
 	if (fork()) {
-		long szz;
-
 		close(fw[1]);
 		if (square) {
 			B *tmp;
@@ -921,10 +1002,17 @@ static int dofilt(BW *bw, unsigned char *s, void *object, int *notify)
 			brm(tmp);
 			updall();
 		} else {
-			bdel(markb, markk);
-			szz = markk->b->eof->byte;
-			binsb(markk, bread(fr[0], MAXLONG));
-			pfwrd(markk, markk->b->eof->byte - szz);
+			P *p = pdup(markk);
+			if (!flg)
+				prgetc(p);
+			bdel(markb, p);
+			binsb(p, bread(fr[0], MAXLONG));
+			if (!flg) {
+				pset(p,markk);
+				prgetc(p);
+				bdel(p,markk);
+			}
+			prm(p);
 			if (lightoff)
 				unmark(bw);
 		}
@@ -985,12 +1073,12 @@ int ufilt(BW *bw)
 #else
 	switch (checkmark(bw)) {
 	case 0:
-		if (wmkpw(bw->parent, US "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, -1))
+		if (wmkpw(bw->parent, US "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, locale_map))
 			return 0;
 		else
 			return -1;
 	case 1:
-		if (wmkpw(bw->parent, US "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, -1))
+		if (wmkpw(bw->parent, US "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, locale_map))
 			return 0;
 		else
 			return -1;
@@ -1000,4 +1088,63 @@ int ufilt(BW *bw)
 		return -1;
 	}
 #endif
+}
+
+/* Force region to lower case */
+
+int ulower(BW *bw)
+{
+	if (markv(1)) {
+		P *q;
+	        P *p;
+	        int c;
+		B *b = bcpy(markb,markk);
+		/* Leave one character in buffer to keep pointers set properly... */
+		q = pdup(markk);
+		prgetc(q);
+		bdel(markb,q);
+		b->o.charmap = markb->b->o.charmap;
+		p=pdup(b->bof);
+		while ((c=pgetc(p))!=NO_MORE_DATA) {
+			c = joe_tolower(b->o.charmap,c);
+			binsc(q,c);
+			pgetc(q);
+		}
+		prm(p);
+		bdel(q,markk);
+		prm(q);
+		brm(b);
+		bw->cursor->xcol = piscol(bw->cursor);
+		return 0;
+	} else
+		return -1;
+}
+
+/* Force region to upper case */
+
+int uupper(BW *bw)
+{
+	if (markv(1)) {
+		P *q;
+	        P *p;
+	        int c;
+		B *b = bcpy(markb,markk);
+		q = pdup(markk);
+		prgetc(q);
+		bdel(markb,q);
+		b->o.charmap = markb->b->o.charmap;
+		p=pdup(b->bof);
+		while ((c=pgetc(p))!=NO_MORE_DATA) {
+			c = joe_toupper(b->o.charmap,c);
+			binsc(q,c);
+			pgetc(q);
+		}
+		prm(p);
+		bdel(q,markk);
+		prm(q);
+		brm(b);
+		bw->cursor->xcol = piscol(bw->cursor);
+		return 0;
+	} else
+		return -1;
 }

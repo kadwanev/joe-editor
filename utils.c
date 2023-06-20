@@ -8,7 +8,6 @@
  */
 #include "config.h"
 
-#include <ctype.h>
 #include <errno.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -17,40 +16,28 @@
 #include <stdlib.h>
 #endif
 
+#include "i18n.h"
+#include "utf8.h"
+#include "charmap.h"
 #include "blocks.h"
 #include "utils.h"
 
-/*
- * Whitespace characters are characters like tab, space, ...
- *      Every config line in *rc must be end by whitespace but
- *      EOF is not considered as whitespace by isspace()
- *      This is because I don't want to be forced to end
- *      *rc file with \n
- */
-int isspace_eof(int c)
-{
-	return(isspace(c) || (!c));
-}
 
-/*
- * Define function isblank(c)
- *	!!! code which uses isblank() assumes tested char is evaluated
- *	only once, so it musn't be a macro
- */
-/* GNU is blank does not work properly for wide characters */
-
-int joe_isblank(int c)
+#if 0
+int joe_ispunct(int wide,struct charmap *map,int c)
 {
-	return((c == 32) || (c == 9));
-}
+	if (joe_isspace(c))
+		return 0;
 
-unsigned char *lowerize(unsigned char *s)
-{
-	unsigned char *t;
-	for (t=s;*t;t++)
-		*t = (unsigned char)tolower((char)*t);
-	return s;
+	if (c=='_')
+		return 1;
+
+	if (isalnum_(wide,map,c))
+		return 0;
+
+	return joe_isprint(wide,map,c);
 }
+#endif
 
 /*
  * return minimum/maximum of two numbers
@@ -75,18 +62,47 @@ signed long int long_min(signed long int a, signed long int b)
 	return a < b ? a : b;
 }
 
+#if 0
 /* 
  * Characters which are considered as word characters 
  * 	_ is considered as word character because is often used 
  *	in the names of C/C++ functions
  */
-int isalnum_(int wide,int c)
+int isalnum_(int wide,struct charmap *map,int c)
 {
+	/* Fast... */
+	if (c>='0' && c<='9' ||
+	    c>='a' && c<='z' ||
+	    c>='A' && c<='Z' ||
+	    c=='_')
+	  return 1;
+	else if(c<128)
+	  return 0;
+
+	/* Slow... */
 	if (wide)
-		return (iswalnum(c) || (c == 95));
+		return joe_iswalpha(c);
 	else
-		return (isalnum(c) || (c == 95));
+		return joe_iswalpha(to_uni(map,c));
 }
+
+int isalpha_(int wide,struct charmap *map,int c)
+{
+	/* Fast... */
+	if (c>='a' && c<='z' ||
+	    c>='A' && c<='Z' ||
+	    c=='_')
+	  return 1;
+	else if(c<128)
+	  return 0;
+
+	/* Slow... */
+	if (wide)
+		return joe_iswalpha(c);
+	else
+		return joe_iswalpha(to_uni(map,c));
+}
+#endif
 
 /* Versions of 'read' and 'write' which automatically retry when interrupted */
 ssize_t joe_read(int fd, void *buf, size_t size)
@@ -170,12 +186,12 @@ int joe_set_signal(int signum, sighandler_t handler)
 
 /* Skip whitespace and return first non-whitespace character */
 
-int parse_ws(unsigned char **pp)
+int parse_ws(unsigned char **pp,int cmt)
 {
 	unsigned char *p = *pp;
 	while (*p==' ' || *p=='\t')
 		++p;
-	if (*p=='\r' || *p=='\n' || *p=='#')
+	if (*p=='\r' || *p=='\n' || *p==cmt)
 		*p = 0;
 	*pp = p;
 	return *p;
@@ -186,16 +202,29 @@ int parse_ws(unsigned char **pp)
 int parse_ident(unsigned char **pp, unsigned char *buf, int len)
 {
 	unsigned char *p = *pp;
-	if(isalpha(*p) || *p=='_') {
-		while(len && isalnum_(0,*p))
+	if (joe_isalpha_(locale_map,*p)) {
+		while(len && joe_isalnum_(locale_map,*p))
 			*buf++= *p++, --len;
 		*buf=0;
-		while(isalnum_(0,*p))
+		while(joe_isalnum_(locale_map,*p))
 			++p;
 		*pp = p;
 		return 0;
 	} else
 		return -1;
+}
+
+/* Parse to next whitespace */
+
+int parse_tows(unsigned char **pp, unsigned char *buf)
+{
+	unsigned char *p = *pp;
+	while (*p && *p!=' ' && *p!='\t' && *p!='\n' && *p!='\r' && *p!='#')
+		*buf++ = *p++;
+
+	*pp = p;
+	*buf = 0;
+	return 0;
 }
 
 /* Parse a keyword */
@@ -205,7 +234,7 @@ int parse_kw(unsigned char **pp, unsigned char *kw)
 	unsigned char *p = *pp;
 	while(*kw && *kw==*p)
 		++kw, ++p;
-	if(!*kw && !isalnum_(0,*p)) {
+	if(!*kw && !joe_isalnum_(locale_map,*p)) {
 		*pp = p;
 		return 0;
 	} else
@@ -243,11 +272,11 @@ int parse_char(unsigned char **pp, unsigned char c)
 int parse_int(unsigned char **pp, int *buf)
 {
 	unsigned char *p = *pp;
-	if (isdigit(*p) || *p=='-') {
+	if (*p>='0' && *p<='9' || *p=='-') {
 		*buf = atoi((char *)p);
 		if(*p=='-')
 			++p;
-		while(isdigit(*p))
+		while(*p>='0' && *p<='9')
 			++p;
 		*pp = p;
 		return 0;

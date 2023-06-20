@@ -38,13 +38,21 @@
 #include "utils.h"
 #include "va.h"
 #include "vs.h"
+#include "utf8.h"
 #include "w.h"
 
+extern int marking;
 extern int smode;
 int beep = 0;
 int uexecmd(BW *bw);
 
 /* Command table */
+
+int ubeep(BW *bw, int k)
+{
+	ttputc(7);
+	return 0;
+}
 
 CMD cmds[] = {
 	{US "abort", TYPETW + TYPEPW + TYPEMENU + TYPEQW, uabort, NULL, 0, NULL},
@@ -55,12 +63,14 @@ CMD cmds[] = {
 	{US "backs", TYPETW + TYPEPW + ECHKXCOL + EFIXXCOL + EMINOR + EKILL + EMOD, ubacks, NULL, 1, US "delch"},
 	{US "backsmenu", TYPEMENU, umbacks, NULL, 1, NULL},
 	{US "backw", TYPETW + TYPEPW + ECHKXCOL + EFIXXCOL + EKILL + EMOD, ubackw, NULL, 1, US "delw"},
+	{US "beep", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ubeep, NULL, 0, NULL},
+	{US "begin_marking", TYPETW + TYPEPW, ubegin_marking, NULL, 0, NULL},
 	{US "bknd", TYPETW + TYPEPW, ubknd, NULL, 0, NULL},
 	{US "bkwdc", TYPETW + TYPEPW, ubkwdc, NULL, 1, US "fwrdc"},
-	{US "blkcpy", TYPETW + TYPEPW + EFIXXCOL + EMOD, ublkcpy, NULL, 1, NULL},
-	{US "blkdel", TYPETW + TYPEPW + EFIXXCOL + EKILL + EMOD, ublkdel, NULL, 0, NULL},
-	{US "blkmove", TYPETW + TYPEPW + EFIXXCOL + EMOD, ublkmove, NULL, 0, NULL},
-	{US "blksave", TYPETW + TYPEPW, ublksave, NULL, 0, NULL},
+	{US "blkcpy", TYPETW + TYPEPW + EFIXXCOL + EMOD + EBLOCK, ublkcpy, NULL, 1, NULL},
+	{US "blkdel", TYPETW + TYPEPW + EFIXXCOL + EKILL + EMOD + EBLOCK, ublkdel, NULL, 0, NULL},
+	{US "blkmove", TYPETW + TYPEPW + EFIXXCOL + EMOD + EBLOCK, ublkmove, NULL, 0, NULL},
+	{US "blksave", TYPETW + TYPEPW + EBLOCK, ublksave, NULL, 0, NULL},
 	{US "bof", TYPETW + TYPEPW + EMOVE + EFIXXCOL, u_goto_bof, NULL, 0, NULL},
 	{US "bofmenu", TYPEMENU, umbof, NULL, 0, NULL},
 	{US "bol", TYPETW + TYPEPW + EFIXXCOL, u_goto_bol, NULL, 0, NULL},
@@ -68,7 +78,9 @@ CMD cmds[] = {
 	{US "bop", TYPETW + TYPEPW + EFIXXCOL, ubop, NULL, 1, US "eop"},
 	{US "bos", TYPETW + TYPEPW + EMOVE, ubos, NULL, 0, NULL},
 	{US "bufed", TYPETW, ubufed, NULL, 0, NULL},
+	{US "build", TYPETW + TYPEPW, ubuild, NULL, 0, NULL},
 	{US "byte", TYPETW + TYPEPW, ubyte, NULL, 0, NULL},
+	{US "cancel", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ucancel, NULL, 0, NULL},
 	{US "center", TYPETW + TYPEPW + EFIXXCOL + EMOD, ucenter, NULL, 1, NULL},
 	{US "ctrl", TYPETW + TYPEPW + EMOD, uctrl, NULL, 0, NULL},
 	{US "col", TYPETW + TYPEPW, ucol, NULL, 0, NULL},
@@ -96,14 +108,16 @@ CMD cmds[] = {
 	{US "explode", TYPETW + TYPEPW + TYPEMENU + TYPEQW, uexpld, NULL, 0, NULL},
 	{US "exsave", TYPETW + TYPEPW, uexsve, NULL, 0, NULL},
 	{US "ffirst", TYPETW + TYPEPW, pffirst, NULL, 0, NULL},
-	{US "filt", TYPETW + TYPEPW + EMOD, ufilt, NULL, 0, NULL},
+	{US "filt", TYPETW + TYPEPW + EMOD + EBLOCK, ufilt, NULL, 0, NULL},
+	{US "finish", TYPETW + TYPEPW + EMOD, ufinish, NULL, 1, NULL},
 	{US "fnext", TYPETW + TYPEPW, pfnext, NULL, 1, NULL},
 	{US "format", TYPETW + TYPEPW + EFIXXCOL + EMOD, uformat, NULL, 1, NULL},
-	{US "fmtblk", TYPETW + EMOD + EFIXXCOL, ufmtblk, NULL, 1, NULL},
+	{US "fmtblk", TYPETW + EMOD + EFIXXCOL + EBLOCK, ufmtblk, NULL, 1, NULL},
 	{US "fwrdc", TYPETW + TYPEPW, ufwrdc, NULL, 1, US "bkwdc"},
 	{US "gomark", TYPETW + TYPEPW + EMOVE, ugomark, NULL, 0, NULL},
 	{US "groww", TYPETW, ugroww, NULL, 1, US "shrinkw"},
 	{US "isrch", TYPETW + TYPEPW, uisrch, NULL, 0, NULL},
+	{US "killjoe", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ukilljoe, NULL, 0, NULL},
 	{US "killproc", TYPETW + TYPEPW, ukillpid, NULL, 0, NULL},
 	{US "help", TYPETW + TYPEPW + TYPEQW, u_help, NULL, 0, NULL},
 	{US "home", TYPETW + TYPEPW + EFIXXCOL, uhome, NULL, 0, NULL},
@@ -111,9 +125,10 @@ CMD cmds[] = {
 	{US "hprev", TYPETW + TYPEPW + TYPEQW, u_help_prev, NULL, 0, NULL},
 	{US "insc", TYPETW + TYPEPW + EFIXXCOL + EMOD, uinsc, NULL, 1, US "delch"},
 	{US "insf", TYPETW + TYPEPW + EMOD, uinsf, NULL, 0, NULL}, 
-	{US "lindent", TYPETW + TYPEPW + EFIXXCOL + EMOD, ulindent, NULL, 1, US "rindent"},
+	{US "lindent", TYPETW + TYPEPW + EFIXXCOL + EMOD + EBLOCK, ulindent, NULL, 1, US "rindent"},
 	{US "line", TYPETW + TYPEPW, uline, NULL, 0, NULL},
 	{US "lose", TYPETW + TYPEPW, ulose, NULL, 0, NULL}, 
+	{US "lower", TYPETW + TYPEPW + EMOD + EBLOCK, ulower, NULL, 0, NULL},
 	{US "ltarw", TYPETW + TYPEPW /* + EFIXXCOL + ECHKXCOL */, u_goto_left, NULL, 1, US "rtarw"},
 	{US "ltarwmenu", TYPEMENU, umltarw, NULL, 1, US "rtarwmenu"},
 	{US "macros", TYPETW + EFIXXCOL, umacros, NULL, 0, NULL},
@@ -149,19 +164,22 @@ CMD cmds[] = {
 	{US "pop", TYPETW + TYPEPW + TYPEMENU + TYPEQW, upop, NULL, 0, NULL},
 	{US "qrepl", TYPETW + TYPEPW + EMOD, pqrepl, NULL, 0, NULL},
 	{US "query", TYPETW + TYPEPW + TYPEMENU + TYPEQW, uquery, NULL, 0, NULL},
+	{US "querysave", TYPETW, uquerysave, NULL, 0, NULL},
 	{US "quote", TYPETW + TYPEPW + EMOD, uquote, NULL, 0, NULL},
 	{US "quote8", TYPETW + TYPEPW + EMOD, uquote8, NULL, 0, NULL},
 	{US "record", TYPETW + TYPEPW + TYPEMENU + TYPEQW, urecord, NULL, 0, NULL},
 	{US "redo", TYPETW + TYPEPW + EFIXXCOL, uredo, NULL, 1, US "undo"},
 	{US "retype", TYPETW + TYPEPW + TYPEMENU + TYPEQW, uretyp, NULL, 0, NULL},
 	{US "rfirst", TYPETW + TYPEPW, prfirst, NULL, 0, NULL}, 
-	{US "rindent", TYPETW + TYPEPW + EFIXXCOL + EMOD, urindent, NULL, 1, US "lindent"},
+	{US "rindent", TYPETW + TYPEPW + EFIXXCOL + EMOD + EBLOCK, urindent, NULL, 1, US "lindent"},
 	{US "run", TYPETW + TYPEPW, urun, NULL, 0, NULL},
 	{US "rsrch", TYPETW + TYPEPW, ursrch, NULL, 0, NULL},
 	{US "rtarw", TYPETW + TYPEPW /* + EFIXXCOL */, u_goto_right, NULL, 1, US "ltarw"}, /* EFIX removed for picture mode */
 	{US "rtarwmenu", TYPEMENU, umrtarw, NULL, 1, US "ltarwmenu"},
 	{US "rtn", TYPETW + TYPEPW + TYPEMENU + TYPEQW + EMOD, urtn, NULL, 1, NULL},
 	{US "save", TYPETW + TYPEPW, usave, NULL, 0, NULL},
+	{US "scratch", TYPETW + TYPEPW, uscratch, NULL, 0, NULL},
+	{US "select", TYPETW + TYPEPW, uselect, NULL, 0, NULL},
 	{US "setmark", TYPETW + TYPEPW, usetmark, NULL, 0, NULL},
 	{US "shell", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ushell, NULL, 0, NULL},
 	{US "shrinkw", TYPETW, ushrnk, NULL, 1, US "groww"},
@@ -169,10 +187,13 @@ CMD cmds[] = {
 	{US "stat", TYPETW + TYPEPW, ustat, NULL, 0, NULL},
 	{US "stop", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ustop, NULL, 0, NULL},
 	{US "swap", TYPETW + TYPEPW + EFIXXCOL, uswap, NULL, 0, NULL},
+	{US "switch", TYPETW + TYPEPW, uswitch, NULL, 0, NULL},
+	{US "tabmenu", TYPEMENU, umtab, NULL, 1, US "ltarwmenu"},
 	{US "tag", TYPETW + TYPEPW, utag, NULL, 0, NULL},
-	{US "tomarkb", TYPETW + TYPEPW + EFIXXCOL, utomarkb, NULL, 0, NULL},
-	{US "tomarkbk", TYPETW + TYPEPW + EFIXXCOL, utomarkbk, NULL, 0, NULL},
-	{US "tomarkk", TYPETW + TYPEPW + EFIXXCOL, utomarkk, NULL, 0, NULL},
+	{US "toggle_marking", TYPETW + TYPEPW, utoggle_marking, NULL, 0, NULL},
+	{US "tomarkb", TYPETW + TYPEPW + EFIXXCOL + EBLOCK, utomarkb, NULL, 0, NULL},
+	{US "tomarkbk", TYPETW + TYPEPW + EFIXXCOL + EBLOCK, utomarkbk, NULL, 0, NULL},
+	{US "tomarkk", TYPETW + TYPEPW + EFIXXCOL + EBLOCK, utomarkk, NULL, 0, NULL},
 	{US "tomatch", TYPETW + TYPEPW + EFIXXCOL, utomatch, NULL, 0, NULL},
 	{US "tos", TYPETW + TYPEPW + EMOVE, utos, NULL, 0, NULL},
 	{US "tw0", TYPETW + TYPEPW + TYPEQW + TYPEMENU, utw0, NULL, 0, NULL},
@@ -182,6 +203,7 @@ CMD cmds[] = {
 	{US "undo", TYPETW + TYPEPW + EFIXXCOL, uundo, NULL, 1, US "redo"},
 	{US "uparw", TYPETW + TYPEPW + EMOVE, uuparw, NULL, 1, US "dnarw"},
 	{US "uparwmenu", TYPEMENU, umuparw, NULL, 1, US "dnarwmenu"}, 
+	{US "upper", TYPETW + TYPEPW + EMOD + EBLOCK, uupper, NULL, 0, NULL},
 	{US "upslide", TYPETW + TYPEPW + TYPEMENU + TYPEQW + EMOVE, uupslide, NULL, 1, US "dnslide"},
 	{US "yank", TYPETW + TYPEPW + EFIXXCOL + EMOD, uyank, NULL, 1, NULL},
 	{US "yapp", TYPETW + TYPEPW + EKILL, uyapp, NULL, 0, NULL},
@@ -195,6 +217,14 @@ int execmd(CMD *cmd, int k)
 	BW *bw = (BW *) maint->curwin->object;
 	int ret = -1;
 
+	/* Send data to shell window: this is broken ^K ^H (help) sends its ^H to shell */
+	if ((maint->curwin->watom->what & TYPETW) && bw->b->pid && piseof(bw->cursor) &&
+	(k==3 || k==13 || k==8 || k==127 || k==4 || cmd->func==utype && k>=32 && k<256)) {
+		unsigned char c = k;
+		joe_write(bw->b->out, &c, 1);
+		return 0;
+	}
+
 	if (cmd->m)
 		return exmacro(cmd->m, 0);
 
@@ -207,6 +237,10 @@ int execmd(CMD *cmd, int k)
 	/* Don't execute command if we're in wrong type of window */
 	if (!(cmd->flag & maint->curwin->watom->what))
 		goto skip;
+
+	/* Complete selection for block commands */
+	if ((cmd->flag & EBLOCK) && marking)
+		utoggle_marking(maint->curwin->object);
 
 	if ((maint->curwin->watom->what & TYPETW) && bw->b->rdonly && (cmd->flag & EMOD)) {
 		msgnw(bw->parent, US "Read only");
@@ -225,6 +259,7 @@ int execmd(CMD *cmd, int k)
 	if (leave)
 		return 0;
 
+	/* cmd->func could have changed bw on us */
 	bw = (BW *) maint->curwin->object;
 
 	/* Maintain position history */
@@ -345,7 +380,7 @@ B *cmdhist = NULL;
 
 int uexecmd(BW *bw)
 {
-	if (wmkpw(bw->parent, US "cmd: ", &cmdhist, docmd, US "cmd", NULL, cmdcmplt, NULL, NULL, -1)) {
+	if (wmkpw(bw->parent, US "cmd: ", &cmdhist, docmd, US "cmd", NULL, cmdcmplt, NULL, NULL, locale_map)) {
 		return 0;
 	} else {
 		return -1;

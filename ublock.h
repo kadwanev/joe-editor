@@ -40,8 +40,13 @@ int ulindent PARAMS((BW *bw));
 int ufilt PARAMS((BW *bw));
 int unmark PARAMS((BW *bw));
 int udrop PARAMS((BW *bw));
+int utoggle_marking PARAMS((BW *bw));
+int ubegin_marking PARAMS((BW *bw));
+int uselect PARAMS((BW *bw));
 int upsh PARAMS((BW *bw));
 int upop PARAMS((BW *bw));
+int ulower PARAMS((BW *bw));
+int uupper PARAMS((BW *bw));
 extern int nstack;
 
 #endif

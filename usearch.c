@@ -8,7 +8,6 @@
 #include "config.h"
 #include "types.h"
 
-#include <ctype.h>
 #include <stdio.h>
 
 #include "b.h"
@@ -24,10 +23,17 @@
 #include "usearch.h"
 #include "utils.h"
 #include "vs.h"
+#include "charmap.h"
 #include "w.h"
+#include "va.h"
+#include "tty.h"
+#include "menu.h"
+#include "hash.h"
 
+int wrap = 0;			/* Allow wrap */
 int smode = 0;			/* Decremented to zero by execmd */
 int csmode = 0;			/* Set for continued search mode */
+int icase = 0;			/* Set to force case insensitive search */
 
 B *findhist = NULL;		/* Search string history */
 B *replhist = NULL;		/* Replacement string history */
@@ -35,6 +41,207 @@ B *replhist = NULL;		/* Replacement string history */
 SRCH *globalsrch = NULL;	/* Most recent completed search data */
 
 SRCHREC fsr = { {&fsr, &fsr} };
+
+/* Completion stuff: should go somewhere else */
+
+unsigned char **word_list;
+
+#define MAX_WORD_SIZE 64
+unsigned char **get_word_list(B *b,int ignore)
+{
+	unsigned char buf[MAX_WORD_SIZE];
+	unsigned char *s;
+	unsigned char **list = 0;
+	HASH *h;
+	HENTRY *t;
+	P *p;
+	int c;
+	int idx;
+	int start;
+
+	h = htmk(1024);
+
+	p = pdup(b->bof);
+	idx = 0;
+	while ((c=pgetc(p))!=NO_MORE_DATA)
+		if (idx) {
+			if (joe_isalnum_(b->o.charmap, c)) {
+				if (idx!=MAX_WORD_SIZE)
+					buf[idx++] = c;
+			} else {
+				if (idx!=MAX_WORD_SIZE && start!=ignore) {
+					buf[idx] = 0;
+					if (!htfind(h,buf)) {
+						s = vsncpy(NULL,0,buf,idx);
+						htadd(h, s, s);
+					}
+				}
+				idx = 0;
+			}
+		} else {
+			start=p->byte-1;
+			if (joe_isalpha_(b->o.charmap, c))
+				buf[idx++] = c;
+		}
+	prm(p);
+
+	for (idx = 0;idx != h->len;++idx)
+		for (t = h->tab[idx];t;t=t->next)
+			list = vaadd(list, t->name);
+	if (list)
+		vasort(list,sLEN(list));	
+
+	htrm(h);
+
+	return list;
+}
+
+void fcmplt_ins(BW *bw, unsigned char *line)
+{
+	P *p = pdup(bw->cursor);
+	int c;
+
+	if (!piseol(bw->cursor)) {
+		int c = brch(bw->cursor);
+		if (joe_isalnum_(bw->b->o.charmap,c))
+			return;
+	}
+
+	/* Move p to beginning of word */
+
+	p = pdup(bw->cursor);
+	do
+		c = prgetc(p);
+		while (joe_isalnum_(bw->b->o.charmap,c));
+	if (c!=NO_MORE_DATA)
+		pgetc(p);
+
+	if (bw->cursor->byte!=p->byte && bw->cursor->byte-p->byte<64) {
+		/* Insert single match */
+		bdel(p,bw->cursor);
+		binsm(bw->cursor,sv(line));
+		pfwrd(bw->cursor,sLEN(line));
+		bw->cursor->xcol = piscol(bw->cursor);
+		prm(p);
+	} else {
+		prm(p);
+	}
+}
+
+int fcmplt_abrt(BW *bw, int x, unsigned char *line)
+{
+	if (line) {
+		fcmplt_ins(bw, line);
+		vsrm(line);
+	}
+	return -1;
+}
+
+int fcmplt_rtn(MENU *m, int x, unsigned char *line)
+{
+	fcmplt_ins(m->parent->win->object, m->list[x]);
+	vsrm(line);
+	m->object = NULL;
+	wabort(m->parent);
+	return 0;
+}
+
+int ufinish(BW *bw)
+{
+	unsigned char *line;
+	unsigned char *line1;
+	unsigned char **lst;
+	P *p;
+	int c;
+	MENU *m;
+
+	/* Make sure we're not in a word */
+
+	if (!piseol(bw->cursor)) {
+		int c = brch(bw->cursor);
+		if (joe_isalnum_(bw->b->o.charmap,c))
+			return -1;
+	}
+
+	/* Move p to beginning of word */
+
+	p = pdup(bw->cursor);
+	do
+		c = prgetc(p);
+		while (joe_isalnum_(bw->b->o.charmap,c));
+	if (c!=NO_MORE_DATA)
+		pgetc(p);
+
+	if (bw->cursor->byte!=p->byte && bw->cursor->byte-p->byte<64) {
+		line = brvs(p, bw->cursor->byte-p->byte);
+
+		/* We have a word */
+
+		/* Get word list */
+		if (word_list)
+			varm(word_list);
+
+		word_list = get_word_list(bw->b, p->byte);
+
+		if (!word_list) {
+			vsrm(line);
+			prm(p);
+			return -1;
+		}
+
+		line1 = vsncpy(NULL,0,sv(line));
+		line1 = vsadd(line1,'*');
+		lst = regsub(word_list, aLEN(word_list), line1);
+		vsrm(line1);
+
+		if (!lst) {
+			ttputc(7);
+			vsrm(line);
+			return -1;
+		}
+
+		m = mkmenu(bw->parent, lst, fcmplt_rtn, fcmplt_abrt, NULL, 0, line, NULL);
+		if (!m) {
+			varm(lst);
+			vsrm(line);
+			return -1;
+		}
+
+		/* Possible match list is now in lst */
+
+		if (aLEN(lst) == 1)
+			return fcmplt_rtn(m, 0, line);
+		else if (smode)
+			return 0;
+		else {
+			unsigned char *com = mcomplete(m);
+			vsrm(m->object);
+			m->object = com;
+			wabort(m->parent);
+			smode = 2;
+			ttputc(7);
+			return 0;
+		}
+	} else {
+		prm(p);
+		return -1;
+	}
+}
+
+static int srch_cmplt(BW *bw)
+{
+	if (word_list)
+		varm(word_list);
+
+	word_list = get_word_list(((BW *)bw->parent->win->object)->b, -1);
+
+	if (!word_list) {
+		ttputc(7);
+		return 0;
+	}
+
+	return simple_cmplt(bw,word_list);
+}
 
 /* Search forward.
    bw, pattern and ignore must be set
@@ -49,19 +256,25 @@ SRCHREC fsr = { {&fsr, &fsr} };
      p is left in its orignal spot
 */
 
-static P *searchf(SRCH *srch, P *p)
+static P *searchf(BW *bw,SRCH *srch, P *p)
 {
 	unsigned char *pattern = srch->pattern;
-	P *start = pdup(p);
-	P *end = pdup(p);
+	P *start;
+	P *end;
 	int x;
 
-	for (x = 0; x != sLEN(pattern) && pattern[x] != '\\' && (pattern[x]<128 || !p->b->o.utf8); ++x)
+	start = pdup(p);
+	end = pdup(p);
+
+	for (x = 0; x != sLEN(pattern) && pattern[x] != '\\' && (pattern[x]<128 || !p->b->o.charmap->type); ++x)
 		if (srch->ignore)
-			pattern[x] = toupper(pattern[x]);
+			pattern[x] = joe_tolower(p->b->o.charmap,pattern[x]);
+	wrapped:
 	while (srch->ignore ? pifind(start, pattern, x) : pfind(start, pattern, x)) {
 		pset(end, start);
 		pfwrd(end, (long) x);
+		if (srch->wrap_flag && start->byte>=srch->wrap_p->byte)
+			break;
 		if (pmatch(srch->pieces, pattern + x, sLEN(pattern) - x, end, 0, srch->ignore)) {
 			srch->entire = vstrunc(srch->entire, (int) (end->byte - start->byte));
 			brmem(start, srch->entire, (int) (end->byte - start->byte));
@@ -73,6 +286,13 @@ static P *searchf(SRCH *srch, P *p)
 		if (pgetc(start) == NO_MORE_DATA)
 			break;
 	}
+	if (wrap && !srch->wrap_flag && srch->wrap_p) {
+		msgnw(bw->parent, US "Wrapped");
+		srch->wrap_flag = 1;
+		p_goto_bof(start);
+		goto wrapped;
+	}
+
 	prm(start);
 	prm(end);
 	return NULL;
@@ -92,20 +312,27 @@ static P *searchf(SRCH *srch, P *p)
      p is left in its orignal spot
 */
 
-static P *searchb(SRCH *srch, P *p)
+static P *searchb(BW *bw,SRCH *srch, P *p)
 {
 	unsigned char *pattern = srch->pattern;
-	P *start = pdup(p);
-	P *end = pdup(p);
+	P *start;
+	P *end;
 	int x;
 
-	for (x = 0; x != sLEN(pattern) && pattern[x] != '\\' && (pattern[x]<128 || !p->b->o.utf8); ++x)
+	start = pdup(p);
+	end = pdup(p);
+
+	for (x = 0; x != sLEN(pattern) && pattern[x] != '\\' && (pattern[x]<128 || !p->b->o.charmap->type); ++x)
 		if (srch->ignore)
-			pattern[x] = toupper(pattern[x]);
+			pattern[x] = joe_tolower(p->b->o.charmap,pattern[x]);
+
+	wrapped:
 	while (pbkwd(start, 1L)
 	       && (srch->ignore ? prifind(start, pattern, x) : prfind(start, pattern, x))) {
 		pset(end, start);
 		pfwrd(end, (long) x);
+		if (srch->wrap_flag && start->byte<srch->wrap_p->byte)
+			break;
 		if (pmatch(srch->pieces, pattern + x, sLEN(pattern) - x, end, 0, srch->ignore)) {
 			srch->entire = vstrunc(srch->entire, (int) (end->byte - start->byte));
 			brmem(start, srch->entire, (int) (end->byte - start->byte));
@@ -115,6 +342,14 @@ static P *searchb(SRCH *srch, P *p)
 			return p;
 		}
 	}
+
+	if (wrap && !srch->wrap_flag && srch->wrap_p) {
+		msgnw(bw->parent, US "Wrapped");
+		srch->wrap_flag = 1;
+		p_goto_eof(start);
+		goto wrapped;
+	}
+
 	prm(start);
 	prm(end);
 	return NULL;
@@ -124,7 +359,7 @@ static P *searchb(SRCH *srch, P *p)
 
 static SRCH *setmark(SRCH *srch)
 {
-	if (markv(1))
+	if (markv(0))
 		srch->valid = 1;
 
 	srch->markb = markb;
@@ -157,6 +392,8 @@ SRCH *mksrch(unsigned char *pattern, unsigned char *replacement, int ignore, int
 	srch->addr = -1;
 	srch->markb = NULL;
 	srch->markk = NULL;
+	srch->wrap_p = NULL;
+	srch->wrap_flag = 0;
 	srch->valid = 0;
 	srch->block_restrict = 0;
 	izque(SRCHREC, link, &srch->recs);
@@ -173,6 +410,7 @@ void rmsrch(SRCH *srch)
 
 	prm(markb);
 	prm(markk);
+	prm(srch->wrap_p);
 	if (srch->markb) {
 		markb = srch->markb;
 		markb->owner = &markb;
@@ -228,7 +466,7 @@ static P *insert(SRCH *srch, P *p, unsigned char *s, int len)
 			} else {
 				unsigned char *a=(unsigned char *)s+x;
 				int l=len-x;
-				binsc(p,escape(&a,&l)); /* Should this be a byte or a char? Probably a char. */
+				binsc(p,escape(p->b->o.charmap->type,&a,&l));
 				pgetc(p);
 				len -= a - (unsigned char *)s;
 				s = a;
@@ -293,6 +531,8 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 {
 	int x;
 
+	srch->ignore = icase;
+
 	for (x = 0; s[x]; ++x) {
 		switch (s[x]) {
 		case 'r':
@@ -306,6 +546,10 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 		case 'i':
 		case 'I':
 			srch->ignore = 1;
+			break;
+		case 's':
+		case 'S':
+			srch->ignore = 0;
 			break;
 		case 'k':
 		case 'K':
@@ -329,7 +573,7 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 	}
 	vsrm(s);
 	if (srch->replace) {
-		if (wmkpw(bw->parent, US "Replace with (^C to abort): ", &replhist, set_replace, srchstr, pfabort, utypebw, srch, notify, bw->b->o.utf8))
+		if (wmkpw(bw->parent, US "Replace with (^C to abort): ", &replhist, set_replace, srchstr, pfabort, srch_cmplt, srch, notify, bw->b->o.charmap))
 			return 0;
 		else
 			return -1;
@@ -340,10 +584,16 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 {
 	BW *pbw;
+	unsigned char *p;
+
+	if (icase)
+		p = US "case (S)ensitive (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ";
+	else
+		p = US "(I)gnore (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ";
 
 	vsrm(srch->pattern);
 	srch->pattern = s;
-	if ((pbw = wmkpw(bw->parent, US "(I)gnore (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ", NULL, set_options, srchstr, pfabort, utypebw, srch, notify, bw->b->o.utf8)) != NULL) {
+	if ((pbw = wmkpw(bw->parent, p, NULL, set_options, srchstr, pfabort, utypebw, srch, notify, bw->b->o.charmap)) != NULL) {
 		unsigned char buf[10];
 
 		if (srch->ignore)
@@ -353,7 +603,7 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 		if (srch->backwards)
 			binsc(pbw->cursor, 'b');
 		if (srch->repeat >= 0)
-			snprintf((char *)buf, sizeof(buf), "%d", srch->repeat), binss(pbw->cursor, buf);
+			joe_snprintf_1((char *)buf, sizeof(buf), "%d", srch->repeat), binss(pbw->cursor, buf);
 		pset(pbw->cursor, pbw->b->eof);
 		pbw->cursor->xcol = piscol(pbw->cursor);
 		srch->ignore = 0;
@@ -388,7 +638,9 @@ static int dofirst(BW *bw, int back, int repl)
 	}
 	srch = setmark(mksrch(NULL, NULL, 0, back, -1, repl, 0));
 	srch->addr = bw->cursor->byte;
-	if (wmkpw(bw->parent, US "Find (^C to abort): ", &findhist, set_pattern, srchstr, pfabort, utypebw, srch, NULL, bw->b->o.utf8))
+	srch->wrap_p = pdup(bw->cursor);
+	srch->wrap_p->owner = &srch->wrap_p;
+	if (wmkpw(bw->parent, US "Find (^C to abort): ", &findhist, set_pattern, srchstr, pfabort, srch_cmplt, srch, NULL, bw->b->o.charmap))
 		return 0;
 	else {
 		rmsrch(srch);
@@ -450,6 +702,7 @@ static void visit(SRCH *srch, BW *bw, int yn)
 
 	r->addr = bw->cursor->byte;
 	r->yn = yn;
+	r->wrap_flag = srch->wrap_flag;
 	enqueb(SRCHREC, link, &srch->recs, r);
 }
 
@@ -462,6 +715,7 @@ static void goback(SRCH *srch, BW *bw)
 			uundo(bw);
 		if (bw->cursor->byte != r->addr)
 			pgoto(bw->cursor, r->addr);
+		srch->wrap_flag = r->wrap_flag;
 		demote(SRCHREC, link, &fsr, r);
 	}
 }
@@ -558,9 +812,9 @@ static int fnext(BW *bw, SRCH *srch)
 			--srch->repeat;
 	}
       again:if (srch->backwards)
-		sta = searchb(srch, bw->cursor);
+		sta = searchb(bw, srch, bw->cursor);
 	else
-		sta = searchf(srch, bw->cursor);
+		sta = searchf(bw, srch, bw->cursor);
 	if (!sta) {
 		srch->repeat = -1;
 		return 1;
@@ -687,6 +941,12 @@ int pfnext(BW *bw)
 
 		globalsrch = 0;
 		srch->addr = bw->cursor->byte;
+		if (!srch->wrap_p || srch->wrap_p->b!=bw->b) {
+			prm(srch->wrap_p);
+			srch->wrap_p = pdup(bw->cursor);
+			srch->wrap_p->owner = &srch->wrap_p;
+			srch->wrap_flag = 0;
+		}
 		return dopfnext(bw, setmark(srch), NULL);
 	}
 }

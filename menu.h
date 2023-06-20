@@ -23,6 +23,7 @@ int umpgup PARAMS((MENU *m));
 int umpgdn PARAMS((MENU *m));
 int umltarw PARAMS((MENU *m));
 int umrtarw PARAMS((MENU *m));
+int umtab PARAMS((MENU *m));
 int umbof PARAMS((MENU *m));
 int umeof PARAMS((MENU *m));
 int umbol PARAMS((MENU *m));
@@ -32,5 +33,6 @@ int umbacks PARAMS((MENU *m));
 void ldmenu PARAMS((MENU *m, unsigned char **s, int cursor));
 
 unsigned char *mcomplete PARAMS((MENU *m));
+unsigned char *find_longest PARAMS((unsigned char **lst));
 
 #endif

@@ -27,35 +27,50 @@
 #include "ufile.h"
 #include "va.h"
 #include "vs.h"
+#include "utf8.h"
 #include "w.h"
 
 extern int orphan;
 
 /* Executed when shell process terminates */
 
-static void cdone(BW *bw)
+static void cdone(B *b)
 {
-	bw->pid = 0;
-	close(bw->out);
-	bw->out = -1;
-	if (piseof(bw->cursor)) {
-		binss(bw->cursor, US "** Program finished **\n");
-		p_goto_eof(bw->cursor);
-		bw->cursor->xcol = piscol(bw->cursor);
-	} else {
-		P *q = pdup(bw->b->eof);
+	b->pid = 0;
+	close(b->out);
+	b->out = -1;
+}
 
-		binss(q, US "** Program finished **\n");
-		prm(q);
-	}
+static void cdone_parse(B *b)
+{
+	b->pid = 0;
+	close(b->out);
+	b->out = -1;
+	parserrb(b);
 }
 
 /* Executed for each chunk of data we get from the shell */
 
-static void cdata(BW *bw, unsigned char *dat, int siz)
+static void cfollow(B *b,long byte)
 {
-	P *q = pdup(bw->cursor);
-	P *r = pdup(bw->b->eof);
+	W *w;
+	 if ((w = maint->topwin) != NULL) {
+	 	do {
+	 		if ((w->watom->what&TYPETW) && ((BW *)w->object)->b==b && ((BW *)w->object)->cursor->byte==byte) {
+	 			BW *bw = (BW *)w->object;
+	 			p_goto_eof(bw->cursor);
+				bw->cursor->xcol = piscol(bw->cursor);
+	 		}
+		w = w->link.next;
+	 	} while (w != maint->topwin);
+	 }
+}
+
+static void cdata(B *b, unsigned char *dat, int siz)
+{
+	P *q = pdup(b->eof);
+	P *r = pdup(b->eof);
+	long byte = q->byte;
 	unsigned char bf[1024];
 	int x, y;
 
@@ -65,34 +80,28 @@ static void cdata(BW *bw, unsigned char *dat, int siz)
 		} else if (dat[x] == 8 || dat[x] == 127) {
 			if (y) {
 				--y;
-			} else if (piseof(bw->cursor)) {
-				pset(q, bw->cursor);
-				prgetc(q);
-				bdel(q, bw->cursor);
-				bw->cursor->xcol = piscol(bw->cursor);
 			} else {
 				pset(q, r);
 				prgetc(q);
 				bdel(q, r);
+				--byte;
 			}
+		} else if (dat[x] == 7) {
+			ttputc(7);
 		} else {
 			bf[y++] = dat[x];
 		}
 	}
 	if (y) {
-		if (piseof(bw->cursor)) {
-			binsm(bw->cursor, bf, y);
-			p_goto_eof(bw->cursor);
-			bw->cursor->xcol = piscol(bw->cursor);
-		} else {
-			binsm(r, bf, y);
-		}
+		binsm(r, bf, y);
 	}
 	prm(r);
 	prm(q);
+
+	cfollow(b,byte);
 }
 
-static int cstart(BW *bw, unsigned char *name, unsigned char **s, void *obj, int *notify)
+static int cstart(BW *bw, unsigned char *name, unsigned char **s, void *obj, int *notify, int build)
 {
 #ifdef __MSDOS__
 	if (notify) {
@@ -107,22 +116,19 @@ static int cstart(BW *bw, unsigned char *name, unsigned char **s, void *obj, int
 	if (notify) {
 		*notify = 1;
 	}
-	if (bw->pid && orphan) {
+	if (bw->b->pid) {
 		msgnw(bw->parent, US "Program already running in this window");
 		varm(s);
 		return -1;
 	}
-	if (doedit(bw, vsncpy(NULL, 0, sc("")), NULL, NULL)) {
-		varm(s);
-		return -1;
-	}
-	bw = (BW *) maint->curwin->object;
-	if (!(m = mpxmk(&bw->out, name, s, cdata, bw, cdone, bw))) {
+	p_goto_eof(bw->cursor);
+
+	if (!(m = mpxmk(&bw->b->out, name, s, cdata, bw->b, build ? cdone_parse : cdone, bw->b))) {
 		varm(s);
 		msgnw(bw->parent, US "No ptys available");
 		return -1;
 	} else {
-		bw->pid = m->pid;
+		bw->b->pid = m->pid;
 	}
 	return 0;
 #endif
@@ -135,7 +141,8 @@ int ubknd(BW *bw)
         unsigned char *sh=(unsigned char *)getenv("SHELL");
         if (!sh) {
         	msgnw(bw->parent, US "\"SHELL\" environment variable not defined or exported");
-        	return -1;
+        	/* return -1; */
+        	sh = US "/bin/sh";
         }
 
 	a = vamk(3);
@@ -143,7 +150,7 @@ int ubknd(BW *bw)
 	a = vaadd(a, s);
 	s = vsncpy(NULL, 0, sc("-i"));
 	a = vaadd(a, s);
-	return cstart(bw, sh, a, NULL, NULL);
+	return cstart(bw, sh, a, NULL, NULL, 0);
 }
 
 /* Run a program in a window */
@@ -157,17 +164,51 @@ static int dorun(BW *bw, unsigned char *s, void *object, int *notify)
 	cmd = vsncpy(NULL, 0, sc("-c"));
 	a = vaadd(a, cmd);
 	a = vaadd(a, s);
-	return cstart(bw, US "/bin/sh", a, NULL, notify);
+	return cstart(bw, US "/bin/sh", a, NULL, notify, 0);
 }
 
 B *runhist = NULL;
 
 int urun(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Program to run: ", &runhist, dorun, US "Run", NULL, NULL, NULL, NULL, -1)) {
+	if (wmkpw(bw->parent, US "Program to run: ", &runhist, dorun, US "Run", NULL, NULL, NULL, NULL, locale_map)) {
 		return 0;
 	} else {
 		return -1;
+	}
+}
+
+static int dobuild(BW *bw, unsigned char *s, void *object, int *notify)
+{
+	unsigned char **a = vamk(10);
+	unsigned char *cmd = vsncpy(NULL, 0, sc("/bin/sh"));
+
+	a = vaadd(a, cmd);
+	cmd = vsncpy(NULL, 0, sc("-c"));
+	a = vaadd(a, cmd);
+	a = vaadd(a, s);
+	return cstart(bw, US "/bin/sh", a, NULL, notify, 1);
+}
+
+B *buildhist = NULL;
+
+int ubuild(BW *bw)
+{
+	if (buildhist) {
+		if (bw=wmkpw(bw->parent, US "Build command: ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map)) {
+			uuparw(bw);
+			u_goto_eol(bw);
+			bw->cursor->xcol = piscol(bw->cursor);
+			return 0;
+		} else {
+		return -1;
+		}
+	} else {
+		if (wmkpw(bw->parent, US "Enter build command (for example, 'make'): ", &buildhist, dobuild, US "Run", NULL, NULL, NULL, NULL, locale_map)) {
+			return 0;
+		} else {
+		return -1;
+		}
 	}
 }
 
@@ -181,8 +222,8 @@ static int pidabort(BW *bw, int c, void *object, int *notify)
 	if (c != 'y' && c != 'Y') {
 		return -1;
 	}
-	if (bw->pid) {
-		kill(bw->pid, 1);
+	if (bw->b->pid) {
+		kill(bw->b->pid, 1);
 		return -1;
 	} else {
 		return -1;
@@ -191,7 +232,7 @@ static int pidabort(BW *bw, int c, void *object, int *notify)
 
 int ukillpid(BW *bw)
 {
-	if (bw->pid) {
+	if (bw->b->pid) {
 		if (mkqw(bw->parent, sc("Kill program (y,n,^C)?"), pidabort, NULL, NULL, NULL)) {
 			return 0;
 		} else {

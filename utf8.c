@@ -5,6 +5,8 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
+#include <stdio.h>
+
 #include "config.h"
 #include "types.h"
 
@@ -17,11 +19,11 @@
 #if defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE)
 #	include <locale.h>
 #       include <langinfo.h>
-#	include <iconv.h>
 #endif
 
 #include "rc.h"
 #include "utf8.h"
+#include "charmap.h"
 
 /* UTF-8 Encoder
  *
@@ -41,7 +43,7 @@ int utf8_encode(unsigned char *buf,int c)
 		buf[1] = (0x80|(c&0x3F));
 		buf[2] = 0;
 		return 2;
-	} else if(c < 0x20000) {
+	} else if(c < 0x10000) {
 		buf[0] = (0xe0|(c>>12));
 		buf[1] = (0x80|((c>>6)&0x3f));
 		buf[2] = (0x80|((c)&0x3f));
@@ -135,7 +137,7 @@ int utf8_decode(struct utf8_sm *utf8_sm,unsigned char c)
 		/* 128 - 191, 254, 255 */
 		utf8_sm->ptr = 0;
 		utf8_sm->state = 0;
-		return c;
+		return -3;
 	}
 	return -1;
 }
@@ -148,7 +150,7 @@ void utf8_init(struct utf8_sm *utf8_sm)
 	utf8_sm->state = 0;
 }
 
-/* Decode a string */
+/* Decode an entire string */
 
 int utf8_decode_string(unsigned char *s)
 {
@@ -161,24 +163,46 @@ int utf8_decode_string(unsigned char *s)
 	return c;
 }
 
+/* Decode and advance */
+
+int utf8_decode_fwrd(unsigned char **p,int *plen)
+{
+	struct utf8_sm sm;
+	unsigned char *s = *p;
+	int len = *plen;
+	int c = -2;
+
+	utf8_init(&sm);
+
+	while (len) {
+		--len;
+		c = utf8_decode(&sm,*s++);
+		if (c >= 0)
+			break;
+	}
+
+	*plen = len;
+	*p = s;
+
+	return c;
+}
+
 /* Initialize locale for JOE */
 
-int utf8;		/* Set if terminal is UTF-8 */
 unsigned char *codeset;	/* Codeset of terminal */
 
 unsigned char *non_utf8_codeset;
 			/* Codeset of local language non-UTF-8 */
-			/* What if it is UTF-8? */
 
-#ifdef HAVE_SETLOCALE
-iconv_t to_utf;
-iconv_t from_utf;
-#endif
+struct charmap *locale_map;
+			/* Character map of terminal */
 
 void joe_locale()
 {
 #ifdef HAVE_SETLOCALE
 	unsigned char *s, *t;
+
+	int x;
 
 	s=(unsigned char *)getenv("LC_ALL");
 	if (!s) {
@@ -191,59 +215,95 @@ void joe_locale()
 	if (s)
 		s=(unsigned char *)strdup((char *)s);
 	else
-		s="C";
+		s=US "ascii";
 
 	if (t=(unsigned char *)strrchr((char *)s,'.'))
 		*t = 0;
 
-	setlocale(LC_ALL,s);
+	setlocale(LC_ALL,(char *)s);
 	non_utf8_codeset = (unsigned char *)strdup(nl_langinfo(CODESET));
 
 	setlocale(LC_ALL,"");
 	codeset = (unsigned char *)strdup(nl_langinfo(CODESET));
 
-	if(!strcmp((char *)codeset,"UTF-8")) {
-		utf8 = 1;
-		fdefault.utf8 = 1;	/* Default file type */
-		pdefault.utf8 = 1;	/* For prompt windows too */
-	}
+	locale_map = find_charmap(codeset);
+	if (!locale_map)
+		locale_map = find_charmap(US "ascii");
 
-	to_utf = iconv_open("UTF-8", non_utf8_codeset);
-	from_utf = iconv_open(non_utf8_codeset, "UTF-8");
+	fdefault.charmap = locale_map;
+	pdefault.charmap = locale_map;
+
+/*
+	printf("Character set is %s\n",locale_map->name);
+
+	for(x=0;x!=128;++x)
+		printf("%x	space=%d blank=%d alpha=%d alnum=%d punct=%d print=%d\n",
+		       x,joe_isspace(locale_map,x), joe_isblank(locale_map,x), joe_isalpha_(locale_map,x),
+		       joe_isalnum_(locale_map,x), joe_ispunct(locale_map,x), joe_isprint(locale_map,x));
+*/
+
+#ifdef junk
+	to_utf = iconv_open("UTF-8", (char *)non_utf8_codeset);
+	from_utf = iconv_open((char *)non_utf8_codeset, "UTF-8");
+#endif
+
+#else
+	locale_map = find_charmap("ascii");
+	fdefault.charmap = locale_map;
+	pdefault.charmap = locale_map;
 #endif
 }
 
-void to_utf8(unsigned char *s,int c)
+void to_utf8(struct charmap *map,unsigned char *s,int c)
 {
-#ifdef HAVE_SETLOCALE
+	int d = to_uni(map,c);
+
+	if (d==-1)
+		utf8_encode(s,'?');
+	else
+		utf8_encode(s,d);
+#ifdef junk
+	/* Iconv() way */
 	unsigned char buf[10];
-	unsigned char *bp;
+	unsigned char *ibufp = buf;
+	unsigned char *obufp = s;
 	int ibuf_sz=1;
 	int obuf_sz= 10;
 	buf[0]=c;
 	buf[1]=0;
-	bp = buf;
 
-	iconv(to_utf,(char **)&bp,&ibuf_sz,(char **)&s,&obuf_sz);
-	*s = 0;
-#else
-	utf8_encode(s,c);
+	if (to_utf==(iconv_t)-1 ||
+	    iconv(to_utf,(char **)&ibufp,&ibuf_sz,(char **)&obufp,&obuf_sz)==(size_t)-1) {
+		s[0]='?';
+		s[1]=0;
+	} else {
+		*obufp = 0;
+	}
 #endif
 }
 
-int from_utf8(unsigned char *s)
+int from_utf8(struct charmap *map,unsigned char *s)
 {
-#ifdef HAVE_SETLOCALE
-	int ibuf_sz=10;
+	int d = utf8_decode_string(s);
+	int c = from_uni(map,d);
+	if (c==-1)
+		return '?';
+	else
+		return c;
+
+#ifdef junk
+	/* Iconv() way */
+	int ibuf_sz=strlen((char *)s);
 	unsigned char *ibufp=s;
-	
 	int obuf_sz=10;
 	unsigned char obuf[10];
 	unsigned char *obufp = obuf;
 
-	iconv(from_utf,(char **)&s,&ibuf_sz,(char **)&obufp,&obuf_sz);
-	return obuf[0];
-#else
-	return utf8_decode_string(s);
+
+	if (from_utf==(iconv_t)-1 ||
+	    iconv(from_utf,(char **)&ibufp,&ibuf_sz,(char **)&obufp,&obuf_sz)==((size_t)-1))
+		return '?';
+	else
+		return obuf[0];
 #endif
 }

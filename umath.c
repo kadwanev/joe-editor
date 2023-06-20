@@ -15,6 +15,8 @@
 #include "pw.h"
 #include "utils.h"
 #include "vs.h"
+#include "utf8.h"
+#include "charmap.h"
 #include "w.h"
 
 unsigned char *merr;
@@ -192,7 +194,7 @@ static int domath(BW *bw, unsigned char *s, void *object, int *notify)
 		return -1;
 	}
 	vsrm(s);
-	snprintf((char *)msgbuf, JOE_MSGBUFSIZE, "%G", result);
+	joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "%G", result);
 	if (bw->parent->watom->what != TYPETW) {
 		binsm(bw->cursor, sz(msgbuf));
 		pfwrd(bw->cursor, strlen((char *)msgbuf));
@@ -208,7 +210,7 @@ B *mathhist = NULL;
 int umath(BW *bw)
 {
 	joe_set_signal(SIGFPE, fperr);
-	if (wmkpw(bw->parent, US "=", &mathhist, domath, US "math", NULL, NULL, NULL, NULL, -1)) {
+	if (wmkpw(bw->parent, US "=", &mathhist, domath, US "math", NULL, NULL, NULL, NULL, locale_map)) {
 		return 0;
 	} else {
 		return -1;

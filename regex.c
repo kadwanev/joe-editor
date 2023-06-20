@@ -9,49 +9,56 @@
 #include "types.h"
 
 #include <stdio.h> 
-#include <ctype.h>
-#include <wctype.h>
 
 #include "b.h"
 #include "utf8.h"
+#include "charmap.h"
 #include "vs.h"
 
-int escape(unsigned char **a, int *b)
+int escape(int utf8,unsigned char **a, int *b)
 {
 	int c;
 	unsigned char *s = *a;
 	int l = *b;
 
 	if (*s == '\\' && l >= 2) {
-		++s;
-		--l;
+		++s; --l;
 		switch (*s) {
 		case 'n':
 			c = 10;
+			++s; --l;
 			break;
 		case 't':
 			c = 9;
+			++s; --l;
 			break;
 		case 'a':
 			c = 7;
+			++s; --l;
 			break;
 		case 'b':
 			c = 8;
+			++s; --l;
 			break;
 		case 'f':
 			c = 12;
+			++s; --l;
 			break;
 		case 'e':
 			c = 27;
+			++s; --l;
 			break;
 		case 'r':
 			c = 13;
+			++s; --l;
 			break;
 		case '8':
 			c = 8;
+			++s; --l;
 			break;
 		case '9':
 			c = 9;
+			++s; --l;
 			break;
 		case '0':
 		case '1':
@@ -62,53 +69,53 @@ int escape(unsigned char **a, int *b)
 		case '6':
 		case '7':
 			c = *s - '0';
-			if (l > 1 && s[1] >= '0' && s[1] <= '7') {
+			++s; --l;
+			if (l > 0 && *s >= '0' && *s <= '7') {
 				c = c * 8 + s[1] - '0';
-				++s;
-				--l;
+				++s; --l;
 			}
-			if (l > 1 && s[1] >= '0' && s[1] <= '7') {
+			if (l > 0 && *s >= '0' && *s <= '7') {
 				c = c * 8 + s[1] - '0';
-				++s;
-				--l;
+				++s; --l;
 			}
 			break;
 		case 'x':
 		case 'X':
 			c = 0;
-			if (l > 1 && s[1] >= '0' && s[1] <= '9') {
-				c = c * 16 + s[1] - '0';
-				++s;
-				--l;
-			} else if (l > 1 && s[1] >= 'A' && s[1] <= 'F') {
-				c = c * 16 + s[1] - 'A' + 10;
-				++s;
-				--l;
-			} else if (l > 1 && s[1] >= 'a' && s[1] <= 'f') {
-				c = c * 16 + s[1] - 'a' + 10;
-				++s;
-				--l;
+			++s; --l;
+			if (l > 0 && *s >= '0' && *s <= '9') {
+				c = c * 16 + *s - '0';
+				++s; --l;
+			} else if (l > 0 && *s >= 'A' && *s <= 'F') {
+				c = c * 16 + *s - 'A' + 10;
+				++s; --l;
+			} else if (l > 0 && *s >= 'a' && *s <= 'f') {
+				c = c * 16 + *s - 'a' + 10;
+				++s; --l;
 			}
-			if (l > 1 && s[1] >= '0' && s[1] <= '9') {
-				c = c * 16 + s[1] - '0';
-				++s;
-				--l;
-			} else if (l > 1 && s[1] >= 'A' && s[1] <= 'F') {
-				c = c * 16 + s[1] - 'A' + 10;
-				++s;
-				--l;
-			} else if (l > 1 && s[1] >= 'a' && s[1] <= 'f') {
-				c = c * 16 + s[1] - 'a' + 10;
-				++s;
-				--l;
+
+			if (l > 0 && *s >= '0' && *s <= '9') {
+				c = c * 16 + *s - '0';
+				++s; --l;
+			} else if (l > 0 && *s >= 'A' && *s <= 'F') {
+				c = c * 16 + *s - 'A' + 10;
+				++s; --l;
+			} else if (l > 0 && *s >= 'a' && *s <= 'f') {
+				c = c * 16 + *s - 'a' + 10;
+				++s; --l;
 			}
 			break;
 		default:
-			c = *s;
+			if (utf8)
+				c = utf8_decode_fwrd(&s, &l);
+			else {
+				c = *s++;
+				--l;
+			}
 			break;
 		}
-		++s;
-		--l;
+	} else if (utf8) {
+		c = utf8_decode_fwrd(&s,&l);
 	} else {
 		c = *s++;
 		--l;
@@ -118,7 +125,7 @@ int escape(unsigned char **a, int *b)
 	return c;
 }
 
-static int brack(unsigned char **a, int *la, unsigned char c)
+static int brack(int utf8,unsigned char **a, int *la, int c)
 {
 	int inverse = 0;
 	int flag = 0;
@@ -146,11 +153,12 @@ static int brack(unsigned char **a, int *la, unsigned char c)
 		} else {
 			int cl, cr;
 
-			cl = escape(&s, &l);
+			cl = escape(utf8, &s, &l);
+
 			if (l >= 2 && s[0] == '-' && s[1] != ']') {
 				--l;
 				++s;
-				cr = escape(&s, &l);
+				cr = escape(utf8, &s, &l);
 				if (c >= cl && c <= cr)
 					flag = 1;
 			} else if (c == cl)
@@ -164,13 +172,22 @@ static int brack(unsigned char **a, int *la, unsigned char c)
 		return flag;
 }
 
-static void savec(unsigned char **pieces, int n, unsigned char c)
+static void savec(int utf8,unsigned char **pieces, int n, int c)
 {
+	unsigned char buf[16];
+	int len;
 	unsigned char *s = NULL;
+
+	if (utf8)
+		len = utf8_encode(buf,c);
+	else {
+		buf[0] = c;
+		len = 1;
+	}
 
 	if (pieces[n])
 		vsrm(pieces[n]);
-	s = vsncpy(s, 0, &c, 1);
+	s = vsncpy(s, 0, buf, len);
 	pieces[n] = s;
 }
 
@@ -258,13 +275,14 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 	int c, d;
 	P *q = pdup(p);
 	P *o = NULL;
-	int local_utf8 = p->b->o.utf8;
+	int utf8 = p->b->o.charmap->type;
+	struct charmap *map = p->b->o.charmap;
 	struct utf8_sm sm;
 
 	utf8_init(&sm);
 
 	while (len) {
-		if (local_utf8) {
+		if (utf8) {
 			do {
 				c = utf8_decode(&sm,*regex++);
 				--len;
@@ -285,7 +303,7 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 				d = pgetc(p);
 				if (d == NO_MORE_DATA)
 					goto fail;
-				savec(pieces, n++, d);
+				savec(utf8, pieces, n++, d);
 				break;
 			case 'n':
 			case 'r':
@@ -308,7 +326,7 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 			case '9':
 				regex -= 2;
 				len += 2;
-				if (pgetc(p) != escape(&regex, &len))
+				if (pgetc(p) != escape(utf8, &regex, &len))
 					goto fail;
 				break;
 			case '*':
@@ -339,9 +357,9 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 				d = pgetc(p);
 				if (d == NO_MORE_DATA)
 					goto fail;
-				if (!brack(&regex, &len, d))
+				if (!brack(utf8, &regex, &len, d))
 					goto fail;
-				savec(pieces, n++, d);
+				savec(utf8, pieces, n++, d);
 				break;
 			case '+':
 				{
@@ -355,22 +373,36 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 
 					P *r = NULL;
 
+					int d;
+
 					o = pdup(p);
 
-					/* Advance over character to skip */
+					/* Advance over character to skip.  Save character in d unless
+					   we're skipping over a \[..] */
 					if (len >= 2 && regex[0] == '\\') {
 						if (regex[1] == '[') {
 							regex += 2;
 							len -= 2;
-							brack(&regex, &len, 0);
+							brack(utf8, &regex, &len, 0);
 						} else {
-							escape(&regex, &len);
+							d = escape(utf8, &regex, &len);
+							if (icase)
+								d = joe_tolower(map,d);
 						}
-					} else if (len >= 1) {
-						--len;
-						++regex;
-					} else
-						goto done;
+					} else if (utf8) {
+						if ((d = utf8_decode_fwrd(&regex, &len)) < 0)
+							goto done;
+						else if (icase)
+							d = joe_tolower(map,d);
+					} else {
+						if (len >= 1) {
+							--len;
+							d = *regex++;
+							if (icase)
+								d = joe_tolower(map,d);
+						} else
+							goto done;
+					}
 
 					/* Now oregex/olen point to character to skip over and
 					   regex/len point to sequence which follows */
@@ -393,14 +425,14 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 							if (oregex[1] == '[') {
 								tregex += 2;
 								tlen -= 2;
-								match = brack(&tregex, &tlen, c);
+								match = brack(utf8, &tregex, &tlen, c);
 							} else
-								match = (escape(&tregex, &tlen) == c);
+								match = (d == c);
 						} else {
 							if(icase)
-								match = (toupper(c) == toupper(*tregex));
+								match = (joe_tolower(map,c) == d);
 							else
-								match = (c == *tregex);
+								match = (c == d);
 						}
 					} while (c != NO_MORE_DATA && match);
 
@@ -442,10 +474,7 @@ int pmatch(unsigned char **pieces, unsigned char *regex, int len, P *p, int n, i
 		default:
 			d = pgetc(p);
 			if (icase) {
-				if (local_utf8) {
-					if (towupper(d) != towupper(c))
-						goto fail;
-				} else if (toupper(d) != toupper(c))
+				if (joe_tolower(map,d) != joe_tolower(map,c))
 					goto fail;
 			} else {
 				if (d != c)

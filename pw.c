@@ -195,12 +195,8 @@ static WATOM watompw = {
 };
 
 /* Create a prompt window */
-/* wide=-1: use default
-   wide=0: use 8-bit chars
-   wide=1: use UTF-8
-*/
 
-BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify,int wide)
+BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify,struct charmap *map)
 {
 	W *new;
 	PW *pw;
@@ -215,8 +211,7 @@ BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned cha
 	}
 	wfit(new->t);
 	new->object = (void *) (bw = bwmk(new, bmk(NULL), 1));
-	if (wide!=-1)
-		bw->b->o.utf8= wide;
+	bw->b->o.charmap = map;
 	bw->object = (void *) (pw = (PW *) joe_malloc(sizeof(PW)));
 	pw->abrt = abrt;
 	pw->tab = tab;
@@ -301,34 +296,36 @@ int simple_cmplt(BW *bw,unsigned char **list)
 	line = brvs(p, (int) (q->byte - p->byte));	/* Assumes short lines :-) */
 	prm(p);
 	prm(q);
-	m = mkmenu(bw->parent, NULL, cmplt_rtn, cmplt_abrt, NULL, 0, line, NULL);
-	if (!m)
-		return -1;
+
 	line1 = vsncpy(NULL, 0, sv(line));
 	line1 = vsadd(line1, '*');
 	lst = regsub(list, aLEN(list), line1);
 	vsrm(line1);
-	ldmenu(m, lst, 0);
-	if (!lst) {
-		wabort(m->parent);
-		if(beep)
-			ttputc(7);
-		return -1;
-	} else {
-		if (aLEN(lst) == 1)
-			return cmplt_rtn(m, 0, line);
-		else if (smode || isreg(line))
-			return 0;
-		else {
-			unsigned char *com = mcomplete(m);
 
-			vsrm(m->object);
-			m->object = com;
-			wabort(m->parent);
-			smode = 2;
-			if(beep)
-				ttputc(7);
-			return 0;
-		}
+	if (!lst) {
+		ttputc(7);
+		vsrm(line);
+		return -1;
+	}
+
+	m = mkmenu(bw->parent, lst, cmplt_rtn, cmplt_abrt, NULL, 0, line, NULL);
+	if (!m) {
+		varm(lst);
+		vsrm(line);
+		return -1;
+	}
+	if (aLEN(lst) == 1)
+		return cmplt_rtn(m, 0, line);
+	else if (smode || isreg(line))
+		return 0;
+	else {
+		unsigned char *com = mcomplete(m);
+
+		vsrm(m->object);
+		m->object = com;
+		wabort(m->parent);
+		smode = 2;
+		ttputc(7);
+		return 0;
 	}
 }

@@ -9,7 +9,6 @@
 #include "types.h"
 
 #include <stdio.h>
-#include <ctype.h>
 
 #include "b.h"
 #include "bw.h"
@@ -24,6 +23,7 @@
 #include "utils.h"
 #include "vs.h"
 #include "utf8.h"
+#include "charmap.h"
 #include "w.h"
 
 /***************/
@@ -49,12 +49,21 @@ int uhome(BW *bw)
 {
 	P *p = pdup(bw->cursor);
 
-	if ((bw->o.smarthome) && (piscol(p) > pisindent(p))) { 
-		p_goto_bol(p);
-		while (joe_isblank(brc(p)))
-			pgetc(p);
-	} else
-		p_goto_bol(p);
+	if (bw->o.indentfirst) {
+		if ((bw->o.smarthome) && (piscol(p) > pisindent(p))) { 
+			p_goto_bol(p);
+			while (joe_isblank(p->b->o.charmap,brc(p)))
+				pgetc(p);
+		} else
+			p_goto_bol(p);
+	} else {
+		if (bw->o.smarthome && piscol(p)==0 && pisindent(p)) {
+			while (joe_isblank(p->b->o.charmap,brc(p)))
+				pgetc(p);
+		} else
+			p_goto_bol(p);
+	}
+
 	pset(bw->cursor, p);
 	prm(p);
 	return 0;
@@ -122,12 +131,17 @@ int u_goto_right(BW *bw)
 		pcol(bw->cursor,bw->cursor->xcol);
 		return 0;
 	} else {
+		int rtn;
 		if (pgetc(bw->cursor) != NO_MORE_DATA) {
 			bw->cursor->xcol = piscol(bw->cursor);
-			return 0;
+			rtn = 0;
 		} else {
-			return -1;
+			rtn = -1;
 		}
+		/* Have to do EFIXXCOL here because of picture mode */
+		if (bw->cursor->xcol != piscol(bw->cursor))
+			bw->cursor->xcol = piscol(bw->cursor);
+		return rtn;
 	}
 }
 
@@ -140,25 +154,28 @@ int u_goto_right(BW *bw)
 int u_goto_prev(BW *bw)
 {
 	P *p = pdup(bw->cursor);
+	struct charmap *map=bw->b->o.charmap;
 	int c = prgetc(p);
 
-	if (isalnum_(bw->b->o.utf8,c)) {
-		while (isalnum_(bw->b->o.utf8,(c=prgetc(p))))
+	if (joe_isalnum_(map,c)) {
+		while (joe_isalnum_(map,(c=prgetc(p))))
 			/* Do nothing */;
 		if (c != NO_MORE_DATA)
 			pgetc(p);
-	} else if (isspace(c) || ispunct(c)) {
-		while ((c=prgetc(p)), (isspace(c) || ispunct(c)))
+	} else if (joe_isspace(map,c) || joe_ispunct(map,c)) {
+		while ((c=prgetc(p)), (joe_isspace(map,c) || joe_ispunct(map,c)))
 			/* Do nothing */;
-		while(isalnum_(bw->b->o.utf8,(c=prgetc(p))))
+		while(joe_isalnum_(map,(c=prgetc(p))))
 			/* Do nothing */;
 		if (c != NO_MORE_DATA)
 			pgetc(p);
 	}
+/*
 	if (p->byte == bw->cursor->byte) {
 		prm(p);
 		return -1;
 	}
+*/
 	pset(bw->cursor, p);
 	prm(p);
 	return 0;
@@ -173,31 +190,32 @@ int u_goto_prev(BW *bw)
 int u_goto_next(BW *bw)
 {
 	P *p = pdup(bw->cursor);
+	struct charmap *map=bw->b->o.charmap;
 	int c = brch(p);
+	int rtn = -1;
 
-	if (isalnum_(bw->b->o.utf8,c))
-		while (isalnum_(bw->b->o.utf8,(c = brch(p))))
+	if (joe_isalnum_(map,c)) {
+		rtn = 0;
+		while (joe_isalnum_(map,(c = brch(p))))
 			pgetc(p);
-	else if (isspace(c) || ispunct(c)) {
-		while (isspace(c = brch(p)) || ispunct(c))
+	} else if (joe_isspace(map,c) || joe_ispunct(map,c)) {
+		while (joe_isspace(map, (c = brch(p))) || joe_ispunct(map,c))
 			pgetc(p);
-		while (isalnum_(bw->b->o.utf8,(c = brch(p))))
+		while (joe_isalnum_(map,(c = brch(p)))) {
+			rtn = 0;
 			pgetc(p);
+		}
 	} else
 		pgetc(p);
-	if (p->byte == bw->cursor->byte) {
-		prm(p);
-		return -1;
-	}
 	pset(bw->cursor, p);
 	prm(p);
-	return 0;
+	return rtn;
 }
 
 static P *pboi(P *p)
 {
 	p_goto_bol(p);
-	while (joe_isblank(brch(p)))
+	while (joe_isblank(p->b->o.charmap,brch(p)))
 		pgetc(p);
 	return p;
 }
@@ -215,9 +233,9 @@ static int pisedge(P *p)
 	pboi(q);
 	if (q->byte == p->byte)
 		goto left;
-	if (joe_isblank(c = brch(p))) {
+	if (joe_isblank(p->b->o.charmap,(c = brch(p)))) {
 		pset(q, p);
-		if (joe_isblank(prgetc(q)))
+		if (joe_isblank(p->b->o.charmap,prgetc(q)))
 			goto no;
 		if (c == '\t')
 			goto right;
@@ -576,7 +594,7 @@ static int doline(BW *bw, unsigned char *s, void *object, int *notify)
 
 int uline(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Go to line (^C to abort): ", &linehist, doline, NULL, NULL, NULL, NULL, NULL, -1))
+	if (wmkpw(bw->parent, US "Go to line (^C to abort): ", &linehist, doline, NULL, NULL, NULL, NULL, NULL, locale_map))
 		return 0;
 	else
 		return -1;
@@ -612,7 +630,7 @@ static int docol(BW *bw, unsigned char *s, void *object, int *notify)
 
 int ucol(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Go to column (^C to abort): ", &colhist, docol, NULL, NULL, NULL, NULL, NULL, -1))
+	if (wmkpw(bw->parent, US "Go to column (^C to abort): ", &colhist, docol, NULL, NULL, NULL, NULL, NULL, locale_map))
 		return 0;
 	else
 		return -1;
@@ -648,7 +666,7 @@ static int dobyte(BW *bw, unsigned char *s, void *object, int *notify)
 
 int ubyte(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Go to byte (^C to abort): ", &bytehist, dobyte, NULL, NULL, NULL, NULL, NULL, -1))
+	if (wmkpw(bw->parent, US "Go to byte (^C to abort): ", &bytehist, dobyte, NULL, NULL, NULL, NULL, NULL, locale_map))
 		return 0;
 	else
 		return -1;
@@ -660,31 +678,22 @@ int ubyte(BW *bw)
 
 int udelch(BW *bw)
 {
-	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		unsigned char c = 4;
-		joe_write(bw->out, &c, 1);	/* Send Ctrl-D to process */
-	} else {
-		P *p;
+	P *p;
 
-		if (piseof(bw->cursor))
-			return -1;
-		pgetc(p = pdup(bw->cursor));
-		bdel(bw->cursor, p);
-		prm(p);
-	}
+	if (piseof(bw->cursor))
+		return -1;
+	pgetc(p = pdup(bw->cursor));
+	bdel(bw->cursor, p);
+	prm(p);
 	return 0;
 }
 
-/* Backspace, or if cursor is at end of file in a shell window, send backspace
- * to shell */
+/* Backspace */
 
 int ubacks(BW *bw, int k)
 {
-	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		unsigned char c = k;
-
-		joe_write(bw->out, &c, 1);
-	} else if (bw->parent->watom->what == TYPETW || !pisbol(bw->cursor)) {
+	/* Don't backspace when at beginning of line in prompt windows */
+	if (bw->parent->watom->what == TYPETW || !pisbol(bw->cursor)) {
 		P *p;
 		int c;
 		int indent;
@@ -716,7 +725,7 @@ int ubacks(BW *bw, int k)
 		   indent characters (or purify indents is enabled). */
 		
 		/* Ignore purify for backspace */
-		if (col == indent && (col%indwid)==0 && col!=0 && bw->o.smartbacks && pispure(bw->cursor,bw->o.indentc)) {
+		if (col == indent && (col%indwid)==0 && col!=0 && bw->o.smartbacks && bw->o.autoindent) {
 			P *p;
 			int x;
 
@@ -728,16 +737,29 @@ int ubacks(BW *bw, int k)
 
 			/* Indent to new position */
 			pfill(bw->cursor,col-indwid,bw->o.indentc);
+		} else if (col<indent && !pisbol(bw->cursor)) {
+			/* We're before indent point: delete indwid worth of space but do not
+			   cross line boundary.  We could probably replace the above with this. */
+			int cw=0;
+			P *p = pdup(bw->cursor);
+			do {
+				c = prgetc(bw->cursor);
+				if(c=='\t') cw += bw->o.tab;
+				else cw += 1;
+				bdel(bw->cursor, p);
+			} while(!pisbol(bw->cursor) && cw<indwid);
+			prm(p);
 		} else {
+			/* Regular backspace */
 			P *p = pdup(bw->cursor);
 			if ((c = prgetc(bw->cursor)) != NO_MORE_DATA)
 				if (!bw->o.overtype || c == '\t' || pisbol(p) || piseol(p))
 					bdel(bw->cursor, p);
 			prm(p);
 		}
+		return 0;
 	} else
 		return -1;
-	return 0;
 }
 
 /* 
@@ -750,13 +772,14 @@ int ubacks(BW *bw, int k)
 int u_word_delete(BW *bw)
 {
 	P *p = pdup(bw->cursor);
+	struct charmap *map=bw->b->o.charmap;
 	int c = brch(p);
 
-	if (isalnum_(bw->b->o.utf8,c))
-		while (isalnum_(bw->b->o.utf8,(c = brch(p))))
+	if (joe_isalnum_(map,c))
+		while (joe_isalnum_(map,(c = brch(p))))
 			pgetc(p);
-	else if (isspace(c))
-		while (isspace(c = brch(p)))
+	else if (joe_isspace(map,c))
+		while (joe_isspace(map,(c = brch(p))))
 			pgetc(p);
 	else
 		pgetc(p);
@@ -778,14 +801,15 @@ int ubackw(BW *bw)
 {
 	P *p = pdup(bw->cursor);
 	int c = prgetc(bw->cursor);
+	struct charmap *map=bw->b->o.charmap;
 
-	if (isalnum_(bw->b->o.utf8,c)) {
-		while (isalnum_(bw->b->o.utf8,(c = prgetc(bw->cursor))))
+	if (joe_isalnum_(map,c)) {
+		while (joe_isalnum_(map,(c = prgetc(bw->cursor))))
 			/* do nothing */;
 		if (c != NO_MORE_DATA)
 			pgetc(bw->cursor);
-	} else if (isspace(c)) {
-		while (isspace(c = prgetc(bw->cursor)))
+	} else if (joe_isspace(map,c)) {
+		while (joe_isspace(map,(c = prgetc(bw->cursor))))
 			/* do nothing */;
 		if (c != NO_MORE_DATA)
 			pgetc(bw->cursor);
@@ -858,24 +882,33 @@ int uinsc(BW *bw)
 	return 0;
 }
 
+/* Move p backwards to first non-blank line and return its indentation */
+
+int find_indent(P *p)
+{
+	int x;
+	for (x=0; x != 10; ++x) {
+		if (!pprevl(p)) return -1;
+		p_goto_bol(p);
+		if (!pisblank(p)) break;
+	}
+	if (x==10)
+		return -1;
+	else
+		return pisindent(p);
+}
+
 /* Type a character into the buffer (deal with left margin, overtype mode and
  * word-wrap), if cursor is at end of shell window buffer, just send character
  * to process.
  */
 
 struct utf8_sm utype_utf8_sm;
-extern int utf8;
 
 int utypebw(BW *bw, int k)
 {
-	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		unsigned char c = k;
-
-		utype_utf8_sm.state = 0;
-		utype_utf8_sm.ptr = 0;
-
-		joe_write(bw->out, &c, 1);
-	} else if (k == '\t' && bw->o.overtype && !piseol(bw->cursor)) { /* TAB in overtype mode is supposed to be just cursor motion */
+	struct charmap *map=bw->b->o.charmap;
+	if (k == '\t' && bw->o.overtype && !piseol(bw->cursor)) { /* TAB in overtype mode is supposed to be just cursor motion */
 		int col = bw->cursor->xcol;		/* Current cursor column */
 		col = col + bw->o.tab - (col%bw->o.tab);/* Move to next tab stop */
 		pcol(bw->cursor,col);			/* Try to position cursor there */
@@ -885,6 +918,25 @@ int utypebw(BW *bw, int k)
 			else
 				pfill(bw->cursor,col,'\t');
 		bw->cursor->xcol = col;			/* Put cursor there even if we can't really go there */
+	} else if (k == '\t' && bw->o.smartbacks && bw->o.autoindent && pisindent(bw->cursor)>=piscol(bw->cursor)) {
+		P *p = pdup(bw->cursor);
+		int n = find_indent(p);
+		if (n != -1 && pisindent(bw->cursor)==piscol(bw->cursor) && n > pisindent(bw->cursor)) {
+			if (!pisbol(bw->cursor))
+				udelbl(bw);
+			while (joe_isspace(map,(k = pgetc(p))) && k != '\n') {
+				binsc(bw->cursor, k);
+				pgetc(bw->cursor);
+			}
+		} else {
+			int x;
+			for (x=0;x<bw->o.istep;++x) {
+				binsc(bw->cursor,bw->o.indentc);
+				pgetc(bw->cursor);
+			}
+		}
+		bw->cursor->xcol = piscol(bw->cursor);
+		prm (p);
 	} else if (k == '\t' && bw->o.spaces) {
 		long n;
 
@@ -909,7 +961,7 @@ int utypebw(BW *bw, int k)
 			pfill(bw->cursor,bw->cursor->xcol,' '); /* Why no tabs? */
 
 		/* UTF8 decoder */
-		if(utf8) {
+		if(locale_map->type) {
 			int utf8_char = utf8_decode(&utype_utf8_sm,k);
 
 			if(utf8_char >= 0)
@@ -927,13 +979,13 @@ int utypebw(BW *bw, int k)
 				pgetc(bw->cursor);
 			}
 
-		if(utf8 && !bw->b->o.utf8) {
+		if(locale_map->type && !bw->b->o.charmap->type) {
 			unsigned char buf[10];
 			utf8_encode(buf,k);
-			k = from_utf8(buf);
-		} else if(!utf8 && bw->b->o.utf8) {
+			k = from_utf8(bw->b->o.charmap,buf);
+		} else if(!locale_map->type && bw->b->o.charmap->type) {
 			unsigned char buf[10];
-			to_utf8(buf,k);
+			to_utf8(locale_map,buf,k);
 			k = utf8_decode_string(buf);
 		}
 		
@@ -948,7 +1000,7 @@ int utypebw(BW *bw, int k)
 			udelch(bw);
 
 		/* Not sure if we're in right position for wordwrap when we're in overtype mode */
-		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !joe_isblank(k)) {
+		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !joe_isblank(map,k)) {
 			wrapword(bw->cursor, (long) bw->o.lmargin, bw->o.french, NULL);
 			simple = 0;
 		}
@@ -980,18 +1032,7 @@ int utypebw(BW *bw, int k)
 			   ((!square && bw->cursor->byte >= markb->byte && bw->cursor->byte < markk->byte) ||
 			    ( square && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line && piscol(bw->cursor) >= markb->xcol && piscol(bw->cursor) < markk->xcol)))
 				atr = INVERSE;
-			if (bw->b->o.utf8) {
-				if (k<32 || k>126 && k<160) {
-					xlat_utf_ctrl(&a, &c);
-					k = c;
-					atr ^= a;
-					}
-			} else {
-				xlat(&a, &c);
-				k = c;
-				atr ^= a;
-			}
-			outatr(bw->b->o.utf8, t, screen + x, attr + x, x, y, k, atr);
+			outatr(bw->b->o.charmap, t, screen + x, attr + x, x, y, k, atr);
 		}
 #endif
 	}
@@ -1007,7 +1048,7 @@ static int dounicode(BW *bw, unsigned char *s, void *object, int *notify)
 	int num;
 	unsigned char buf[8];
 	int x;
-	sscanf(s,"%x",&num);
+	sscanf((char *)s,"%x",&num);
 	if (notify)
 		*notify = 1;
 	vsrm(s);
@@ -1034,15 +1075,15 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		if (c >= '0' && c <= '9') {
 			quoteval = c - '0';
 			quotestate = 1;
-			snprintf((char *)buf, sizeof(buf), "ASCII %c--", c);
+			joe_snprintf_1((char *)buf, sizeof(buf), "ASCII %c--", c);
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
 				return -1;
 			else
 				return 0;
 		} else if (c == 'x' || c == 'X') {
-			if (bw->b->o.utf8) {
+			if (bw->b->o.charmap->type) {
 				if (!wmkpw(bw->parent, US "Unicode (ISO-10646) character in hex (^C to abort): ", &unicodehist, dounicode,
-				           NULL, NULL, NULL, NULL, NULL, -1))
+				           NULL, NULL, NULL, NULL, NULL, locale_map))
 					return 0;
 				else
 					return -1;
@@ -1070,7 +1111,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 1:
 		if (c >= '0' && c <= '9') {
-			snprintf((char *)buf, sizeof(buf), "ASCII %c%c-", quoteval + '0', c);
+			joe_snprintf_2((char *)buf, sizeof(buf), "ASCII %c%c-", quoteval + '0', c);
 			quoteval = quoteval * 10 + c - '0';
 			quotestate = 2;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1088,7 +1129,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 3:
 		if (c >= '0' && c <= '9') {
-			snprintf((char *)buf, sizeof(buf), "ASCII 0x%c-", c);
+			joe_snprintf_1((char *)buf, sizeof(buf), "ASCII 0x%c-", c);
 			quoteval = c - '0';
 			quotestate = 4;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1096,7 +1137,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 			else
 				return 0;
 		} else if (c >= 'a' && c <= 'f') {
-			snprintf((char *)buf, sizeof(buf), "ASCII 0x%c-", c + 'A' - 'a');
+			joe_snprintf_1((char *)buf, sizeof(buf), "ASCII 0x%c-", c + 'A' - 'a');
 			quoteval = c - 'a' + 10;
 			quotestate = 4;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1104,7 +1145,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 			else
 				return 0;
 		} else if (c >= 'A' && c <= 'F') {
-			snprintf((char *)buf, sizeof(buf), "ASCII 0x%c-", c);
+			joe_snprintf_1((char *)buf, sizeof(buf), "ASCII 0x%c-", c);
 			quoteval = c - 'A' + 10;
 			quotestate = 4;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1130,7 +1171,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 5:
 		if (c >= '0' && c <= '7') {
-			snprintf((char *)buf, sizeof(buf), "ASCII 0%c--", c);
+			joe_snprintf_1((char *)buf, sizeof(buf), "ASCII 0%c--", c);
 			quoteval = c - '0';
 			quotestate = 6;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1141,7 +1182,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 6:
 		if (c >= '0' && c <= '7') {
-			snprintf((char *)buf, sizeof(buf), "ASCII 0%c%c-", quoteval + '0', c);
+			joe_snprintf_2((char *)buf, sizeof(buf), "ASCII 0%c%c-", quoteval + '0', c);
 			quoteval = quoteval * 8 + c - '0';
 			quotestate = 7;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1237,15 +1278,12 @@ int uctrl(BW *bw)
 		return -1;
 }
 
-/* User hit Return.  Deal with autoindent.  If cursor is at end of shell
- * window buffer, send the return to the shell
+/* User hit Return.  Deal with autoindent.
  */
 
 int rtntw(BW *bw)
 {
-	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		joe_write(bw->out, "\n", 1);
-	} else if (bw->o.overtype) {
+	if (bw->o.overtype) {
 		p_goto_eol(bw->cursor);
 		if (piseof(bw->cursor))
 			binsc(bw->cursor, '\n');
@@ -1256,9 +1294,10 @@ int rtntw(BW *bw)
 		unsigned char c;
 
 		binsc(bw->cursor, '\n'), pgetc(bw->cursor);
-		if (bw->o.autoindent) {
+		/* Suppress autoindent if we're on a space or tab... */
+		if (bw->o.autoindent && (brch(bw->cursor)!=' ' && brch(bw->cursor)!='\t')) {
 			p_goto_bol(p);
-			while (isspace(c = pgetc(p)) && c != '\n') {
+			while (joe_isspace(bw->b->o.charmap,(c = pgetc(p))) && c != '\n') {
 				binsc(bw->cursor, c);
 				pgetc(bw->cursor);
 			}
@@ -1283,11 +1322,13 @@ static int dosetmark(BW *bw, int c, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
-	if (c >= '0' && c <= '9') {
+	if (c >= '0' && c <= ':') {
 		pdupown(bw->cursor, bw->b->marks + c - '0');
 		poffline(bw->b->marks[c - '0']);
-		snprintf((char *)msgbuf, JOE_MSGBUFSIZE, "Mark %d set", c - '0');
-		msgnw(bw->parent, msgbuf);
+		if (c!=':') {
+			joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "Mark %d set", c - '0');
+			msgnw(bw->parent, msgbuf);
+		}
 		return 0;
 	} else {
 		nungetc(c);
@@ -1297,7 +1338,7 @@ static int dosetmark(BW *bw, int c, void *object, int *notify)
 
 int usetmark(BW *bw, int c)
 {
-	if (c >= '0' && c <= '9')
+	if (c >= '0' && c <= ':')
 		return dosetmark(bw, c, NULL, NULL);
 	else if (mkqwna(bw->parent, sc("Set mark (0-9):"), dosetmark, NULL, NULL, NULL))
 		return 0;
@@ -1311,13 +1352,13 @@ static int dogomark(BW *bw, int c, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
-	if (c >= '0' && c <= '9')
+	if (c >= '0' && c <= ':')
 		if (bw->b->marks[c - '0']) {
 			pset(bw->cursor, bw->b->marks[c - '0']);
 			bw->cursor->xcol = piscol(bw->cursor);
 			return 0;
 		} else {
-			snprintf((char *)msgbuf, JOE_MSGBUFSIZE, "Mark %d not set", c - '0');
+			joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "Mark %d not set", c - '0');
 			msgnw(bw->parent, msgbuf);
 			return -1;
 	} else {
@@ -1401,7 +1442,7 @@ static int domsg(BASE *b, unsigned char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
-	strcpy(msgbuf, s);
+	strcpy((char *)msgbuf, (char *)s);
 	vsrm(s);
 	msgnw(b->parent, msgbuf);
 	return 0;
@@ -1409,7 +1450,7 @@ static int domsg(BASE *b, unsigned char *s, void *object, int *notify)
 
 int umsg(BASE *b)
 {
-	if (wmkpw(b->parent, US "Msg (^C to abort): ", NULL, domsg, NULL, NULL, NULL, NULL, NULL, -1))
+	if (wmkpw(b->parent, US "Msg (^C to abort): ", NULL, domsg, NULL, NULL, NULL, NULL, NULL, locale_map))
 		return 0;
 	else
 		return -1;
@@ -1431,7 +1472,7 @@ static int dotxt(BW *bw, unsigned char *s, void *object, int *notify)
 
 int utxt(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Insert (^C to abort): ", NULL, dotxt, NULL, NULL, utypebw, NULL, NULL, bw->b->o.utf8))
+	if (wmkpw(bw->parent, US "Insert (^C to abort): ", NULL, dotxt, NULL, NULL, utypebw, NULL, NULL, bw->b->o.charmap))
 		return 0;
 	else
 		return -1;

@@ -4,7 +4,7 @@
 
  JOE looks for this file in:
 	1 - $HOME/.jstarrc
-	2 - @sysconfdir@/jstarrc
+	2 - ${prefix}/etc/jstarrc
 
  This file can include other files by placing the following include command
  in the first column:
@@ -58,6 +58,13 @@
 
 -guess_indent	Guess indent character (tab or space).
 
+-menu_explorer Stay in menu system when a directory is selected (otherwise
+                directory is added to path and menu is closed).
+
+ -icase         Search is case insensitive by default.
+
+ -wrap          Search wraps
+
  Status line definition strings.  -lmsg defines the left-justified string and
  -rmsg defines the right-justified string.  The first character of -rmsg is
  the background fill character.  The following escape sequences can be used
@@ -94,7 +101,7 @@
   \d  Dim
   \f  Blink
 
--lmsg \i%k%T%W%I%X %n %y%m%R %M
+-lmsg \i%k%T%W%I%X %n %m%y%R %M
 -rmsg  %S Row %r Col %c %t  Ctrl-J for help
 
  SECOND SECTION: File name dependant local option settings:
@@ -112,8 +119,11 @@
 
 	-highlight		Enable highlighting
 
-	-smarthome		Home key first moves cursor to the first
-				non-space character, unless already there
+	-smarthome		Home key first moves cursor to beginning of line,
+				then if hit again, to first non-blank character.
+
+	-indentfirst		Smart home goes to first non-blank character first,
+				instead of going the beginning of line first.
 
 	-smartbacks		Backspace key deletes 'istep' number of
 				'indentc's if cursor is at first non-space
@@ -183,19 +193,62 @@
  File name with '.'?  It's probably not a text file.
 *.*
 
+ Diff
+*
++--- 
+-syntax diff
+
+*
++*** 
+-syntax diff
+
+*
++\[1-9]\+\[0-9]\[cda]
+-syntax diff
+
+ Assembly language
+*.asm
+-wordwrap
+-syntax asm
+
+*.s
+-wordwrap
+-syntax asm
+
+*.S
+-wordwrap
+-syntax asm
+
  Text file.
 *.txt
 -wordwrap
+
+ Mason
+*.mas
+-autoindent
+-syntax mason
+-smarthome
+-smartbacks
 
  Perl
 *
 +#!\+\[ 	]\+\[a-z/]/perl\>
 -autoindent
 -syntax perl
+-smarthome
+-smartbacks
 
 *.pl
 -autoindent
 -syntax perl
+-smarthome
+-smartbacks
+
+*.pm
+-autoindent
+-syntax perl
+-smarthome
+-smartbacks
 
  C language file
 *.c
@@ -205,8 +258,36 @@
 -smartbacks
 -purify
 
+*.cpp
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+
+*.c++
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+
  C language header file
 *.h
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+
+*.hpp
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+
+*.h++
 -autoindent
 -syntax c
 -smarthome
@@ -222,6 +303,15 @@
 -smartbacks
 -purify
 
+ Verilog header file
+*.vh
+-autoindent
+-syntax verilog
+-istep 2
+-smarthome
+-smartbacks
+-purify
+
  VHDL file
 *.vhd
 -autoindent
@@ -230,6 +320,12 @@
 -smarthome
 -smartbacks
 -purify
+
+ XML
+*.xml
+-wordwrap
+-autoindent
+-syntax xml
 
  HTML
 *.htm
@@ -274,26 +370,6 @@
 -smartbacks
 -purify
 
- Shell
-*
-+#!\+\[ 	]\+\[a-z/]/sh\>
--autoindent
--syntax sh
-
-*.sh
--autoindent
--syntax sh
-
- BASH Shell
-*
-+#!\+\[ 	]\+\[a-z/]/bash\>
--autoindent
--syntax sh
-
-*.bash
--autoindent
--syntax sh
-
  CSH
 *
 +#!\+\[ 	]\+\[a-z/]/csh\>
@@ -301,6 +377,18 @@
 -syntax csh
 
 *.csh
+-autoindent
+-syntax csh
+
+*.cshrc
+-autoindent
+-syntax csh
+
+*.login
+-autoindent
+-syntax csh
+
+*.logout
 -autoindent
 -syntax csh
 
@@ -314,6 +402,42 @@
 -autoindent
 -syntax csh
 
+*.tcshrc
+-autoindent
+-syntax csh
+
+ Shell
+*
++#!\+\[ 	]\+\[a-z/]/sh\>
+-autoindent
+-syntax sh
+
+*.sh
+-autoindent
+-syntax sh
+
+*profile
+-autoindent
+-syntax sh
+
+ BASH Shell
+*
++#!\+\[ 	]\+\[a-z/]/bash\>
+-autoindent
+-syntax sh
+
+*.bash
+-autoindent
+-syntax sh
+
+*.bash_login
+-autoindent
+-syntax sh
+
+*.bash_logout
+-autoindent
+-syntax sh
+
  KSH
 *
 +#!\+\[ 	]\+\[a-z/]/ksh\>
@@ -323,6 +447,19 @@
 *.ksh
 -autoindent
 -syntax sh
+
+ LISP
+*.lisp
+-autoindent
+-syntax lisp
+
+*.lsp
+-autoindent
+-syntax lisp
+
+*.el
+-autoindent
+-syntax el
 
  Makefile
 *akefile
@@ -396,6 +533,11 @@
 -autoindent
 -syntax conf
 
+ Mail file
+*tmp/mutt-*
+-wordwrap
+-syntax mail
+
  THIRD SECTION: Named help screens:
 
  Use \i to turn on/off inverse video
@@ -405,73 +547,73 @@
  Use \f to turn on/off flash
 
 {Basic
-\i   Help Screen    turn off with ^J     more help with ESC . (^[.)              \i
-\i \i\uCURSOR\u           \uGO TO\u            \uBLOCK\u     \uDELETE\u    \uMISC\u         \uEXIT\u      \i \i
-\i \i^S left ^D right ^R  prev. screen ^KB begin ^G  char  ^B  reformat ^KX save  \i \i
-\i \i^E up   ^X down  ^C  next screen  ^KK end   ^Y  line  ^V  overtype ^KQ abort \i \i
-\i \i^A previous word ^QS beg. of line ^KV move  ^T  >word ^]  refresh  ^KZ shell \i \i
-\i \i^F next word     ^QD end of line  ^KC copy  ^QY >line ^O  options  \uFILE\u      \i \i
-\i \i\uSEARCH\u           ^QR top of file  ^KW file  ^U  undo  \uSPELL\u        ^KE new   \i \i
-\i \i^QF find text    ^QC end of file  ^KY delete ^^ redo  ^QN word     ^KR insert\i \i
-\i \i^L  find next    ^QI to line No.  ^K/ filter          ^QL file     ^KD save  \i \i
+\i   Help Screen    \|turn off with ^J     more help with ESC . (^[.)              \i
+\i \i\|\uCURSOR\u           \|\uGO TO\u            \|\uBLOCK\u     \|\uDELETE\u    \|\uMISC\u         \|\uEXIT\u      \|\i \i
+\i \i\|^S left ^D right \|^R  prev. screen \|^KB begin \|^G  char  \|^B  reformat \|^KX save  \|\i \i
+\i \i\|^E up   ^X down  \|^C  next screen  \|^KK end   \|^Y  line  \|^V  overtype \|^KQ abort \|\i \i
+\i \i\|^A previous word \|^QS beg. of line \|^KV move  \|^T  >word \|^]  refresh  \|^KZ shell \|\i \i
+\i \i\|^F next word     \|^QD end of line  \|^KC copy  \|^QY >line \|^O  options  \|\uFILE\u      \|\i \i
+\i \i\|\uSEARCH\u           \|^QR top of file  \|^KW file  \|^U  undo  \|\uSPELL\u        \|^KE new   \|\i \i
+\i \i\|^QF find text    \|^QC end of file  \|^KY delete \|^^ redo  \|^QN word     \|^KR insert\|\i \i
+\i \i\|^L  find next    \|^QI to line No.  \|^K/ filter \|         \|^QL file     \|^KD save  \|\i \i
 }
 
 {Windows
-\i   Help Screen    turn off with ^J     prev. screen ^[,    next screen ^[.     \i
-\i \i^KO Split the window in half           ^KE Load file into window             \i \i
-\i \i^KG Make current window bigger         ^KT Make current window smaller       \i \i
-\i \i^KN Go to the window below             ^KP Go to the window above            \i \i
-\i \i^KQ Eliminate the current window       ^KI Show all windows / Show one window\i \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,    next screen ^[.     \i
+\i \i\|^KO Split the window in half           \|^KE Load file into window             \|\i \i
+\i \i\|^KG Make current window bigger         \|^KT Make current window smaller       \|\i \i
+\i \i\|^KN Go to the window below             \|^KP Go to the window above            \|\i \i
+\i \i\|^KQ Eliminate the current window       \|^KI Show all windows / Show one window\|\i \i
 }
 
 {Advanced
-\i   Help Screen    turn off with ^J     prev. screen ^[,    next screen ^[.     \i
-\i \iMACROS      MISC            SCROLL    SHELL       GOTO       I-SEARCH        \i \i
-\i \i^[( Record  ^Q? status      ^Q. Right ^K' Window  ^QB to ^KB ^[R Backwards   \i \i
-\i \i^[) Stop    ^QQ repeat      ^Q, Left  ^[! Command ^QK to ^KK ^[S Forwards    \i \i
-\i \i^[ 0-9 Play ^QM Math                  QUOTE       DELETE     BOOKMARKS       \i \i
-\i \i^[? Query   ^KA Center line           ^P Ctrl-    ^[Y yank   ^K 0-9 Set      \i \i
-\i \i^[D Dump    ^[H Message               ^\\ Meta-    ^[O word<  ^Q 0-9 Goto     \i \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,    next screen ^[.     \i
+\i \i\|\uMACROS\u      \|\uMISC\u            \|\uSCROLL\u    \|\uSHELL\u       \|\uGOTO\u       \|\uI-SEARCH\u        \|\i \i
+\i \i\|^[( Record  \|^Q? status      \|^Q. Right \|^K' Window  \|^QB to ^KB \|^[R Backwards   \|\i \i
+\i \i\|^[) Stop    \|^QQ repeat      \|^Q, Left  \|^[! Command \|^QK to ^KK \|^[S Forwards    \|\i \i
+\i \i\|^[ 0-9 Play \|^QM Math        \|          \|\uQUOTE\u       \|\uDELETE\u     \|\uBOOKMARKS\u       \|\i \i
+\i \i\|^[? Query   \|^KA Center line \|          \|^P Ctrl-    \|^[Y yank   \|^K 0-9 Set      \|\i \i
+\i \i\|^[D Dump    \|^[H Message     \|          \|^\\ Meta-    \|^[O word<  \|^Q 0-9 Goto     \|\i \i
 }
 
 {Programs
-\i   Help Screen    turn off with ^J     prev. screen ^[,    next screen ^[.     \i
-\i \iGOTO                INDENT    COMPILING                                      \i \i
-\i \i^Q[ Matching ( [ {  ^K. more  ^[C Compile and parse errors                   \i \i
-\i \i^QP Previous place  ^K, less  ^[E Parse errors                               \i \i
-\i \i^K= Next place                ^[= Goto next error                            \i \i
-\i \i^K; Tags file srch            ^[- Goto previous error                        \i \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,    next screen ^[.     \i
+\i \i\|\uGOTO\u                \|\uINDENT\u    \|\uCOMPILING\u                     \|                 \|\i \i
+\i \i\|^Q[ Matching ( [ {  \|^K. more  \|^[C Compile and parse errors  \|                 \|\i \i
+\i \i\|^QP Previous place  \|^K, less  \|^[E Parse errors              \|                 \|\i \i
+\i \i\|^K= Next place      \|          \|^[= Goto next error           \|                 \|\i \i
+\i \i\|^K; Tags file srch  \|          \|^[- Goto previous error       \|                 \|\i \i
 }
 
 {Search
-\i   Help Screen    turn off with ^J     prev. screen ^[,    next screen ^[.     \i
-\i \iSpecial search sequences:                                                    \i \i
-\i \i    \\^  \\$  matches beg./end of line     \\?     match any single char        \i \i
-\i \i    \\<  \\>  matches beg./end of word     \\*     match 0 or more chars        \i \i
-\i \i    \\c     matches balanced C expression \\\\     matches a \\                  \i \i
-\i \i    \\[..]  matches one of a set          \\n     matches a newline            \i \i
-\i \i    \\+     matches 0 or more of the character which follows the \\+           \i \i
-\i \iSpecial replace sequences:                                                   \i \i
-\i \i    \\&     replaced with text which matched search string                    \i \i
-\i \i    \\0 - 9 replaced with text which matched Nth \\*, \\?, \\c, \\+, or \\[..]     \i \i
-\i \i    \\\\     replaced with \\               \\n     replaced with newline        \i \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,    next screen ^[.     \i
+\i \iSpecial search sequences:                                                    \|\i \i
+\i \i    \\^  \\$  matches beg./end of line      \\?     match any single char       \|\i \i
+\i \i    \\<  \\>  matches beg./end of word      \\*     match 0 or more chars       \|\i \i
+\i \i    \\c      matches balanced C expression \\\\     matches a \\                 \|\i \i
+\i \i    \\[..]   matches one of a set          \\n     matches a newline           \|\i \i
+\i \i    \\+      matches 0 or more of the character which follows the \\+          \|\i \i
+\i \iSpecial replace sequences:                                                   \|\i \i
+\i \i    \\&      replaced with text which matched search string                   \|\i \i
+\i \i    \\0 - 9  replaced with text which matched Nth \\*, \\?, \\c, \\+, or \\[..]    \|\i \i
+\i \i    \\\\      replaced with \\               \\n     replaced with newline       \|\i \i
 }
 
 {Names
-\i   Help Screen    turn off with ^J     prev. screen ^[,    next screen ^[.     \i
-\i \i Hit TAB at file name prompts to generate menu of file names                 \i \i
-\i \i Or use up/down keys to access history of previously entered names           \i \i
-\i \i Special file names:                                                         \i \i
-\i \i      !command                 Pipe in/out of a shell command                \i \i
-\i \i      >>filename               Append to a file                              \i \i
-\i \i      -                        Read/Write to/from standard I/O               \i \i
-\i \i      filename,START,SIZE      Read/Write a part of a file/device            \i \i
-\i \i          Give START/SIZE in decimal (255), octal (0377) or hex (0xFF)       \i \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,    next screen ^[.     \i
+\i \i Hit TAB at file name prompts to generate menu of file names                 \|\i \i
+\i \i Or use up/down keys to access history of previously entered names           \|\i \i
+\i \i Special file names:                                                         \|\i \i
+\i \i      !command                 Pipe in/out of a shell command                \|\i \i
+\i \i      >>filename               Append to a file                              \|\i \i
+\i \i      -                        Read/Write to/from standard I/O               \|\i \i
+\i \i      filename,START,SIZE      Read/Write a part of a file/device            \|\i \i
+\i \i          Give START/SIZE in decimal (255), octal (0377) or hex (0xFF)       \|\i \i
 }
 
 {Joe
-\i   Help Screen    turn off with ^J     prev. screen ^[,                        \i
-\i \i Send bug reports to: http://sourceforge.net/projects/joe-editor             \i \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,                        \i
+\i \i Send bug reports to: http://sourceforge.net/projects/joe-editor             \|\i \i
 }
 
  FOURTH SECTION: Key bindings:
@@ -539,9 +681,9 @@ explode		^K I
 explode		^K ^I
 explode		^K i
 help		^J
-help		^K H
-help		^K ^H
-help		^K h
+nmark		^K H
+nmark		^K ^H
+nmark		^K h
 hnext		^[ .
 hprev		^[ ,
 math		^Q M
@@ -573,15 +715,42 @@ stop		^[ )
 :main			Text editing window
 :inherit windows
 
- Spell-check macros
-:def spellfile filt,"cat >ispell.tmp;ispell ispell.tmp </dev/tty >/dev/tty;cat ispell.tmp;/bin/rm ispell.tmp",rtn,retype
-:def spellword psh,nextword,markk,prevword,markb,filt,"cat >ispell.tmp;ispell ispell.tmp </dev/tty >/dev/tty;tr -d <ispell.tmp '\\012';/bin/rm ispell.tmp",rtn,retype,nextword
-spellfile	^Q l
-spellfile	^Q L
-spellfile	^Q ^L
-spellword	^Q n
-spellword	^Q N
-spellword	^Q ^N
+ Ispell
+:def ispellfile filt,"cat >ispell.tmp;ispell ispell.tmp </dev/tty >/dev/tty;cat ispell.tmp;/bin/rm ispell.tmp",rtn,retype
+:def ispellword psh,nextword,markk,prevword,markb,filt,"cat >ispell.tmp;ispell ispell.tmp </dev/tty >/dev/tty;tr -d <ispell.tmp '\\012';/bin/rm ispell.tmp",rtn,retype,nextword
+
+ Aspell
+:def aspellfile filt,"SPLTMP=ispell.tmp;cat >$SPLTMP;aspell -x -c $SPLTMP </dev/tty >/dev/tty;cat $SPLTMP;/bin/rm $SPLTMP",rtn,retype
+:def aspellword psh,nextword,markk,prevword,markb,filt,"SPLTMP=ispell.tmp;cat >$SPLTMP;aspell -x -c $SPLTMP </dev/tty >/dev/tty;tr -d <$SPLTMP '\\012';/bin/rm $SPLTMP",rtn,retype,nextword
+
+@SPELL@file	^Q l
+@SPELL@file	^Q L
+@SPELL@file	^Q ^L
+@SPELL@word	^Q n
+@SPELL@word	^Q N
+@SPELL@word	^Q ^N
+
+ Compile macro
+:def compile querysave,query,scratch,"* Build Log *",rtn,markb,eof," ",markk,blkdel,build
+
+insc			^[ [ 2 ~
+insc			^[ [ L			SCO
+
+delch			^[ [ 3 ~
+
+pgup			^[ [ I		SCO
+
+pgdn			^[ [ G		SCO
+
+home			^[ [ 1 ~		Putty, Linux, Cygwin
+home			^[ [ H			Xterm, Konsole, SCO
+home			^[ O H			gnome-terminal
+home			^[ [ 7 ~		RxVT
+
+eol			^[ [ 4 ~		Putty, Linux, Cygwin, ssh
+eol			^[ [ F			Xterm, Konsole, SCO
+eol			^[ O F			gnome-terminal
+eol			^[ [ 8 ~		RxVT
 
 rtarw,prevword,markb,nextword,markk	^K T
 rtarw,prevword,markb,nextword,markk	^K ^T
@@ -603,9 +772,21 @@ parserr		^[ ^E
 parserr		^[ e
 nxterr		^[ =
 prverr		^[ -
-edit,rtn,filt,query,parserr	^[ ^C
-edit,rtn,filt,query,parserr	^[ c
-edit,rtn,filt,query,parserr	^[ C
+compile		^[ ^C
+compile		^[ c
+compile		^[ C
+
+
+insf,"!date '+%I:%M %p'",rtn	^[ !
+insf,"!date '+%b %d, %Y'",rtn	^[ @
+ center		^[ c
+psh,prevword,nextword,nextword,markk,prevword,markb,setmark,":",
+prevword,nextword,blkmove,markk,prevword,markb,gomark,":",blkmove,nextword	^[ t
+bop		^[ p
+psh,drop,fwrdc,query,markk,blkdel	^Q T	Cut to char
+psh,drop,fwrdc,query,markk,blkdel	^Q t	Cut to char
+psh,drop,fwrdc,query,markk,blkdel	^Q ^T	Cut to char
+
 
 quote8		^\		Quote Meta chars
 quote		^P		Quote Ctrl chars
@@ -631,22 +812,26 @@ blksave		^K w
 bof		^Q R		Goto beginning of file
 bof		^Q ^R
 bof		^Q r
+bof		^Q .kP
 home		.kh		Goto beginning of line
 home		^[ [ H
 home		^[ [ 1 ~
 home		^Q S
 home		^Q ^S
 home		^Q s
+home		^Q .kl
 crawll		^Q ,
 crawlr		^Q .
-tos		^Q E
-tos		^Q ^E
-tos		^Q e
+tos,bol		^Q E
+tos,bol		^Q ^E
+tos,bol		^Q e
+tos,bol		^Q .ku
 center		^K A		Center line
 center		^K ^A
 center		^K a
 delbol		^Q ^H
 delbol		^Q ^?
+delbol		^Q .kD
 delch		.kD		Delete character
 delch		^G
 deleol		^Q Y		Delete to end of line
@@ -665,6 +850,7 @@ edit		^K e
 eof		^Q C		Go to end of file
 eof		^Q ^C
 eof		^Q c
+eof		^Q .kN
 eol		.kH		Go to end of line
 eol		.@7
 eol		^[ [ F
@@ -672,9 +858,11 @@ eol		^[ [ 4 ~
 eol		^Q D
 eol		^Q ^D
 eol		^Q d
-bos		^Q X
-bos		^Q ^X
-bos		^Q x
+eol		^Q .kr
+bos,eol		^Q X
+bos,eol		^Q ^X
+bos,eol		^Q x
+bos,eol		^Q .kd
 exsave		^K X		Save and exit
 exsave		^K ^X
 exsave		^K x
@@ -775,6 +963,20 @@ complete	^I
 
 :menu			Selection menus
 :inherit windows
+pgupmenu			^[ [ I
+
+pgdnmenu			^[ [ G
+
+bolmenu			^[ [ 1 ~		Putty, Linux, Cygwin
+bolmenu			^[ [ H			Xterm, Konsole
+bolmenu			^[ O H			gnome-terminal
+bolmenu			^[ [ 7 ~		RxVT
+
+eolmenu			^[ [ 4 ~		Putty, Linux, Cygwin, ssh
+eolmenu			^[ [ F			Xterm, Konsole
+eolmenu			^[ O F			gnome-terminal
+eolmenu			^[ [ 8 ~		RxVT
+
 abort		^[ ^[
 backsmenu	^?
 backsmenu	^H
@@ -816,6 +1018,7 @@ rtn		^K H
 rtn		^K h
 rtn		^K ^H
 rtn		^J
+tabmenu		^I
 uparwmenu	.ku
 uparwmenu	^E
 uparwmenu	^[ [ A

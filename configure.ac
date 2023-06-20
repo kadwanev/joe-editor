@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 3.0)
+AC_INIT(joe, 3.1)
 AC_CONFIG_SRCDIR([b.c])
 
 AC_CANONICAL_BUILD
@@ -32,8 +32,26 @@ case "$host" in
 esac
 
 # Checks for libraries.
-AC_SEARCH_LIBS(tgetflag, ncurses curses termcap, AC_DEFINE_UNQUOTED(TERMINFO, 1, [If we have newer terminfo/termcap capabilities]))
-AC_SEARCH_LIBS(snprintf, snprintf db)
+AC_ARG_ENABLE(curses,
+[  --disable-curses        disable use of curses library],
+	curses=$enableval, curses=yes)
+
+if test "$curses" = "yes"; then
+	search_libs="ncurses curses"
+fi
+
+AC_ARG_ENABLE(termcap,
+[  --disable-termcap       disable use of termcap library],
+	termcap=$enableval, termcap=yes)
+
+if test "$termcap" = "yes"; then
+	search_libs="$search_libs termcap"
+fi
+
+AC_SEARCH_LIBS(openpty, util, AC_DEFINE_UNQUOTED(HAVE_OPENPTY, 1, [If we have BSD function openpty()]))
+AC_SEARCH_LIBS(login_tty, util, AC_DEFINE_UNQUOTED(HAVE_LOGIN_TTY, 1, [If we have BSD function login_tty()]))
+AC_SEARCH_LIBS(tgetflag, $search_libs, AC_DEFINE_UNQUOTED(TERMINFO, 1, [If we have newer terminfo/termcap capabilities]))
+AC_SEARCH_LIBS(snprintf, snprintf db, AC_DEFINE_UNQUOTED(HAVE_SNPRINTF, 1, [If we have snprintf]))
 
 # Checks for header files.
 AC_HEADER_DIRENT
@@ -49,8 +67,8 @@ fi
 AC_HEADER_TIOCGWINSZ
 AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
-AC_CHECK_HEADERS([ncurses.h curses.h sys/dirent.h time.h pwd.h paths.h])
-AC_CHECK_HEADERS([term.h sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
+AC_CHECK_HEADERS([sys/dirent.h time.h pwd.h paths.h pty.h])
+AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
 
 AC_CHECK_HEADERS([selinux/selinux.h selinux/context.h])
 if test "$ac_cv_header_selinux_selinux_h" = "yes" -a "$ac_cv_header_selinux_context_h" = "yes" ; then
@@ -99,10 +117,17 @@ if test x"$ac_cv_func_isblank" = xyes; then
 	joe_ISBLANK
 fi
 AC_CHECK_FUNCS([alarm mkdir mkstemp putenv setlocale strchr strdup utime setpgid])
-AC_CHECK_FUNC([snprintf],, AC_MSG_ERROR([snprintf not available: I won't build for this ancient system]))
 AC_CHECK_FUNCS([setitimer sigaction sigvec siginterrupt sigprocmask])
 
 joe_REINSTALL_SIGHANDLERS
+
+# check if -liconv is necessary
+# if iconv() is in libc, don't bother with -liconv
+#AC_CHECK_LIB(c,iconv,
+#  [REQRD_LIBS= ],
+#  [REQRD_LIBS=-liconv])
+#
+#AC_SUBST(REQRD_LIBS)
 
 dnl not yet :-)
 dnl AM_GNU_GETTEXT
@@ -116,5 +141,13 @@ AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 #  endif
 #endif])
 
-AC_CONFIG_FILES([Makefile joe.1 joerc jmacsrc jstarrc rjoerc jpicorc syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf syntax/sh.jsf syntax/python.jsf syntax/conf.jsf syntax/php.jsf])
+# Check for programs..
+AC_CHECK_PROG(SPELL,aspell,aspell,ispell)
+
+AC_CONFIG_FILES([Makefile joe.1 joerc jmacsrc jstarrc rjoerc jpicorc
+syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf syntax/sh.jsf syntax/python.jsf
+syntax/conf.jsf syntax/php.jsf syntax/mail.jsf syntax/pascal.jsf syntax/html.jsf
+syntax/vhdl.jsf syntax/fortran.jsf syntax/java.jsf syntax/xml.jsf syntax/tcl.jsf
+charmaps/klingon syntax/lisp.jsf syntax/csh.jsf syntax/mason.jsf syntax/diff.jsf
+syntax/asm.jsf])
 AC_OUTPUT

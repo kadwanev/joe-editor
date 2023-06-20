@@ -18,6 +18,7 @@
 #include "ufile.h"
 #include "utils.h"
 #include "vs.h"
+#include "charmap.h"
 #include "w.h"
 
 /* Error database */
@@ -121,7 +122,7 @@ static void freeall(void)
 
 /* First word on line with a '.' in it.  This is the file name.  The next number after that is the line number. */
 
-static int parseit(int wide,unsigned char *s, long int row)
+static int parseit(struct charmap *map,unsigned char *s, long int row)
 {
 	int x, y, flg;
 	unsigned char *name = NULL;
@@ -133,10 +134,10 @@ static int parseit(int wide,unsigned char *s, long int row)
 
 	do {
 		/* Skip to first word */
-		for (x = y; s[x] && !(isalnum_(wide,s[x]) || s[x] == '.' || s[x] == '/'); ++x) ;
+		for (x = y; s[x] && !(joe_isalnum_(map,s[x]) || s[x] == '.' || s[x] == '/'); ++x) ;
 
 		/* Skip to end of first word */
-		for (y = x; isalnum_(wide,s[y]) || s[y] == '.' || s[y] == '/'; ++y)
+		for (y = x; joe_isalnum_(map,s[y]) || s[y] == '.' || s[y] == '/'; ++y)
 			if (s[y] == '.')
 				flg = 1;
 	} while (!flg && x!=y);
@@ -157,8 +158,18 @@ static int parseit(int wide,unsigned char *s, long int row)
 	if (line != -1)
 		--line;
 
+	/* Look for ':' */
+	flg = 0;
+	while (s[y]) {
+		if (s[y]==':') {
+			flg = 1;
+			break;
+		}
+		++y;
+	}
+
 	if (name) {
-		if (line != -1) {
+		if (line != -1 && flg) {
 			/* We have an error */
 			err = (ERROR *) alitem(&errnodes, sizeof(ERROR));
 			err->file = name;
@@ -190,7 +201,7 @@ static long parserr(B *b)
 		p_goto_eol(p);
 		s = brvs(q, (int) (p->byte - q->byte));
 		if (s) {
-			nerrs += parseit(b->o.utf8, s, q->line);
+			nerrs += parseit(b->o.charmap, s, q->line);
 			vsrm(s);
 		}
 	} while (pgetc(p) != NO_MORE_DATA);
@@ -199,11 +210,57 @@ static long parserr(B *b)
 	return nerrs;
 }
 
+BW *find_a_good_bw(B *b)
+{
+	W *w;
+	BW *bw = 0;
+	/* Find lowest window with buffer */
+	if ((w = maint->topwin) != NULL) {
+		do {
+			if ((w->watom->what&TYPETW) && ((BW *)w->object)->b==b && w->y>=0)
+				bw = (BW *)w->object;
+			w = w->link.next;
+		} while (w != maint->topwin);
+	}
+	if (bw)
+		return bw;
+	/* Otherwise just find lowest window */
+	if ((w = maint->topwin) != NULL) {
+		do {
+			if ((w->watom->what&TYPETW) && w->y>=0)
+				bw = (BW *)w->object;
+			w = w->link.next;
+		} while (w != maint->topwin);
+	}
+	return bw;
+}
+
+int parserrb(B *b)
+{
+	BW *bw;
+	int n;
+	errbuf = b;
+	freeall();
+	n = parserr(b);
+	bw = find_a_good_bw(b);
+	if (n)
+		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "%ld messages found", n);
+	else
+		joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "No messages found");
+	msgnw(bw->parent, msgbuf);
+	return 0;
+}
+
 int uparserr(BW *bw)
 {
+	int n;
 	errbuf = bw->b;
 	freeall();
-	snprintf((char *)msgbuf, JOE_MSGBUFSIZE, "Parsed %ld lines", parserr(bw->b));
+	n = parserr(bw->b);
+	if (n)
+		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "%ld messages found", n);
+	else
+		joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "No messages found");
 	msgnw(bw->parent, msgbuf);
 	return 0;
 }

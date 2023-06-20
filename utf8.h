@@ -11,6 +11,8 @@
 #include "config.h"
 #include "types.h"
 
+#include "i18n.h"
+
 /* UTF-8 Encoder
  *
  * c is unicode character.
@@ -41,15 +43,21 @@ int utf8_decode PARAMS((struct utf8_sm *utf8_sm,unsigned char c));
 
 int utf8_decode_string PARAMS((unsigned char *s));
 
+int utf8_decode_fwrd PARAMS((unsigned char **p,int *plen));
+
 /* Initialize state machine */
 
 void utf8_init PARAMS((struct utf8_sm *utf8_sm));
 
 void joe_locale();
-void to_utf8 PARAMS((unsigned char *s,int c));
-int from_utf8 PARAMS((unsigned char *s));
+void to_utf8 PARAMS((struct charmap *map,unsigned char *s,int c));
+int from_utf8 PARAMS((struct charmap *map,unsigned char *s));
 
 extern int utf8;
-int mk_wcwidth PARAMS((int c));
+
+int unictrl PARAMS((int ucs));
+int mk_wcwidth PARAMS((int wide,int c));
+
+extern struct charmap *locale_map;	/* Default bytemap of terminal */
 
 #endif

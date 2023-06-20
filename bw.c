@@ -24,6 +24,7 @@
 #include "utils.h"
 #include "syntax.h"
 #include "utf8.h"
+#include "charmap.h"
 #include "w.h"
 
 /* Display modes */
@@ -31,6 +32,7 @@ int dspasis = 0;
 int marking = 0;
 extern int square;
 extern int staen;
+extern SCREEN *maint;
 
 static P *getto(P *p, P *cur, P *top, long int line)
 {
@@ -261,6 +263,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 	int amnt;		/* Amount left in this segment of the buffer */
 	int c, ta, c1;
 	unsigned char bc;
+	int ungetit = -1;
 
 	struct utf8_sm utf8_sm;
 
@@ -293,7 +296,12 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
       lp:			/* Display next character */
 	if (amnt)
 		do {
-			bc = *bp++;
+			if (ungetit== -1)
+				bc = *bp++;
+			else {
+				bc = ungetit;
+				ungetit = -1;
+			}
 			if(st!=-1)
 				atr = syn[idx++];
 			if (p->b->o.crlf && bc == '\r') {
@@ -355,15 +363,19 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 				goto eobl;
 			else {
 				int wid;
-				if (p->b->o.utf8) {
+				if (p->b->o.charmap->type) {
 					c = utf8_decode(&utf8_sm,bc);
 
 					if (c>=0) /* Normal decoded character */
-						wid = mk_wcwidth(c);
+						wid = joe_wcwidth(1,c);
 					else if(c== -1) /* Character taken */
 						wid = -1;
-					else if(c== -2) /* Incomplete sequence (FIXME: do something better here) */
+					else if(c== -2) { /* Incomplete sequence (FIXME: do something better here) */
 						wid = 1;
+						ungetit = c;
+						++amnt;
+						--byte;
+					}
 					else if(c== -3) /* Control character 128-191, 254, 255 */
 						wid = 1;
 				} else {
@@ -380,7 +392,8 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 						tach = '<';
 						goto dota;
 					}
-				}
+				} else
+					--idx;	/* Get highlighting character again.. */
 			}
 		} while (--amnt);
 	if (bp == p->ptr + SEGSIZ) {
@@ -399,7 +412,12 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
       loop:			/* Display next character */
 	if (amnt)
 		do {
-			bc = *bp++;
+			if (ungetit== -1)
+				bc = *bp++;
+			else {
+				bc = ungetit;
+				ungetit = -1;
+			}
 			if(st!=-1)
 				atr=syn[idx++];
 			if (p->b->o.crlf && bc == '\r') {
@@ -451,7 +469,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 				tach = ' ';
 			      dota:
 				do {
-					outatr(bw->b->o.utf8,t, screen + x, attr + x, x, y, tach, c1|atr);
+					outatr(bw->b->o.charmap, t, screen + x, attr + x, x, y, tach, c1|atr);
 					if (ifhave)
 						goto bye;
 					if (++x == w)
@@ -462,36 +480,27 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 			else {
 				int wid = -1;
 				int utf8_char;
-				if (p->b->o.utf8) { /* UTF-8 */
+				if (p->b->o.charmap->type) { /* UTF-8 */
 
 					utf8_char = utf8_decode(&utf8_sm,bc);
 
 					if (utf8_char >= 0) { /* Normal decoded character */
-						if (utf8_char<32 || utf8_char>126 && utf8_char<160) { /* Control character */
-							bc = utf8_char;
-							xlat_utf_ctrl(&c, &bc);
-							utf8_char = bc;
-							c1 ^= c;
-							wid = 1;
-						} else {
-							wid = mk_wcwidth(utf8_char);
-						}
-					} else if(c== -1) { /* Character taken */
+						wid = joe_wcwidth(1,utf8_char);
+					} else if(utf8_char== -1) { /* Character taken */
 						wid = -1;
-					} else if(c== -2) { /* Incomplete sequence (FIXME: do something better here) */
+					} else if(utf8_char== -2) { /* Incomplete sequence (FIXME: do something better here) */
+						ungetit = bc;
+						++amnt;
+						--byte;
 						utf8_char = 'X';
 						wid = 1;
-					} else if(c== -3) { /* Invalid UTF-8 start character 128-191, 254, 255 */
+					} else if(utf8_char== -3) { /* Invalid UTF-8 start character 128-191, 254, 255 */
 						/* Show as control character */
-						xlat_utf_ctrl(&c, &bc);
-						utf8_char = bc;
-						c1 ^= c;
 						wid = 1;
+						utf8_char = 'X';
 					}
 				} else { /* Regular */
-					xlat(&c, &bc);
 					utf8_char = bc;
-					c1 ^= c;
 					wid = 1;
 				}
 
@@ -499,14 +508,15 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 					if (x+wid > w) {
 						/* If character hits right most column, don't display it */
 						while (x < w) {
-							outatr(bw->b->o.utf8, t, screen + x, attr + x, x, y, '>', c1|atr);
+							outatr(bw->b->o.charmap, t, screen + x, attr + x, x, y, '>', c1|atr);
 							x++;
 						}
 					} else {
-						outatr(bw->b->o.utf8, t, screen + x, attr + x, x, y, utf8_char, c1|atr);
+						outatr(bw->b->o.charmap, t, screen + x, attr + x, x, y, utf8_char, c1|atr);
 						x += wid;
 					}
-				}
+				} else
+					--idx;
 
 				if (ifhave)
 					goto bye;
@@ -668,7 +678,7 @@ static int lgena(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, 
 			} else if (bc == '\n')
 				goto eobl;
 			else {
-				xlat(&c, &bc);
+				/* xlat(&c, &bc);*/
 				c ^= c1;
 				screen[x] = c + bc;
 				if (++x == w)
@@ -719,11 +729,11 @@ static void gennum(BW *w, int *screen, int *attr, SCRN *t, int y, int *comp)
 	int lin = w->top->line + y - w->y;
 
 	if (lin <= w->b->eof->line)
-		snprintf((char *)buf, sizeof(buf), "%5ld ", w->top->line + y - w->y + 1);
+		joe_snprintf_1((char *)buf, sizeof(buf), "%5ld ", w->top->line + y - w->y + 1);
 	else
-		strcpy(buf, "      ");
+		strcpy((char *)buf, "      ");
 	for (z = 0; buf[z]; ++z) {
-		outatr(w->b->o.utf8, t, screen + z, attr + z, z, y, buf[z], 0);
+		outatr(w->b->o.charmap, t, screen + z, attr + z, z, y, buf[z], 0);
 		if (ifhave)
 			return;
 		comp[z] = buf[z];
@@ -756,7 +766,7 @@ void bwgen(BW *w, int linums)
 			from = markb->byte;
 			to = markk->byte;
 		}
-	else if (marking && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
+	else if (marking && w==maint->curwin->object && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
 		if (square) {
 			from = long_min(w->cursor->xcol, markb->xcol);
 			to = long_max(w->cursor->xcol, markb->xcol);
@@ -769,7 +779,7 @@ void bwgen(BW *w, int linums)
 		}
 	}
 
-	if (marking)
+	if (marking && w==maint->curwin->object)
 		msetI(t->updtab + w->y, 1, w->h);
 
 	y = w->cursor->line - w->top->line + w->y;
@@ -857,8 +867,6 @@ BW *bwmk(W *window, B *b, int prompt)
 	BW *w = (BW *) joe_malloc(sizeof(BW));
 
 	w->parent = window;
-	w->pid = 0;
-	w->out = -1;
 	w->b = b;
 	if (prompt || (!window->y && staen)) {
 		w->y = window->y;
@@ -913,9 +921,9 @@ int ustat(BW *bw)
 	int c = brch(bw->cursor);
 
 	if (c == NO_MORE_DATA)
-		snprintf((char *)buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx) **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte);
+		joe_snprintf_4((char *)buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx) **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte);
 	else
-		snprintf((char *)buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx)  Ascii %d(0%o/0x%X) Width %d **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte, c, c, c, mk_wcwidth(c));
+		joe_snprintf_9((char *)buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx)  %s %d(0%o/0x%X) Width %d **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte, bw->b->o.charmap->name, c, c, c, joe_wcwidth(bw->o.charmap->type,c));
 	msgnw(bw->parent, buf);
 	return 0;
 }

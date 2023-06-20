@@ -64,6 +64,71 @@ static void resizetw(BW *bw, int wi, int he)
 		bwresz(bw, wi - (bw->o.linums ? LINCOLS : 0), he);
 }
 
+/* Get current context */
+
+/* Find first line (going backwards) which has 0 indentation level
+ * and is not a comment, blank, or block structuring line.  This is
+ * likely to be the line with the function name.
+ *
+ * There are actually two possibilities:
+ *
+ * We want the first line- 
+ *
+ * int
+ * foo(int x,int y) {
+ *
+ *   }
+ *
+ * We want the last line-
+ *
+ * program foo(input,output);
+ * var a, b, c : real;
+ * begin
+ *
+ */
+
+unsigned char *get_context(BW *bw)
+{
+	P *p = pdup(bw->cursor);
+	static unsigned char buf1[stdsiz];
+
+
+	buf1[0] = 0;
+	/* Find first line with 0 indentation which is not a comment line */
+	do {
+		p_goto_bol(p);
+		if (!pisindent(p) && !pisblank(p)) {
+			next:
+			brzs(p,stdbuf,stdsiz-1);
+			/* Ignore comment and block structuring lines */
+			if (!(stdbuf[0]=='{' ||
+			    stdbuf[0]=='/' && stdbuf[1]=='*' ||
+			    stdbuf[0]=='\f' ||
+			    stdbuf[0]=='/' && stdbuf[1]=='/' ||
+			    stdbuf[0]=='#' ||
+			    stdbuf[0]=='b' && stdbuf[1]=='e' && stdbuf[2]=='g' && stdbuf[3]=='i' && stdbuf[4]=='n' ||
+			    stdbuf[0]=='B' && stdbuf[1]=='E' && stdbuf[2]=='G' && stdbuf[3]=='I' && stdbuf[4]=='N' ||
+			    stdbuf[0]=='-' && stdbuf[1]=='-' ||
+			    stdbuf[0]==';')) {
+			    	strcpy(buf1,stdbuf);
+				/* Uncomment to get the last line instead of the first line (see above)
+			    	if (pprevl(p)) {
+			    		p_goto_bol(p);
+			    		if (!pisindent(p) && !pisblank(p))
+			    			goto next;
+			    	}
+			    	*/
+			    	break;
+			}
+			
+		}
+	} while (!buf1[0] && pprevl(p));
+
+	prm(p);
+
+	return buf1;
+}
+
 static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, int fill)
 {
 	unsigned char buf[80];
@@ -74,10 +139,19 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 	while (*s) {
 		if (*s == '%' && s[1]) {
 			switch (*++s) {
+			case 'x': /* Context (but only if autoindent is enabled) */
+				{
+					if ( bw->o.autoindent) {
+						unsigned char *s = get_context(bw);
+						stalin = vsncpy(sv(stalin), sz(s));
+					}
+				}
+				break;
+
 			case 'y':
 				{
 					if (bw->o.syntax) {
-						snprintf((char *)buf, sizeof(buf), "(%s)", bw->o.syntax->name);
+						joe_snprintf_1((char *)buf, sizeof(buf), "(%s)", bw->o.syntax->name);
 						stalin = vsncpy(sv(stalin), sz(buf));
 					}
 				}
@@ -91,7 +165,7 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 					l = (d[11] - '0') * 10 + d[12] - '0';
 					if (l > 12)
 						l -= 12;
-					snprintf((char *)buf, sizeof(buf), "%2.2d", l);
+					joe_snprintf_1((char *)buf, sizeof(buf), "%2.2d", l);
 					if (buf[0] == '0')
 						buf[0] = fill;
 					stalin = vsncpy(sv(stalin), buf, 2);
@@ -148,21 +222,21 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 					stalin = vsadd(stalin, fill);
 				break;
 			case 'r':
-				snprintf((char *)buf, sizeof(buf), "%-4ld", bw->cursor->line + 1);
+				joe_snprintf_1((char *)buf, sizeof(buf), "%-4ld", bw->cursor->line + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'o':
-				snprintf((char *)buf, sizeof(buf), "%-4ld", bw->cursor->byte);
+				joe_snprintf_1((char *)buf, sizeof(buf), "%-4ld", bw->cursor->byte);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'O':
-				snprintf((char *)buf, sizeof(buf), "%-4lX", bw->cursor->byte);
+				joe_snprintf_1((char *)buf, sizeof(buf), "%-4lX", bw->cursor->byte);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -170,9 +244,9 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				break;
 			case 'a':
 				if (!piseof(bw->cursor))
-					snprintf((char *)buf, sizeof(buf), "%3d", 255 & brc(bw->cursor));
+					joe_snprintf_1((char *)buf, sizeof(buf), "%3d", 255 & brc(bw->cursor));
 				else
-					snprintf((char *)buf, sizeof(buf), "   ");
+					joe_snprintf_0((char *)buf, sizeof(buf), "   ");
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -180,16 +254,16 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				break;
 			case 'A':
 				if (!piseof(bw->cursor))
-					snprintf((char *)buf, sizeof(buf), "%2.2X", 255 & brc(bw->cursor));
+					joe_snprintf_1((char *)buf, sizeof(buf), "%2.2X", 255 & brc(bw->cursor));
 				else
-					snprintf((char *)buf, sizeof(buf), "  ");
+					joe_snprintf_0((char *)buf, sizeof(buf), "  ");
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'c':
-				snprintf((char *)buf, sizeof(buf), "%-3ld", piscol(bw->cursor) + 1);
+				joe_snprintf_1((char *)buf, sizeof(buf), "%-3ld", piscol(bw->cursor) + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -197,16 +271,16 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				break;
 			case 'p':
 				if (bw->b->eof->byte)
-					snprintf((char *)buf, sizeof(buf), "%3ld", bw->cursor->byte * 100 / bw->b->eof->byte);
+					joe_snprintf_1((char *)buf, sizeof(buf), "%3ld", bw->cursor->byte * 100 / bw->b->eof->byte);
 				else
-					snprintf((char *)buf, sizeof(buf), "100");
+					joe_snprintf_0((char *)buf, sizeof(buf), "100");
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'l':
-				snprintf((char *)buf, sizeof(buf), "%-4ld", bw->b->eof->line + 1);
+				joe_snprintf_1((char *)buf, sizeof(buf), "%-4ld", bw->b->eof->line + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -242,12 +316,12 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				}
 				break;
 			case 'S':
-				if (bw->pid)
+				if (bw->b->pid)
 					stalin = vsncpy(sv(stalin), sc("*SHELL*"));
 				break;
 			case 'M':
 				if (recmac) {
-					snprintf((char *)buf, sizeof(buf), "(Macro %d recording...)", recmac->n);
+					joe_snprintf_1((char *)buf, sizeof(buf), "(Macro %d recording...)", recmac->n);
 					stalin = vsncpy(sv(stalin), sz(buf));
 				}
 				break;
@@ -276,11 +350,12 @@ static void disptw(BW *bw, int flg)
 	w->cury = bw->cursor->line - bw->top->line + bw->y - w->y;
 	w->curx = bw->cursor->xcol - bw->offset + (bw->o.linums ? LINCOLS : 0);
 
-	if ((staupd || keepup || bw->cursor->line != tw->prevline || bw->b->changed != tw->changed) && (w->y || !staen)) {
+	if ((staupd || keepup || bw->cursor->line != tw->prevline || bw->b->changed != tw->changed || bw->b != tw->prev_b) && (w->y || !staen)) {
 		int fill;
 
 		tw->prevline = bw->cursor->line;
 		tw->changed = bw->b->changed;
+		tw->prev_b = bw->b;
 		if (bw->o.rmsg[0])
 			fill = bw->o.rmsg[0];
 		else
@@ -312,6 +387,7 @@ static void iztw(TW *tw, int y)
 	tw->changed = -1;
 	tw->prevline = -1;
 	tw->staon = (!staen || y);
+	tw->prev_b = 0;
 }
 
 extern int dostaupd;
@@ -370,39 +446,6 @@ int uduptw(BW *bw)
 	return 0;
 }
 
-/* User routine for aborting a text window */
-
-static int naborttw(BW *bw, int k, void *object, int *notify)
-{
-	W *w = bw->parent;
-	B *b;
-	TW *tw = (TW *) bw->object;
-
-	if (notify)
-		*notify = 1;
-	if (k != 'y' && k != 'Y')
-		return -1;
-
-	genexmsg(bw, 0, NULL);
-
-	if (countmain(w->t) == 1)
-		if ((b = borphan()) != NULL) {
-			void *object = bw->object;
-
-			bwrm(bw);
-			w->object = (void *) (bw = bwmk(w, b, 0));
-			wredraw(bw->parent);
-			bw->object = object;
-			return 0;
-		}
-	bwrm(bw);
-	vsrm(tw->stalin);
-	joe_free(tw);
-	w->object = NULL;
-	wabort(w);		/* Eliminate this window and it's children */
-	return 0;
-}
-
 static void instw(BW *bw, B *b, long int l, long int n, int flg)
 {
 	if (b == bw->b)
@@ -429,6 +472,63 @@ static WATOM watomtw = {
 	TYPETW
 };
 
+int abortit(BW *bw)
+{
+	W *w;
+	TW *tw;
+	B *b;
+	if (bw->parent->watom != &watomtw)
+		return wabort(bw->parent);
+	if (bw->b->pid && bw->b->count==1)
+		return ukillpid(bw);
+	w = bw->parent;
+	tw = (TW *) bw->object;
+	/* If only one main window on the screen... */
+	if (countmain(w->t) == 1)
+		/* Replace it with an orphaned buffer if there are any */
+		if ((b = borphan()) != NULL) {
+			void *object = bw->object;
+			/* FIXME: Shouldn't we wabort() and wcreate here to kill
+			   any prompt windows? */
+
+			bwrm(bw);
+			w->object = (void *) (bw = bwmk(w, b, 0));
+			wredraw(bw->parent);
+			bw->object = object;
+			return 0;
+		}
+	bwrm(bw);
+	vsrm(tw->stalin);
+	joe_free(tw);
+	w->object = NULL;
+	wabort(w);	/* Eliminate this window and it's children */
+	return 0;
+}
+
+/* User routine for aborting a text window */
+
+static int naborttw(BW *bw, int k, void *object, int *notify)
+{
+	if (notify)
+		*notify = 1;
+	if (k != 'y' && k != 'Y')
+		return -1;
+
+	genexmsg(bw, 0, NULL);
+	return abortit(bw);
+}
+
+static int naborttw1(BW *bw, int k, void *object, int *notify)
+{
+	if (notify)
+		*notify = 1;
+	if (k != 'y' && k != 'Y')
+		return -1;
+
+	if (!exmsg) genexmsg(bw, 0, NULL);
+	return abortit(bw);
+}
+
 /* k is last character types which lead to uabort.  If k is -1, it means uabort
    was called internally, and not by the user: which means uabort will not send
    Ctrl-C to process */
@@ -436,14 +536,9 @@ int uabort(BW *bw, int k)
 {
 	if (bw->parent->watom != &watomtw)
 		return wabort(bw->parent);
-	if (bw->pid && bw->cursor->byte == bw->b->eof->byte && k != -1) {
-		unsigned char c = 3;
-		joe_write(bw->out, &c, 1); /* Send Ctrl-C to process */
-		return 0;
-	}
-	if (bw->pid)
+	if (bw->b->pid && bw->b->count==1)
 		return ukillpid(bw);
-	if (bw->b->changed && bw->b->count == 1)
+	if (bw->b->changed && bw->b->count == 1 && !bw->b->scratch)
 		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), naborttw, NULL, NULL, NULL))
 			return 0;
 		else
@@ -452,14 +547,40 @@ int uabort(BW *bw, int k)
 		return naborttw(bw, 'y', NULL, NULL);
 }
 
-/* Abort buffer */
+int ucancel(BW *bw, int k)
+{
+	if (bw->parent->watom != &watomtw) {
+		wabort(bw->parent);
+		return 0;
+	} else
+		return uabort(bw,k);
+}
+
+/* Same as above, but only calls genexmsg if nobody else has */
+
+int uabort1(BW *bw, int k)
+{
+	if (bw->parent->watom != &watomtw)
+		return wabort(bw->parent);
+	if (bw->b->pid && bw->b->count==1)
+		return ukillpid(bw);
+	if (bw->b->changed && bw->b->count == 1 && !bw->b->scratch)
+		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), naborttw1, NULL, NULL, NULL))
+			return 0;
+		else
+			return -1;
+	else
+		return naborttw1(bw, 'y', NULL, NULL);
+}
+
+/* Abort buffer without prompting: just fail if this is last window on buffer */
 
 int uabortbuf(BW *bw)
 {
 	W *w = bw->parent;
 	B *b;
 
-	if (bw->pid)
+	if (bw->b->pid && bw->b->count==1)
 		return ukillpid(bw);
 
 	if (okrepl(bw))
@@ -486,9 +607,6 @@ int utw0(BASE *b)
 
 	if (countmain(b->parent->t) == 1)
 		return -1;
-	if (bw->pid) {
-		return ukillpid(bw);
-	}
 	if (bw->b->count == 1)
 		orphit(bw);
 	return uabort(bw, -1);
@@ -511,10 +629,6 @@ int utw1(BASE *b)
 		} while (t->curwin->main == mainw && t->curwin != starting);
 		if (t->curwin->main != mainw) {
 			BW *bw = t->curwin->main->object;
-			if (bw->pid) {
-				msgnw(bw->parent, US "Process running in this window");
-				return -1;
-			}
 			utw0((BASE *)bw);
 			yn = 1;
 			goto loop;

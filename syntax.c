@@ -13,11 +13,14 @@
 #include "scrn.h"
 #include "utils.h"
 #include "hash.h"
+#include "charmap.h"
 #include "syntax.h"
 
 /* Parse one line.  Returns new state.
+   'syntax' is the loaded syntax definition for this buffer.
    'line' is advanced to start of next line.
-   Array 'attr' has coloring for each character of line.
+   Global array 'attr_buf' end up with coloring for each character of line.
+   'state' is initial parser state for the line (0 is initial state).
 */
 
 int *attr_buf = 0;
@@ -32,18 +35,19 @@ int parse(struct high_syntax *syntax,P *line,int state)
 	int c;		/* Current character */
 	int *attr_end = attr_buf+attr_size;
 	int *attr = attr_buf;
+	int buf_en = 0;	/* Set for name buffering */
+	int ofst = 0;	/* record offset after we've stopped buffering */
 
 	/* Get next character */
 	while((c=pgetc(line))!=NO_MORE_DATA) {
-		struct high_cmd *cmd;
-		struct high_state *kw_new_state;
-		struct high_state *old_state;
+		struct high_cmd *cmd, *kw_cmd;
 		int x;
 
 		/* Hack so we can have UTF-8 characters without crashing */
 		if (c < 0 || c > 255)
 			c = 0x1F;
 
+		/* Expand attribute array if necessary */
 		if(attr==attr_end) {
 			attr_buf = realloc(attr_buf,sizeof(int)*(attr_size*2));
 			attr = attr_buf + attr_size;
@@ -51,32 +55,46 @@ int parse(struct high_syntax *syntax,P *line,int state)
 			attr_end = attr_buf + attr_size;
 		}
 
-		/* Color with current state */
-		*attr++ = h->color;
+		/* Advance to next attribute position (note attr[-1] below) */
+		attr++;
 
+		/* Loop while noeat */
 		do {
-			old_state = h;
+			/* Color with current state */
+			attr[-1] = h->color;
 			/* Get command for this character */
 			cmd = h->cmd[c];
 			/* Determine new state */
-			if (cmd->keywords && (cmd->ignore ? (kw_new_state=htfind(cmd->keywords,lowerize(buf))) : (kw_new_state=htfind(cmd->keywords,buf)))) {
-				h = kw_new_state;
+			if (cmd->keywords && (cmd->ignore ? (kw_cmd=htfind(cmd->keywords,lowerize(buf))) : (kw_cmd=htfind(cmd->keywords,buf)))) {
+				cmd = kw_cmd;
+				h = cmd->new_state;
 				/* Recolor keyword */
 				for(x= -(buf_idx+1);x<-1;++x)
-					attr[x] = h -> color;
+					attr[x-ofst] = h -> color;
 			} else {
 				h = cmd->new_state;
-				/* Recolor if necessary */
-				for(x=cmd->recolor;x<0;++x)
-					attr[x] = h -> color;
 			}
+			/* Recolor if necessary */
+			for(x=cmd->recolor;x<0;++x)
+				attr[x] = h -> color;
+
 			/* Start buffering? */
-			if(cmd->start_buffering)
+			if (cmd->start_buffering) {
 				buf_idx = 0;
+				buf_en = 1;
+				ofst = 0;
+			}
+
+			/* Stop buffering? */
+			if (cmd->stop_buffering)
+				buf_en = 0;
 		} while(cmd->noeat);
 
-		/* Save in buffer */
-		if(buf_idx<19) buf[buf_idx++]=c;
+		/* Save character in buffer */
+		if (buf_idx<19 && buf_en)
+			buf[buf_idx++]=c;
+		if (!buf_en)
+			++ofst;
 		buf[buf_idx] = 0;
 
 		if(c=='\n')
@@ -118,6 +136,21 @@ static struct high_state *find_state(struct high_syntax *syntax,unsigned char *n
 	return state;
 }
 
+/* Create empty command */
+
+static struct high_cmd *mkcmd()
+{
+	struct high_cmd *cmd = malloc(sizeof(struct high_cmd));
+	cmd->noeat = 0;
+	cmd->recolor = 0;
+	cmd->start_buffering = 0;
+	cmd->stop_buffering = 0;
+	cmd->new_state = 0;
+	cmd->keywords = 0;
+	cmd->ignore = 0;
+	return cmd;
+}
+
 /* Load syntax file */
 
 struct high_syntax *syntax_list;
@@ -135,6 +168,9 @@ struct high_syntax *load_dfa(unsigned char *name)
 	struct high_syntax *syntax;	/* New syntax table */
 	int line = 0;
 
+	if (!name)
+		return NULL;
+
 	if(!attr_buf) {
 		attr_size = 1024;
 		attr_buf = malloc(sizeof(int)*attr_size);
@@ -145,13 +181,19 @@ struct high_syntax *load_dfa(unsigned char *name)
 	/* Already loaded? */
 	for(syntax=syntax_list;syntax;syntax=syntax->next)
 		if(!strcmp(syntax->name,name))
-			break;
-	if(syntax)
-		return syntax;
+			return syntax;
 
 	/* Load it */
-	sprintf((char *)buf,"%ssyntax/%s.jsf",JOERC,name);
-	f=fopen((char *)buf,"r");
+	p = (unsigned char *)getenv("HOME");
+	if (p) {
+		joe_snprintf_2((char *)buf,sizeof(buf),"%s/.joe/syntax/%s.jsf",p,name);
+		f = fopen((char *)buf,"r");
+	}
+
+	if (!f) {
+		joe_snprintf_2((char *)buf,sizeof(buf),"%ssyntax/%s.jsf",JOERC,name);
+		f = fopen((char *)buf,"r");
+	}
 	if(!f)
 		return 0;
 
@@ -174,13 +216,13 @@ struct high_syntax *load_dfa(unsigned char *name)
 	while(fgets((char *)buf,1023,f)) {
 		++line;
 		p = buf;
-		c = parse_ws(&p);
+		c = parse_ws(&p,'#');
 		if(!parse_char(&p, ':')) {
 			if(!parse_ident(&p, bf, 255)) {
 
 				state = find_state(syntax,bf);
 
-				parse_ws(&p);
+				parse_ws(&p,'#');
 				if(!parse_ident(&p,bf,255)) {
 					struct high_color *color;
 					for(color=syntax->color;color;color=color->next)
@@ -216,7 +258,7 @@ struct high_syntax *load_dfa(unsigned char *name)
 				}
 
 				/* Parse color definition */
-				while(parse_ws(&p), !parse_ident(&p,bf,255)) {
+				while(parse_ws(&p,'#'), !parse_ident(&p,bf,255)) {
 					color->color |= meta_color(bf);
 				}
 			}
@@ -224,7 +266,7 @@ struct high_syntax *load_dfa(unsigned char *name)
 			if(parse_int(&p, &syntax->sync_lines))
 				syntax->sync_lines = -1;
 		} else {
-			c = parse_ws(&p);
+			c = parse_ws(&p,'#');
 
 			if (!c) {
 			} else if (c=='"' || c=='*') {
@@ -253,27 +295,22 @@ struct high_syntax *load_dfa(unsigned char *name)
 						}
 					}
 					/* Create command */
-					cmd = malloc(sizeof(struct high_cmd));
-					cmd->noeat = 0;
-					cmd->recolor = 0;
-					cmd->start_buffering = 0;
-					cmd->new_state = 0;
-					cmd->keywords = 0;
-					cmd->ignore = 0;
-
-					parse_ws(&p);
+					cmd = mkcmd();
+					parse_ws(&p,'#');
 					if(!parse_ident(&p,bf,255)) {
 						int z;
 						cmd->new_state = find_state(syntax,bf);
 
 						/* Parse options */
-						while (parse_ws(&p), !parse_ident(&p,bf,255))
+						while (parse_ws(&p,'#'), !parse_ident(&p,bf,255))
 							if(!strcmp(bf,"buffer")) {
 								cmd->start_buffering = 1;
+							} else if(!strcmp(bf,"hold")) {
+								cmd->stop_buffering = 1;
 							} else if(!strcmp(bf,"recolor")) {
-								parse_ws(&p);
+								parse_ws(&p,'#');
 								if(!parse_char(&p,'=')) {
-									parse_ws(&p);
+									parse_ws(&p,'#');
 									if(parse_int(&p,&cmd->recolor))
 										fprintf(stderr,"%s %d: Missing value for option\n",name,line);
 								} else
@@ -284,21 +321,41 @@ struct high_syntax *load_dfa(unsigned char *name)
 								while(fgets((char *)buf,1023,f)) {
 									++line;
 									p = buf;
-									c = parse_ws(&p);
-									if(!parse_field(&p,US "done"))
-										break;
-									if(!parse_string(&p,bf,255)) {
-										parse_ws(&p);
-										if (cmd->ignore)
-											lowerize(bf);
-										if(!parse_ident(&p,bf1,255)) {
-											if(!cmd->keywords)
-												cmd->keywords = htmk(64);
-											htadd(cmd->keywords,(unsigned char *)strdup((char *)bf),find_state(syntax,bf1));
+									c = parse_ws(&p,'#');
+									if (*p) {
+										if(!parse_field(&p,US "done"))
+											break;
+										if(!parse_string(&p,bf,255)) {
+											parse_ws(&p,'#');
+											if (cmd->ignore)
+												lowerize(bf);
+											if(!parse_ident(&p,bf1,255)) {
+												struct high_cmd *kw_cmd=mkcmd();
+												kw_cmd->noeat=1;
+												kw_cmd->new_state = find_state(syntax,bf1);
+												if(!cmd->keywords)
+													cmd->keywords = htmk(64);
+												htadd(cmd->keywords,(unsigned char *)strdup((char *)bf),kw_cmd);
+												while (parse_ws(&p,'#'), !parse_ident(&p,bf,255))
+													if(!strcmp(bf,"buffer")) {
+														kw_cmd->start_buffering = 1;
+													} else if(!strcmp(bf,"hold")) {
+														kw_cmd->stop_buffering = 1;
+													} else if(!strcmp(bf,"recolor")) {
+														parse_ws(&p,'#');
+														if(!parse_char(&p,'=')) {
+															parse_ws(&p,'#');
+															if(parse_int(&p,&kw_cmd->recolor))
+																fprintf(stderr,"%s %d: Missing value for option\n",name,line);
+														} else
+															fprintf(stderr,"%s %d: Missing value for option\n",name,line);
+													} else
+														fprintf(stderr,"%s %d: Unknown option\n",name,line);
+											} else
+												fprintf(stderr,"%s %d: Missing state name\n",name,line);
 										} else
-											fprintf(stderr,"%s %d: Missing state name\n",name,line);
-									} else
-										fprintf(stderr,"%s %d: Missing string\n",name,line);
+											fprintf(stderr,"%s %d: Missing string\n",name,line);
+									}
 								}
 							} else if(!strcmp(bf,"noeat")) {
 								cmd->noeat = 1;
