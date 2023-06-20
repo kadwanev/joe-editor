@@ -4,8 +4,8 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 3.7)
-AC_CONFIG_SRCDIR([b.c])
+AC_INIT(joe, 3.8)
+AC_CONFIG_SRCDIR([joe/b.c])
 
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
@@ -14,7 +14,7 @@ AC_CANONICAL_TARGET
 # Init automake
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE
-AM_CONFIG_HEADER(autoconf.h)
+AM_CONFIG_HEADER(joe/autoconf.h)
 
 # Checks for programs.
 AC_PROG_CC
@@ -86,6 +86,7 @@ AC_C_CONST
 if test "$cross_compiling" = "yes" ; then
 	AC_MSG_WARN(cross compiling so assuming defaults for most 32 bit machines)
 fi
+AC_CHECK_TYPES([long long])
 AC_CHECK_SIZEOF(char, 1)
 AC_CHECK_SIZEOF(short, 2)
 AC_CHECK_SIZEOF(int, 4)
@@ -127,6 +128,35 @@ fi
 AC_CHECK_FUNCS([alarm mkdir mkstemp putenv setlocale strchr strdup utime setpgid])
 AC_CHECK_FUNCS([setitimer sigaction sigvec siginterrupt sigprocmask])
 
+dnl Math functions... "-lm" doesn't always have them all on embedded systems
+
+AC_SEARCH_LIBS(sin, m, AC_DEFINE_UNQUOTED(HAVE_SIN, 1, [If we have sin()]))
+AC_SEARCH_LIBS(cos, m, AC_DEFINE_UNQUOTED(HAVE_COS, 1, [If we have cos()]))
+AC_SEARCH_LIBS(tan, m, AC_DEFINE_UNQUOTED(HAVE_TAN, 1, [If we have tan()]))
+AC_SEARCH_LIBS(exp, m, AC_DEFINE_UNQUOTED(HAVE_EXP, 1, [If we have exp()]))
+AC_SEARCH_LIBS(sqrt, m, AC_DEFINE_UNQUOTED(HAVE_SQRT, 1, [If we have sqrt()]))
+AC_SEARCH_LIBS(cbrt, m, AC_DEFINE_UNQUOTED(HAVE_CBRT, 1, [If we have cbrt()]))
+AC_SEARCH_LIBS(log, m, AC_DEFINE_UNQUOTED(HAVE_LOG, 1, [If we have log()]))
+AC_SEARCH_LIBS(log10, m, AC_DEFINE_UNQUOTED(HAVE_LOG10, 1, [If we have log10()]))
+AC_SEARCH_LIBS(asin, m, AC_DEFINE_UNQUOTED(HAVE_ASIN, 1, [If we have asin()]))
+AC_SEARCH_LIBS(acos, m, AC_DEFINE_UNQUOTED(HAVE_ACOS, 1, [If we have acos()]))
+AC_SEARCH_LIBS(atan, m, AC_DEFINE_UNQUOTED(HAVE_ATAN, 1, [If we have atan()]))
+AC_SEARCH_LIBS(sinh, m, AC_DEFINE_UNQUOTED(HAVE_SINH, 1, [If we have sinh()]))
+AC_SEARCH_LIBS(cosh, m, AC_DEFINE_UNQUOTED(HAVE_COSH, 1, [If we have cosh()]))
+AC_SEARCH_LIBS(tanh, m, AC_DEFINE_UNQUOTED(HAVE_TANH, 1, [If we have tanh()]))
+AC_SEARCH_LIBS(asinh, m, AC_DEFINE_UNQUOTED(HAVE_ASINH, 1, [If we have asinh()]))
+AC_SEARCH_LIBS(acosh, m, AC_DEFINE_UNQUOTED(HAVE_ACOSH, 1, [If we have acosh()]))
+AC_SEARCH_LIBS(atanh, m, AC_DEFINE_UNQUOTED(HAVE_ATANH, 1, [If we have atanh()]))
+AC_SEARCH_LIBS(floor, m, AC_DEFINE_UNQUOTED(HAVE_FLOOR, 1, [If we have floor()]))
+AC_SEARCH_LIBS(ceil, m, AC_DEFINE_UNQUOTED(HAVE_CEIL, 1, [If we have ceil()]))
+AC_SEARCH_LIBS(fabs, m, AC_DEFINE_UNQUOTED(HAVE_FABS, 1, [If we have fabs()]))
+AC_SEARCH_LIBS(erf, m, AC_DEFINE_UNQUOTED(HAVE_ERF, 1, [If we have erf()]))
+AC_SEARCH_LIBS(erfc, m, AC_DEFINE_UNQUOTED(HAVE_ERFC, 1, [If we have erfc()]))
+AC_SEARCH_LIBS(j0, m, AC_DEFINE_UNQUOTED(HAVE_J0, 1, [If we have j0()]))
+AC_SEARCH_LIBS(j1, m, AC_DEFINE_UNQUOTED(HAVE_J1, 1, [If we have j1()]))
+AC_SEARCH_LIBS(y0, m, AC_DEFINE_UNQUOTED(HAVE_Y0, 1, [If we have y0()]))
+AC_SEARCH_LIBS(y1, m, AC_DEFINE_UNQUOTED(HAVE_Y1, 1, [If we have y1()]))
+
 joe_REINSTALL_SIGHANDLERS
 
 # check if -liconv is necessary
@@ -152,15 +182,23 @@ AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 # Check for programs..
 AC_CHECK_PROG(SPELL,aspell,aspell,ispell)
 
-AC_CONFIG_FILES([Makefile rc/Makefile man/Makefile man/ru/Makefile
-syntax/Makefile po/Makefile
-syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf syntax/sh.jsf syntax/python.jsf
-syntax/conf.jsf syntax/php.jsf syntax/mail.jsf syntax/pascal.jsf syntax/html.jsf
-syntax/vhdl.jsf syntax/fortran.jsf syntax/java.jsf syntax/xml.jsf syntax/tcl.jsf
-charmaps/klingon syntax/lisp.jsf syntax/csh.jsf syntax/mason.jsf syntax/diff.jsf
-syntax/asm.jsf syntax/css.jsf syntax/tex.jsf syntax/ocaml.jsf syntax/4gl.jsf
-syntax/sml.jsf syntax/sql.jsf syntax/awk.jsf syntax/cobol.jsf syntax/sed.jsf
-syntax/ps.jsf syntax/ada.jsf syntax/troff.jsf syntax/haskell.jsf
-syntax/rexx.jsf syntax/skill.jsf syntax/lua.jsf syntax/ruby.jsf syntax/m4.jsf
-syntax/joerc.jsf syntax/spec.jsf syntax/matlab.jsf syntax/jsf.jsf syntax/jsf_check.jsf])
+AC_CONFIG_FILES([Makefile joe/Makefile rc/Makefile man/Makefile man/ru/Makefile
+syntax/Makefile po/Makefile charmaps/klingon
+syntax/4gl.jsf syntax/ada.jsf syntax/ant.jsf syntax/asm.jsf syntax/awk.jsf
+syntax/batch.jsf syntax/c.jsf syntax/cobol.jsf syntax/comment_todo.jsf
+syntax/conf.jsf syntax/csharp.jsf syntax/csh.jsf syntax/css.jsf
+syntax/debian.jsf syntax/diff.jsf syntax/elixir.jsf syntax/erb.jsf
+syntax/erlang.jsf syntax/fortran.jsf syntax/git-commit.jsf syntax/go.jsf
+syntax/haml.jsf syntax/haskell.jsf syntax/html.jsf syntax/htmlerb.jsf
+syntax/ini.jsf syntax/iptables.jsf syntax/java.jsf syntax/joerc.jsf
+syntax/js.jsf syntax/jsf_check.jsf syntax/jsf.jsf syntax/json.jsf
+syntax/lisp.jsf syntax/lua.jsf syntax/m4.jsf syntax/mail.jsf
+syntax/mason.jsf syntax/matlab.jsf syntax/md.jsf syntax/ocaml.jsf
+syntax/pascal.jsf syntax/perl.jsf syntax/php.jsf syntax/powershell.jsf
+syntax/prolog.jsf syntax/properties.jsf syntax/ps.jsf syntax/puppet.jsf
+syntax/python.jsf syntax/rexx.jsf syntax/ruby.jsf syntax/sed.jsf
+syntax/sh.jsf syntax/sieve.jsf syntax/skill.jsf syntax/sml.jsf
+syntax/spec.jsf syntax/sql.jsf syntax/tcl.jsf syntax/tex.jsf
+syntax/troff.jsf syntax/typescript.jsf syntax/verilog.jsf syntax/vhdl.jsf
+syntax/whitespace.jsf syntax/xml.jsf syntax/yaml.jsf])
 AC_OUTPUT
