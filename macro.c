@@ -6,8 +6,14 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <string.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
 #include "main.h"
 #include "qw.h"
 #include "pw.h"
@@ -19,7 +25,7 @@
 #include "umath.h"
 #include "uedit.h"
 #include "macro.h"
-#include <ctype.h>
+#include "utils.h"
 #include "w.h"
 
 MACRO *freemacros = 0;

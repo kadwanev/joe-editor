@@ -17,7 +17,6 @@ JOE; see the file COPYING.  If not, write to the Free Software Foundation,
 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
 #include <stdio.h>
-#include <signal.h>
 #include <stdlib.h>
 #include "blocks.h"
 #include "vs.h"

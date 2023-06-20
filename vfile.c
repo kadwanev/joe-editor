@@ -27,6 +27,7 @@ JOE; see the file COPYING.  If not, write to the Free Software Foundation,
 #include "blocks.h"
 #include "queue.h"
 #include "path.h"
+#include "tty.h"
 #include "vfile.h"
 
 static VFILE vfiles = { {&vfiles, &vfiles} };	/* Known vfiles */

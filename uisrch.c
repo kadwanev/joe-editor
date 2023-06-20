@@ -1,5 +1,10 @@
 /* Incremental search */
 
+#include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
 #include "bw.h"
 #include "qw.h"
 #include "vs.h"

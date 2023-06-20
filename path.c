@@ -6,38 +6,75 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
 #include <stdio.h>
 #include <sys/types.h>
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 #include <fcntl.h>
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef HAVE_PATHS_H
+#  include <paths.h>	/* for _PATH_TMP */
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 
-#include "config.h"
 #include "vs.h"
 #include "va.h"
 #include "tty.h"
 #include "path.h"
 
-#ifdef DIRENT
-#	include <dirent.h>
+#ifdef HAVE_DIRENT_H
+#  include <dirent.h>
+#  define NAMLEN(dirent) strlen((dirent)->d_name)
 #else
-#ifdef SYSDIRENT
-#	include <sys/dirent.h>
+#  ifdef HAVE_SYS_DIRENT_H
+#    include <sys/dirent.h>
+#    define NAMLEN(dirent) strlen((dirent)->d_name)
+#  else
+#    define direct dirent
+#    define NAMLEN(dirent) (dirent)->d_namlen
+#    ifdef HAVE_SYS_NDIR_H
+#      include <sys/ndir.h>
+#    else
+#      ifdef HAVE_SYS_DIR_H
+#        include <sys/dir.h>
+#      else
+#        ifdef HAVE_NDIR_H
+#          include <ndir.h>
+#        else
+#          ifndef __MSDOS__
+#            include "dir.c"
+#          endif
+#        endif
+#      endif
+#    endif
+#  endif
+#endif
+
+#ifdef __MSDOS__	/* paths in MS-DOS can include a drive letter followed by semicolon */
+#define	do_if_drive_letter(path, command) do { \
+						if ((path)[0] && (path)[1] == ':') { \
+							command; \
+						} \
+					} while(0)
 #else
-#ifdef SYSDIR
-#	include <sys/dir.h>
-#else
-#ifdef BSDSYSDIR
-#	include <bsd/sys/dir.h>
-#else
-#ifndef __MSDOS__
-#	include "dir.c"
+#define do_if_drive_letter(path, command)	do { } while(0)
 #endif
+#define skip_drive_letter(path)	do_if_drive_letter((path), (path) += 2)
+
+#ifndef		_PATH_TMP
+#  ifdef __MSDOS__
+#    define	_PATH_TMP	""
+#  else
+#    define	_PATH_TMP	"/tmp/"
+#  endif
 #endif
-#endif
-#endif
-#endif
+
 /********************************************************************/
 char *joesep(char *path)
 {
@@ -53,10 +90,7 @@ char *namprt(char *path)
 {
 	char *z;
 
-#ifdef __MSDOS__
-	if (path[0] && path[1] == ':')
-		path += 2;
-#endif
+	skip_drive_letter(path);
 	z = path + slen(path);
 	while ((z != path) && (z[-1] != '/'))
 		--z;
@@ -67,10 +101,7 @@ char *namepart(char *tmp, char *path)
 {
 	char *z;
 
-#ifdef __MSDOS__
-	if (path[0] && path[1] == ':')
-		path += 2;
-#endif
+	skip_drive_letter(path);
 	z = path + strlen(path);
 	while ((z != path) && (z[-1] != '/'))
 		--z;
@@ -82,10 +113,7 @@ char *dirprt(char *path)
 	char *b = path;
 	char *z = path + slen(path);
 
-#ifdef __MSDOS__
-	if (b[0] && b[1] == ':')
-		b += 2;
-#endif
+	skip_drive_letter(b);
 	while ((z != b) && (z[-1] != '/'))
 		--z;
 	return vsncpy(NULL, 0, path, z - path);
@@ -96,10 +124,7 @@ char *begprt(char *path)
 	char *z = path + slen(path);
 	int drv = 0;
 
-#ifdef __MSDOS__
-	if (path[0] && path[1] == ':')
-		drv = 2;
-#endif
+	do_if_drive_letter(path, drv = 2);
 	while ((z != path + drv) && (z[-1] == '/'))
 		--z;
 	if (z == path + drv)
@@ -116,10 +141,7 @@ char *endprt(char *path)
 	char *z = path + slen(path);
 	int drv = 0;
 
-#ifdef __MSDOS__
-	if (path[0] && path[1] == ':')
-		drv = 2;
-#endif
+	do_if_drive_letter(path, drv = 2);
 	while ((z != path + drv) && (z[-1] == '/'))
 		--z;
 	if (z == path + drv)
@@ -167,34 +189,46 @@ int mkpath(char *path)
 /********************************************************************/
 char *mktmp(char *where)
 {
-	static int seq = 0;
+#ifndef HAVE_MKSTEMP
+	static unsigned seq = 0;
+#endif
 	char *name;
 	int fd;
-	int namesize;
+	unsigned namesize;
 
 	if (!where)
 		where = getenv("TEMP");
-#ifdef __MSDOS__
 	if (!where)
-		where = "";
-#else
-	if (!where)
-		where = "/tmp";
-#endif
+		where = _PATH_TMP;
+
 	namesize = strlen(where) + 16;
 	name = vsmk(namesize);	/* [G.Ghibo'] we need to use vsmk() and not malloc() as
 				   area returned by mktmp() is destroyed later with
 				   vsrm(); */
+#ifdef HAVE_MKSTEMP
+	snprintf(name, namesize, "%s/joe.tmp.XXXXXX", where);
+	if((fd = mkstemp(name)) == -1)
+		return 0;       /* FIXME: vflsh() and vflshf() */
+				/* expect mktmp() always succeed!!! */
+
+	fchmod(fd, 0600);       /* Linux glibc 2.0 mkstemp() creates it with */
+				/* 0666 mode --> change it to 0600, so nobody */
+				/* else sees content of temporary file */
+	close(fd);
+
+#else
       loop:
-	snprintf(name, namesize, "%s/J%03d%03d.tmp", where, seq = ++seq % 1000, (unsigned) time(NULL) % 1000);
+	seq = (seq + 1) % 1000;
+	snprintf(name, namesize, "%s/joe.tmp.%03u%03u", where, seq, (unsigned) time(NULL) % 1000);
 	if ((fd = open(name, O_RDONLY)) != -1) {
 		close(fd);
-		goto loop;
+		goto loop;	/* FIXME: possible endless loop --> DoS attack */
 	}
-	if ((fd = creat(name, 0666)) == -1)
-		return 0;
+	if ((fd = creat(name, 0600)) == -1)
+		return 0;	/* FIXME: see above */
 	else
 		close(fd);
+#endif
 	return name;
 }
 /********************************************************************/
@@ -304,15 +338,7 @@ char **rexpnd(char *word)
 	void *dir;
 	char **lst = 0;
 
-#ifdef DIRENT
 	struct dirent *de;
-#else
-#ifdef SYSDIRENT
-	struct dirent *de;
-#else
-	struct direct *de;
-#endif
-#endif
 	dir = opendir(".");
 	if (dir) {
 		while ((de = readdir(dir)) != NULL)

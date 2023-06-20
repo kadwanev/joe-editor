@@ -6,21 +6,24 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include <unistd.h>
+#include "config.h"
 
+#include <unistd.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#ifndef __MSDOS__
+#ifdef HAVE_PWD_H
 #include <pwd.h>
 #endif
 #include <errno.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#ifdef HAVE_TIME_H
+#include <time.h>
+#endif
 
-#include "config.h"
 #include "blocks.h"
 #include "undo.h"
 #include "vs.h"
@@ -2149,7 +2152,7 @@ int size;
 
 extern char *ctime();
 
-void ttsig(sig)
+RETSIGTYPE ttsig(int sig)
 {
 	long tim = time(0);
 	B *b;

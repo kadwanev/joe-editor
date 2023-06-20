@@ -63,8 +63,9 @@ int mkpath();
 
 /* char *mktmp(char *);
  * Create an empty temporary file.  The file name created is the string passed
- * to this function postfixed with JXXXXXX.tmp, where XXXXXX is some number.
- */
+ * to this function postfixed with /joe.tmp.XXXXXX, where XXXXXX is some
+ * string six chars long which makes this file unique.
+*/
 char *mktmp();
 
 /* Change drive and directory */

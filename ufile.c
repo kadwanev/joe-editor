@@ -5,12 +5,15 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <string.h>
-#include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "undo.h"
 
 #ifdef UTIME

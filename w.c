@@ -6,6 +6,9 @@
 */
 
 #include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "b.h"
 #include "scrn.h"
 #include "queue.h"

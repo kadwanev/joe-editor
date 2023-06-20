@@ -5,8 +5,13 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include <unistd.h>
 #include "config.h"
+
+#include <unistd.h>
+#include <sys/types.h>
+#ifdef HAVE_SYS_WAIT_H
+#include <sys/wait.h>
+#endif
 #include "b.h"
 #include "bw.h"
 #include "scrn.h"
@@ -854,8 +859,8 @@ int *notify;
 				unmark(bw);
 		}
 		close(fr[0]);
-		wait(0);
-		wait(0);
+		wait(NULL);
+		wait(NULL);
 	} else {
 		if (square) {
 			B *tmp = pextrect(markb,

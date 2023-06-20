@@ -5,6 +5,10 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "b.h"
 #include "bw.h"
 #include "blocks.h"

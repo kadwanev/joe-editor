@@ -6,6 +6,11 @@
 */
 
 #include "config.h"
+#include <unistd.h>
+#include <signal.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "b.h"
 #include "bw.h"
 #include "w.h"
@@ -16,8 +21,6 @@
 #include "ufile.h"
 #include "main.h"
 #include "ushell.h"
-#include <unistd.h>
-#include <signal.h>
 
 extern int orphan;
 

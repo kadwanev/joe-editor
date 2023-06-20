@@ -5,13 +5,16 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include "tab.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
-#include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include "tab.h"
 #include "scrn.h"
 #include "kbd.h"
 #include "vs.h"

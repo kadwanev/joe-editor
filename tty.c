@@ -8,22 +8,36 @@
 
 /** System include files **/
 
-/* These should exist on every UNIX system */
+#include "config.h"
+
 #include <sys/types.h>
+#ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
+#endif
+#ifdef GWINSZ_IN_SYS_IOCTL
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
+#endif
+#endif
 #include <stdio.h>
 #include <signal.h>
+#ifdef HAVE_FCNTL_H
 #include <fcntl.h>
+#endif
+#ifdef HAVE_SYS_WAIT_H
+#include <sys/wait.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 extern int errno;
 
 int idleout = 1;
-
-#include <sys/param.h>
 
 #include "config.h"
 
@@ -31,36 +45,20 @@ int idleout = 1;
  * tty interface the system uses and what type of system
  * we actually have.
  */
-#ifdef TTYPOSIX
-
-#ifdef SYSPOSIX
-#include <sys/termios.h>
+#ifdef HAVE_POSIX_TERMIOS
+#  include <termios.h>
+#  include <sys/termios.h>
 #else
-#include <termios.h>
+#  ifdef HAVE_SYSV_TERMIO
+#    include <termio.h>
+#    include <sys/termio.h>
+#  else
+#    include <sgtty.h>
+#  endif
 #endif
 
-#else
-#ifdef TTYSV
-
-#ifdef SYSSV
-#include <sys/termio.h>
-#else
-#include <termio.h>
-#endif
-
-#else
-#include <sgtty.h>
-#endif
-#endif
-
-/* If the signal SIGVTALRM exists, assume we have the setitimer system call
- * and the include file necessary for it.  I'm not so sure that this method
- * of detecting 'setitimer' is foolproof, so this is the only place where
- * SIGVTALRM will be checked... after here the itimer code will look for
- * ITIMER_REAL (which is defined in sys/time.h).
- */
-#ifndef _SEQUENT_
-#ifdef SIGVTALRM
+#ifdef HAVE_SETITIMER
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
 #endif
@@ -89,36 +87,28 @@ int idleout = 1;
 
 /* JOE include files */
 
-#include "config.h"
+#include "main.h"
 #include "path.h"
 #include "tty.h"
 
 /* The pwd function */
-#ifdef TTYPOSIX
-char *getcwd();
-char *pwd()
+#ifdef HAVE_GETCWD
+char *pwd(void)
 {
 	static char buf[1024];
 
 	return getcwd(buf, 1024);
 }
 #else
-#ifdef TTYSV
-char *getcwd();
-char *pwd()
-{
-	static char buf[1024];
-
-	return getcwd(buf, 1024);
-}
-#else
-char *getwd();
-char *pwd()
+#ifdef HAVE_GETWD
+char *pwd(void)
 {
 	static char buf[1024];
 
 	return getwd(buf);
 }
+#else
+#error "Don't know how to get current directory"
 #endif
 #endif
 
@@ -158,17 +148,17 @@ FILE *termout = 0;
 
 /* Original state of tty */
 
-#ifdef TTYPOSIX
+#ifdef HAVE_POSIX_TERMIOS
 struct termios oldterm;
-#else
-#ifdef TTYSV
+#else /* HAVE_POSIX_TERMIOS */
+#ifdef HAVE_SYSV_TERMIO
 static struct termio oldterm;
-#else
+#else /* HAVE_SYSV_TERMIO */
 static struct sgttyb oarg;
 static struct tchars otarg;
 static struct ltchars oltarg;
-#endif
-#endif
+#endif /* HAVE_SYSV_TERMIO */
+#endif /* HAVE_POSIX_TERMIOS */
 
 /* Output buffer, index and size */
 
@@ -308,7 +298,7 @@ void ttclose()
 
 static int winched = 0;
 
-static void winchd()
+static RETSIGTYPE winchd(int unused)
 {
 	++winched;
 #ifdef SIGWINCH
@@ -321,7 +311,7 @@ static void winchd()
 
 int ticked = 0;
 extern int dostaupd;
-static void dotick()
+static RETSIGTYPE dotick(int unused)
 {
 	ticked = 1;
 	dostaupd = 1;
@@ -336,18 +326,16 @@ struct sigaction vnew;
 
 void tickon()
 {
+	ticked = 0;
 	vnew.sa_handler = dotick;
+
 #ifdef SA_INTERRUPT
 	vnew.sa_flags = SA_INTERRUPT;
-#else
-	vnew.sa_flags = SV_INTERRUPT;
-#endif
-	ticked = 0;
-#ifdef SA_INTERRUPT
-	sigaction(SIGALRM, &vnew, (struct sigaction *) 0);
+	sigaction(SIGALRM, &vnew, NULL);
 #else
 #ifdef SV_INTERRUPT
-	sigvec(SIGALRM, &vnew, (struct sigvec *) 0);
+	vnew.sa_flags = SV_INTERRUPT;
+	sigvec(SIGALRM, &vnew, NULL);
 #else
 	signal(SIGALRM, dotick);
 #endif
@@ -361,10 +349,10 @@ void ttopnn()
 {
 	int x, bbaud;
 
-#ifdef TTYPOSIX
+#ifdef HAVE_POSIX_TERMIOS
 	struct termios newterm;
 #else
-#ifdef TTYSV
+#ifdef HAVE_SYSV_TERMIO
 	struct termio newterm;
 #else
 	struct sgttyb arg;
@@ -391,7 +379,7 @@ void ttopnn()
 	ttymode = 1;
 	fflush(termout);
 
-#ifdef TTYPOSIX
+#ifdef HAVE_POSIX_TERMIOS
 	tcgetattr(fileno(termin), &oldterm);
 	newterm = oldterm;
 	newterm.c_lflag = 0;
@@ -405,7 +393,7 @@ void ttopnn()
 	tcsetattr(fileno(termin), TCSADRAIN, &newterm);
 	bbaud = cfgetospeed(&newterm);
 #else
-#ifdef TTYSV
+#ifdef HAVE_SYSV_TERMIO
 	ioctl(fileno(termin), TCGETA, &oldterm);
 	newterm = oldterm;
 	newterm.c_lflag = 0;
@@ -485,10 +473,10 @@ void ttclsn()
 
 	ttflsh();
 
-#ifdef TTYPOSIX
+#ifdef HAVE_POSIX_TERMIOS
 	tcsetattr(fileno(termin), TCSADRAIN, &oldterm);
 #else
-#ifdef TTYSV
+#ifdef HAVE_SYSV_TERMIO
 	ioctl(fileno(termin), TCSETAW, &oldterm);
 #else
 	ioctl(fileno(termin), TIOCSETN, &oarg);
@@ -503,16 +491,16 @@ void ttclsn()
 /* Timer interrupt handler */
 
 static int yep;
-static void dosig()
+static RETSIGTYPE dosig(int unused)
 {
 	yep = 1;
 }
 
 /* FLush output and check for typeahead */
 
-#ifdef ITIMER_REAL
+#ifdef HAVE_SETITIMER
 #ifdef SIG_SETMASK
-maskit()
+void maskit(void)
 {
 	sigset_t set;
 
@@ -521,7 +509,7 @@ maskit()
 	sigprocmask(SIG_SETMASK, &set, NULL);
 }
 
-unmaskit()
+void unmaskit(void)
 {
 	sigset_t set;
 
@@ -529,7 +517,7 @@ unmaskit()
 	sigprocmask(SIG_SETMASK, &set, NULL);
 }
 
-pauseit()
+void pauseit(void)
 {
 	sigset_t set;
 
@@ -538,17 +526,17 @@ pauseit()
 }
 
 #else
-maskit()
+void maskit(void)
 {
 	sigsetmask(sigmask(SIGALRM));
 }
 
-unmaskit()
+void unmaskit(void)
 {
 	sigsetmask(0);
 }
 
-pauseit()
+void pauseit(void)
 {
 	sigpause(0);
 }
@@ -562,8 +550,8 @@ int ttflsh()
 	if (obufp) {
 		unsigned long usec = obufp * upc;	/* No. usecs this write should take */
 
-#ifdef ITIMER_REAL
-		if (usec >= 500000 / HZ && baud < 9600) {
+#ifdef HAVE_SETITIMER
+		if (usec >= 50000 && baud < 9600) {
 			struct itimerval a, b;
 
 			a.it_value.tv_sec = usec / 1000000;
@@ -577,7 +565,7 @@ int ttflsh()
 			setitimer(ITIMER_REAL, &a, &b);
 			jwrite(fileno(termout), obuf, obufp);
 			while (!yep)
-				pauseit(0);
+				pauseit();
 			unmaskit();
 			tickon();
 		} else
@@ -929,7 +917,7 @@ int *ptyfd;
 
 int dead = 0;
 
-void death()
+RETSIGTYPE death(int unused)
 {
 	wait(NULL);
 	dead = 1;
@@ -1032,7 +1020,11 @@ void *dieobj;
 			ioctl(x, TIOCNOTTY, 0);
 #endif
 
+#ifndef SETPGRP_VOID
 			setpgrp(0, 0);
+#else
+			setpgrp();
+#endif
 
 			for (x = 0; x != 32; ++x)
 				close(x);	/* Yes, this is quite a kludge... all in the
@@ -1052,10 +1044,10 @@ void *dieobj;
 
 				/* We could probably have a special TTY set-up for JOE, but for now
 				 * we'll just use the TTY setup for the TTY was was run on */
-#ifdef TTYPOSIX
+#ifdef HAVE_POSIX_TERMIOS
 				tcsetattr(0, TCSADRAIN, &oldterm);
 #else
-#ifdef TTYSV
+#ifdef HAVE_SYSV_TERMIO
 				ioctl(0, TCSETAW, &oldterm);
 #else
 				ioctl(0, TIOCSETN, &oarg);

@@ -28,5 +28,6 @@ extern SCREEN *maint;		/* Primary screen */
 void nungetc();
 void dofollows();
 int edloop();
+void edupd();
 
 #endif

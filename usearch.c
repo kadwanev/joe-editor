@@ -1,7 +1,11 @@
 /* Search & Replace system */
 
+#include "config.h"
 #include <ctype.h>
 #include <stdio.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "pw.h"
 #include "qw.h"
 #include "vs.h"

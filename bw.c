@@ -5,9 +5,12 @@
     This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
 #include <string.h>
 #include <stdio.h>
-#include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "tty.h"
 #include "vfile.h"
 #include "termcap.h"

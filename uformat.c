@@ -5,13 +5,19 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
+
 #include <ctype.h>
 #include <string.h>
-#include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
 #include "b.h"
 #include "bw.h"
 #include "ublock.h"
 #include "uformat.h"
+#include "utils.h"
 
 /* Center line cursor is on and move cursor to beginning of next line */
 

@@ -6,9 +6,13 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
+#include "config.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "utils.h"
 #include "macro.h"
 #include "cmd.h"

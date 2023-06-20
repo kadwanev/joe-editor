@@ -7,11 +7,16 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include "help.h"
 #include "config.h"
+
 #include <stdio.h>
 #include <string.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
 #include "blocks.h"
+#include "help.h"
 #include "w.h"
 
 #define NOT_ENOUGH_MEMORY -11
@@ -31,56 +36,53 @@ int help_init(char *filename)
 	unsigned char buf[1024];			/* input buffer */
 
 	struct help *tmp;
-	int bfl;					/* buffer length */
-	int hlpsiz, hlpbsz;				/* number of used/allocated bytes for tmp->hlptxt */
+	unsigned int bfl;				/* buffer length */
+	unsigned int hlpsiz, hlpbsz;			/* number of used/allocated bytes for tmp->text */
 	char *tempbuf;
 
-	strcpy(buf, filename);				/* open the help file */
-	printf(">><< %s \n",buf);
-	if (!(fd = fopen(buf, "r"))) {
+	if (!(fd = fopen(filename, "r")))		/* open the help file */
 		return -1;				/* return if we couldn't open the file */
-	}
 
 	fprintf(stderr, "Processing '%s'...", filename);
 	fflush(stderr);
 
-	while (fgets(buf, 1024, fd)) {
+	while (fgets(buf, sizeof(buf), fd)) {
 		if (buf[0] == '{') {			/* start of help screen */
 			if (!(tmp = (struct help *) malloc(sizeof(struct help)))) {
 				return NOT_ENOUGH_MEMORY;
 			}
 
-			tmp->hlptxt = NULL;
-			tmp->hlplns = 0;
+			tmp->text = NULL;
+			tmp->lines = 0;
 			hlpsiz = 0;
 			hlpbsz = 0;
 
-			while ((fgets(buf, 256, fd)) && (buf[0] != '}')) {
+			while ((fgets(buf, sizeof(buf), fd)) && (buf[0] != '}')) {
 				bfl = strlen(buf);
 				if (hlpsiz + bfl > hlpbsz) {
-					if (tmp->hlptxt) {
-						tempbuf = (char *) realloc(tmp->hlptxt, hlpbsz + bfl + 1024);
+					if (tmp->text) {
+						tempbuf = (char *) realloc(tmp->text, hlpbsz + bfl + 1024);
 						if (!tempbuf) {
-							free (tmp->hlptxt);
+							free (tmp->text);
 							free (tmp);
 							return NOT_ENOUGH_MEMORY;
 						} else {
-							tmp->hlptxt = tempbuf;
+							tmp->text = tempbuf;
 						}
 					} else {
-						tmp->hlptxt = (char *) malloc(bfl + 1024);
-						if (!tmp->hlptxt) {
+						tmp->text = (char *) malloc(bfl + 1024);
+						if (!tmp->text) {
 							free (tmp);
 							return NOT_ENOUGH_MEMORY;
 						} else {
-							tmp->hlptxt[0] = 0;
+							tmp->text[0] = 0;
 						}
 					}
 					hlpbsz += bfl + 1024;
 				}
-				strcpy(tmp->hlptxt + hlpsiz, buf);
+				strcpy(tmp->text + hlpsiz, buf);
 				hlpsiz += bfl;
-				++tmp->hlplns;
+				++tmp->lines;
 			}
 			if (buf[0] == '}') {		/* set new help screen as actual one */
 				tmp->prev = help_actual;
@@ -95,7 +97,7 @@ int help_init(char *filename)
 				fflush(stderr);
 				fgets(buf, 8, stdin);
 				if (!((buf[0] == 'y') || (buf[0] == 'Y'))) {
-					free (tmp->hlptxt);
+					free (tmp->text);
 					free (tmp);
 					return 0;
 				} else {
@@ -123,14 +125,14 @@ int help_init(char *filename)
 /*
  * Display help text
  */
-void help_display(SCREEN * t)
+void help_display(SCREEN *t)
 {
 	char *str;
 	int y, x, c;
 	int atr = 0;
 
 	if (help_actual) {
-		str = help_actual->hlptxt;
+		str = help_actual->text;
 	} else {
 		str = NULL;
 	}
@@ -149,68 +151,64 @@ void help_display(SCREEN * t)
 						switch (*++str) {
 							case 'i':
 							case 'I':
-							atr ^= INVERSE;
-							++str;
-							--x;
-							goto cont;
+								atr ^= INVERSE;
+								++str;
+								--x;
+								continue;
 							case 'u':
 							case 'U':
-							atr ^= UNDERLINE;
-							++str;
-							--x;
-							goto cont;
+								atr ^= UNDERLINE;
+								++str;
+								--x;
+								continue;
 							case 'd':
 							case 'D':
-							atr ^= DIM;
-							++str;
-							--x;
-							goto cont;
+								atr ^= DIM;
+								++str;
+								--x;
+								continue;
 							case 'b':
 							case 'B':
-							atr ^= BOLD;
-							++str;
-							--x;
-							goto cont;
+								atr ^= BOLD;
+								++str;
+								--x;
+								continue;
 							case 'f':
 							case 'F':
-							atr ^= BLINK;
-							++str;
-							--x;
-							goto cont;
+								atr ^= BLINK;
+								++str;
+								--x;
+								continue;
 							case 0:
-							--x;
-							goto cont;
+								--x;
+								continue;
 							default:
-							c = (unsigned char)
-							    *str++;
+								c = (unsigned char) *str++;
 						}
 					} else {
 						c = (unsigned char) *str++;
 					}
 					outatr(t->t, t->t->scrn + x + y * t->w, x, y, c, atr);
-				      cont:;
 				}
 			}
 			atr = 0;
 			t->t->updtab[y] = 0;
 		}
 
-		while (*str && *str != '\n') {
+		while (*str && *str != '\n')
 			++str;
-		}
-		if (*str == '\n') {
+		if (*str == '\n')
 			++str;
-		}
 	}
 }
 
 /*
  * Show help screen 
  */
-int help_on(SCREEN * t)
+int help_on(SCREEN *t)
 {
 	if (help_actual) {
-		t->wind = help_actual->hlplns + skiptop;
+		t->wind = help_actual->lines + skiptop;
 		if ((t->h - t->wind) < FITHEIGHT) {
 			t->wind = t->h - FITHEIGHT;
 		}
@@ -229,7 +227,7 @@ int help_on(SCREEN * t)
 /*
  * Hide help screen
  */
-void help_off(SCREEN * t)
+void help_off(SCREEN *t)
 {
 	t->wind = skiptop;
 	wfit(t);
@@ -238,7 +236,7 @@ void help_off(SCREEN * t)
 /*
  * Show/hide current help screen
  */
-int u_help(BASE * base)
+int u_help(BASE *base)
 {
 	W *w = base->parent;
 
@@ -253,7 +251,7 @@ int u_help(BASE * base)
 /*
  * Show next help screen (if it is possible)
  */
-int u_help_next(BASE * base)
+int u_help_next(BASE *base)
 {
 	W *w = base->parent;
 
@@ -271,14 +269,13 @@ int u_help_next(BASE * base)
 /*
  * Show previous help screen (if it is possible)
  */
-int u_help_prev(BASE * base)
+int u_help_prev(BASE *base)
 {
 	W *w = base->parent;
 
 	if (help_actual && help_actual->prev) {		/* is there any previous help screen? */
-		if (w->t->wind != skiptop) {
+		if (w->t->wind != skiptop)
 			help_off(w->t);			/* if help screen was visible, then hide it */
-		}
 		help_actual = help_actual->prev;	/* change to previous help screen */
 		return help_on(w->t);			/* show actual help screen */
 	} else {

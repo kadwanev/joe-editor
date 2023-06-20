@@ -14,18 +14,18 @@
 #include "w.h"				/* definitions of BASE & SCREEN */
 
 struct help {
-	char *hlptxt;			/* help text with attributes */
-	int hlplns;			/* number of lines */
+	unsigned char *text;		/* help text with attributes */
+	unsigned int lines;		/* number of lines */
 	struct help *prev;		/* previous help screen */
 	struct help *next;		/* nex help screen */
 };
 
-void help_display(SCREEN * t);		/* display text in help window */
-int help_on(SCREEN * t);		/* turn help on */
+void help_display(SCREEN *t);		/* display text in help window */
+int help_on(SCREEN *t);			/* turn help on */
 int help_init(char *filename);		/* load help file */
 
-int u_help(BASE * base);		/* toggle help on/off */
-int u_help_next(BASE * base);		/* goto next help screen */
-int u_help_prev(BASE * base);		/* goto prev help screen */
+int u_help(BASE *base);			/* toggle help on/off */
+int u_help_next(BASE *base);		/* goto next help screen */
+int u_help_prev(BASE *base);		/* goto prev help screen */
 
 #endif

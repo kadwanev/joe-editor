@@ -5,8 +5,11 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include <varargs.h>
 #include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include <varargs.h>
 #include "blocks.h"
 #include "vs.h"
 

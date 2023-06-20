@@ -17,6 +17,9 @@ JOE; see the file COPYING.  If not, write to the Free Software Foundation,
 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
 #include "config.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "w.h"
 #include "vs.h"
 #include "qw.h"

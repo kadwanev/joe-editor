@@ -5,8 +5,11 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include <string.h>
 #include "config.h"
+#include <string.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include "w.h"
 #include "tw.h"
 #include "vfile.h"

@@ -1,5 +1,7 @@
 /* Math */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <signal.h>
 #include <string.h>
@@ -12,7 +14,7 @@
 
 char *merr;
 
-void fperr(void)
+RETSIGTYPE fperr(int unused)
 {
 	if (!merr) {
 		merr = "Float point exception";

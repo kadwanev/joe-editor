@@ -5,9 +5,15 @@
 	This file is part of JOE (Joe's Own Editor)
 */
 
-#include <stdio.h>
-
 #include "config.h"
+#include <stdio.h>
+#ifdef HAVE_TIME_H
+#include <time.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
 #include "w.h"
 #include "termcap.h"
 #include "vfile.h"

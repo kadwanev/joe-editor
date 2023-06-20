@@ -9,7 +9,10 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
-#ifdef __JOE_USE_LOCALE
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#if defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE)
 #	include <locale.h>
 #endif
 #include "w.h"
@@ -169,7 +172,7 @@ char *envv[];
 	int backopt;
 	int c;
 
-#ifdef __JOE_USE_LOCALE
+#ifdef HAVE_SETLOCALE
 	setlocale(LC_CTYPE, "");
 #endif
 
@@ -377,7 +380,7 @@ char *envv[];
 		help_on(maint);
 	}
 	if (!nonotice)
-		msgnw(lastw(maint)->object, "\\i** Joe's Own Editor v2.9.7-pre1 ** Copyright (C) 2001 **\\i");
+		msgnw(lastw(maint)->object, "\\i** Joe's Own Editor v" VERSION " ** Copyright (C) 2001 **\\i");
 	edloop(0);
 	vclose(vmem);
 	nclose(n);
