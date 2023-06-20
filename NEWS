@@ -1,7 +1,15 @@
+Overview of Changes in JOE 2.9.7pre0 (02 Jul 2001)
+- major BUGFIX:: wordwrap problem
+- BUGFIX:: indentation
+??* JOE can be compiled on Windows platform again
+??* BUGFIX:: problem with ${sysconfdir}/joerc was solved
+ 
 Overview of Changes in JOE 2.9.6 (13 Apr 2001)
 
+- BUGFIX:: resizing window
+- BUGFIX:: undo after save of file
 - JOE can be compiled on Windows platform again
-- BUGFIX:: problem with ${sysconfdir}/joerc was solved
+* BUGFIX:: problem with ${sysconfdir}/joerc was solved
 - BUGFIX:: security patch for sprintf
 - BUGFIX:: partially solved problem on Solaris with SegFault
 - BUGFIX:: patch joe-2.8-security (slightly changed)

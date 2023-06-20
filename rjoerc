@@ -3,8 +3,9 @@
                             Restricted access Joe
 
  JOE looks for this file in:
-	1 - $HOME/.rjoerc
-	2 - SYSCONFDIR/rjoerc
+	1 - .joerc
+	2 - $HOME/.joerc
+	3 - /usr/local/lib/joerc
 
  This file can include other files by placing the following include command
  in the first column:
@@ -349,8 +350,6 @@ dnslide		^[ Z		Scroll down one line
 dnslide		^[ ^Z		Scroll down one line
  edit,rtn,filt,
  query,parserr	^[ c		Compile
- edit,rtn,filt,
- query,parserr	^[ C		Compile
  edit,rtn,filt,
  query,parserr	^[ ^C		Compile
  execmd		^[ x		Prompt for command to execute

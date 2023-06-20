@@ -18,7 +18,7 @@ extern void *LAST;
 
 typedef struct stditem STDITEM;
 struct stditem {
-	LINK (STDITEM) link;
+	LINK(STDITEM) link;
 };
 
 
@@ -111,10 +111,7 @@ struct stditem {
 	(type *)ITEM \
 	)
 
-void *ALITEM (STDITEM *freelist, int itemsize);
-void FRCHN (STDITEM *freelist, STDITEM *chn);
-
-#define alitem(freelist,itemsize) ALITEM((STDITEM *) freelist, itemsize)
-#define frchn(freelist,chn) FRCHN((STDITEM *) freelist, (STDITEM *) chn)
+void *alitem(STDITEM * freelist, int itemsize);
+void frchn(STDITEM * freelist, STDITEM * chn);
 
 #endif

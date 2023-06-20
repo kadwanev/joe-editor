@@ -1,3 +1,4 @@
+
 /* 
 	Directory and path functions
 	Copyright (C) 1992 Joseph H. Allen
@@ -38,8 +39,7 @@
 #endif
 #endif
 /********************************************************************/
-char *
-ossep (char *path)
+char *ossep(char *path)
 {
 	int x;
 
@@ -54,8 +54,7 @@ ossep (char *path)
 	return path;
 }
 /********************************************************************/
-char *
-joesep (char *path)
+char *joesep(char *path)
 {
 	int x;
 
@@ -65,8 +64,7 @@ joesep (char *path)
 	return path;
 }
 /********************************************************************/
-char *
-namprt (char *path)
+char *namprt(char *path)
 {
 	char *z;
 
@@ -74,14 +72,13 @@ namprt (char *path)
 	if (path[0] && path[1] == ':')
 		path += 2;
 #endif
-	z = path + slen (path);
+	z = path + slen(path);
 	while ((z != path) && (z[-1] != '/'))
 		--z;
-	return vsncpy (NULL, 0, sz (z));
+	return vsncpy(NULL, 0, sz(z));
 }
 /********************************************************************/
-char *
-namepart (char *tmp, char *path)
+char *namepart(char *tmp, char *path)
 {
 	char *z;
 
@@ -89,17 +86,16 @@ namepart (char *tmp, char *path)
 	if (path[0] && path[1] == ':')
 		path += 2;
 #endif
-	z = path + strlen (path);
+	z = path + strlen(path);
 	while ((z != path) && (z[-1] != '/'))
 		--z;
-	return strcpy (tmp, z);
+	return strcpy(tmp, z);
 }
 /********************************************************************/
-char *
-dirprt (char *path)
+char *dirprt(char *path)
 {
 	char *b = path;
-	char *z = path + slen (path);
+	char *z = path + slen(path);
 
 #ifdef __MSDOS__
 	if (b[0] && b[1] == ':')
@@ -107,13 +103,12 @@ dirprt (char *path)
 #endif
 	while ((z != b) && (z[-1] != '/'))
 		--z;
-	return vsncpy (NULL, 0, path, z - path);
+	return vsncpy(NULL, 0, path, z - path);
 }
 /********************************************************************/
-char *
-begprt (char *path)
+char *begprt(char *path)
 {
-	char *z = path + slen (path);
+	char *z = path + slen(path);
 	int drv = 0;
 
 #ifdef __MSDOS__
@@ -123,19 +118,17 @@ begprt (char *path)
 	while ((z != path + drv) && (z[-1] == '/'))
 		--z;
 	if (z == path + drv)
-		return vsncpy (NULL, 0, sz (path));
-	else
-	  {
-		  while ((z != path + drv) && (z[-1] != '/'))
-			  --z;
-		  return vsncpy (NULL, 0, path, z - path);
-	  }
+		return vsncpy(NULL, 0, sz(path));
+	else {
+		while ((z != path + drv) && (z[-1] != '/'))
+			--z;
+		return vsncpy(NULL, 0, path, z - path);
+	}
 }
 /********************************************************************/
-char *
-endprt (char *path)
+char *endprt(char *path)
 {
-	char *z = path + slen (path);
+	char *z = path + slen(path);
 	int drv = 0;
 
 #ifdef __MSDOS__
@@ -145,54 +138,49 @@ endprt (char *path)
 	while ((z != path + drv) && (z[-1] == '/'))
 		--z;
 	if (z == path + drv)
-		return vsncpy (NULL, 0, sc (""));
-	else
-	  {
-		  while (z != path + drv && z[-1] != '/')
-			  --z;
-		  return vsncpy (NULL, 0, sz (z));
-	  }
+		return vsncpy(NULL, 0, sc(""));
+	else {
+		while (z != path + drv && z[-1] != '/')
+			--z;
+		return vsncpy(NULL, 0, sz(z));
+	}
 }
 /********************************************************************/
-int
-mkpath (char *path)
+int mkpath(char *path)
 {
 	char *s;
 
-	if (path[0] == '/')
-	  {
-		  if (chddir ("/"))
-			  return 1;
-		  s = path;
-		  goto in;
-	  }
+	if (path[0] == '/') {
+		if (chddir("/"))
+			return 1;
+		s = path;
+		goto in;
+	}
 
-	while (path[0])
-	  {
-		  int c;
-		  for (s = path; (*s) && (*s != '/'); s++);
-		  c = *s;
-		  *s = 0;
-		  if (chddir (path))
-		    {
-			    if (mkdir (path, 0777))
-				    return 1;
-			    if (chddir (path))
-				    return 1;
-		    }
-		  *s = c;
-		in:
-		  while (*s == '/')
-			  ++s;
-		  path = s;
-	  }
+	while (path[0]) {
+		int c;
+
+		for (s = path; (*s) && (*s != '/'); s++) ;
+		c = *s;
+		*s = 0;
+		if (chddir(path)) {
+			if (mkdir(path, 0777))
+				return 1;
+			if (chddir(path))
+				return 1;
+		}
+		*s = c;
+	      in:
+		while (*s == '/')
+			++s;
+		path = s;
+	}
 	return 0;
 }
 /********************************************************************/
 /* Create a temporary file */
 /********************************************************************/
-char *
-mktmp (char *where)
+char *mktmp(char *where)
 {
 	static int seq = 0;
 	char *name;
@@ -200,7 +188,7 @@ mktmp (char *where)
 	int namesize;
 
 	if (!where)
-		where = getenv ("TEMP");
+		where = getenv("TEMP");
 #ifdef __MSDOS__
 	if (!where)
 		where = "";
@@ -208,81 +196,75 @@ mktmp (char *where)
 	if (!where)
 		where = "/tmp";
 #endif
-	namesize = strlen (where) + 16;
-	name = vsmk(namesize); /* [G.Ghibo'] we need to use vsmk() and not malloc() as
-                         area returned by mktmp() is destroyed later with
-                         vsrm(); */
+	namesize = strlen(where) + 16;
+	name = vsmk(namesize);	/* [G.Ghibo'] we need to use vsmk() and not malloc() as
+				   area returned by mktmp() is destroyed later with
+				   vsrm(); */
       loop:
-	snprintf(name,namesize,"%s/J%03d03%d.tmp",where,seq= ++seq%1000,(unsigned)time(NULL)%1000);
-	ossep (name);
-	if ((fd = open (name, O_RDONLY)) != -1)
-	  {
-		  close (fd);
-		  goto loop;
-	  }
-	if ((fd = creat (name, 0666)) == -1)
+	snprintf(name, namesize, "%s/J%03d%03d.tmp", where, seq = ++seq % 1000, (unsigned) time(NULL) % 1000);
+	ossep(name);
+	if ((fd = open(name, O_RDONLY)) != -1) {
+		close(fd);
+		goto loop;
+	}
+	if ((fd = creat(name, 0666)) == -1)
 		return 0;
 	else
-		close (fd);
+		close(fd);
 	return name;
 }
 /********************************************************************/
-int
-rmatch (char *a, char *b)
+int rmatch(char *a, char *b)
 {
 	int flag, inv, c;
 
 	for (;;)
-		switch (*a)
-		  {
-		  case '*':
-			  ++a;
-			  do
-				  if (rmatch (a, b))
-					  return 1;
-			  while (*b++);
-			  return 0;
-		  case '[':
-			  ++a;
-			  flag = 0;
-			  if (*a == '^')
-				  ++a, inv = 1;
-			  else
-				  inv = 0;
-			  if (*a == ']')
-				  if (*b == *a++)
-					  flag = 1;
-			  while (*a && (c = *a++) != ']')
-				  if ((c == '-') && (a[-2] != '[') && (*a))
-				    {
-					    if ((*b >= a[-2]) && (*b <= *a))
-						    flag = 1;
-				    }
-				  else if (*b == c)
-					  flag = 1;
-			  if ((!flag && !inv) || (flag && inv) || (!*b))
-				  return 0;
-			  ++b;
-			  break;
-		  case '?':
-			  ++a;
-			  if (!*b)
-				  return 0;
-			  ++b;
-			  break;
-		  case 0:
-			  if (!*b)
-				  return 1;
-			  else
-				  return 0;
-		  default:
-			  if (*a++ != *b++)
-				  return 0;
-		  }
+		switch (*a) {
+			case '*':
+			++a;
+			do
+				if (rmatch(a, b))
+					return 1;
+			while (*b++) ;
+			return 0;
+			case '[':
+			++a;
+			flag = 0;
+			if (*a == '^')
+				++a, inv = 1;
+			else
+				inv = 0;
+			if (*a == ']')
+				if (*b == *a++)
+					flag = 1;
+			while (*a && (c = *a++) != ']')
+				if ((c == '-') && (a[-2] != '[') && (*a)) {
+					if ((*b >= a[-2]) && (*b <= *a))
+						flag = 1;
+				} else if (*b == c)
+					flag = 1;
+			if ((!flag && !inv) || (flag && inv) || (!*b))
+				return 0;
+			++b;
+			break;
+			case '?':
+			++a;
+			if (!*b)
+				return 0;
+			++b;
+			break;
+			case 0:
+			if (!*b)
+				return 1;
+			else
+				return 0;
+			default:
+			if (*a++ != *b++)
+				return 0;
+		}
 }
 /********************************************************************/
-int
-isreg (char *s)
+int isreg(char *s)
 {
 	int x;
 
@@ -296,56 +278,48 @@ isreg (char *s)
 #include <dos.h>
 #include <dir.h>
 
-struct direct
-{
+struct direct {
 	char d_name[16];
-}
-direc;
+} direc;
 int dirstate = 0;
 struct ffblk ffblk;
 char *dirpath = 0;
 
-void *
-opendir (char *path)
+void *opendir(char *path)
 {
 	dirstate = 0;
 	return &direc;
 }
 
-void
-closedir ()
+void closedir()
 {
 }
 
-struct direct *
-readdir ()
+struct direct *readdir()
 {
 	int x;
 
-	if (dirstate)
-	  {
-		  if (findnext (&ffblk))
-			  return 0;
-	  }
-	else
-	  {
-		  if (findfirst ("*.*", &ffblk, FA_DIREC))
-			  return 0;
-		  dirstate = 1;
-	  }
+	if (dirstate) {
+		if (findnext(&ffblk))
+			return 0;
+	} else {
+		if (findfirst("*.*", &ffblk, FA_DIREC))
+			return 0;
+		dirstate = 1;
+	}
 
-	strcpy (direc.d_name, ffblk.ff_name);
+	strcpy(direc.d_name, ffblk.ff_name);
 	for (x = 0; direc.d_name[x]; ++x)
-		direc.d_name[x] = tolower (direc.d_name[x]);
+		direc.d_name[x] = tolower(direc.d_name[x]);
 	return &direc;
 }
 #endif
 /********************************************************************/
-char **
-rexpnd (char *word)
+char **rexpnd(char *word)
 {
 	void *dir;
 	char **lst = 0;
+
 #ifdef DIRENT
 	struct dirent *de;
 #else
@@ -355,52 +329,45 @@ rexpnd (char *word)
 	struct direct *de;
 #endif
 #endif
-	dir = opendir (".");
-	if (dir)
-	  {
-		  while (de = readdir (dir))
-			  if (strcmp (".", de->d_name))
-				  if (rmatch (word, de->d_name))
-					  lst =
-						  vaadd (lst,
-							 vsncpy (NULL, 0,
-								 sz (de->
-								     d_name)));
-		  closedir (dir);
-	  }
+	dir = opendir(".");
+	if (dir) {
+		while (de = readdir(dir))
+			if (strcmp(".", de->d_name))
+				if (rmatch(word, de->d_name))
+					lst = vaadd(lst, vsncpy(NULL, 0, sz(de->d_name)));
+		closedir(dir);
+	}
 	return lst;
 }
 /********************************************************************/
-int
-chpwd (char *path)
+int chpwd(char *path)
 {
 #ifdef __MSDOS__
 	char buf[256];
 	int x;
+
 	if (!path)
 		return 0;
-	if ((path[0]) && (path[1] == ':'))
-	  {
-		  if (_chdrive (path[0] & 0x1F))
-			  return -1;
-		  path += 2;
-	  }
+	if ((path[0]) && (path[1] == ':')) {
+		if (_chdrive(path[0] & 0x1F))
+			return -1;
+		path += 2;
+	}
 	if (!path[0])
 		return 0;
-	strcpy (buf, path);
-	x = strlen (buf);
-	while (x > 1)
-	  {
-		  --x;
-		  if ((buf[x] == '/') || (buf[x] == '\\'))
-			  buf[x] = 0;
-		  else
-			  break;
-	  }
-	return chdir (buf);
+	strcpy(buf, path);
+	x = strlen(buf);
+	while (x > 1) {
+		--x;
+		if ((buf[x] == '/') || (buf[x] == '\\'))
+			buf[x] = 0;
+		else
+			break;
+	}
+	return chdir(buf);
 #else
 	if ((!path) || (!path[0]))
 		return 0;
-	return chdir (path);
+	return chdir(path);
 #endif
 }

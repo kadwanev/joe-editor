@@ -39,11 +39,12 @@ struct help **help_structs;	/* array of help screens */
 /*
  *	???
  */
-int get_help (char *name) {
+int get_help(char *name)
+{
 	int x;
 
 	for (x = 0; help_structs[x]; ++x) {
-		if (!strcmp (help_structs[x]->name, name)) {
+		if (!strcmp(help_structs[x]->name, name)) {
 			break;
 		}
 	}
@@ -58,7 +59,8 @@ int get_help (char *name) {
 /*
  * Display help text
  */
-void help_display (SCREEN *t) {
+void help_display(SCREEN * t)
+{
 	char *str = hlptxt;
 	int y, x, c;
 	int atr = 0;
@@ -67,7 +69,7 @@ void help_display (SCREEN *t) {
 		if (t->t->updtab[y]) {
 			for (x = 0; x != t->w - 1; ++x) {
 				if (*str == '\n' || !*str) {
-					if (eraeol (t->t, x, y)) {
+					if (eraeol(t->t, x, y)) {
 						return;
 					} else {
 						break;
@@ -77,51 +79,52 @@ void help_display (SCREEN *t) {
 						switch (*++str) {
 							case 'i':
 							case 'I':
-								atr ^= INVERSE;
-								++str;
-								--x;
-								goto cont;
+							atr ^= INVERSE;
+							++str;
+							--x;
+							goto cont;
 							case 'u':
 							case 'U':
-								atr ^= UNDERLINE;
-								++str;
-								--x;
-								goto cont;
+							atr ^= UNDERLINE;
+							++str;
+							--x;
+							goto cont;
 							case 'd':
 							case 'D':
-								atr ^= DIM;
-								++str;
-								--x;
-								goto cont;
+							atr ^= DIM;
+							++str;
+							--x;
+							goto cont;
 							case 'b':
 							case 'B':
-								atr ^= BOLD;
-								++str;
-								--x;
-								goto cont;
+							atr ^= BOLD;
+							++str;
+							--x;
+							goto cont;
 							case 'f':
 							case 'F':
-								atr ^= BLINK;
-								++str;
-								--x;
-								goto cont;
+							atr ^= BLINK;
+							++str;
+							--x;
+							goto cont;
 							case 0:
-								--x;
-								goto cont;
+							--x;
+							goto cont;
 							default:
-								c =	(unsigned char) *str++;
+							c = (unsigned char)
+							    *str++;
 						}
 					} else {
 						c = (unsigned char) *str++;
 					}
-  					outatr (t->t, t->t->scrn + x + y * t->w, x, y, c, atr);
-					cont:;
+					outatr(t->t, t->t->scrn + x + y * t->w, x, y, c, atr);
+				      cont:;
 				}
 			}
 			atr = 0;
 			t->t->updtab[y] = 0;
 		}
-	
+
 		while (*str && *str != '\n') {
 			++str;
 		}
@@ -134,7 +137,8 @@ void help_display (SCREEN *t) {
 /*
  * Create/Eliminate help window 
  */
-int help_on (SCREEN *t) {
+int help_on(SCREEN * t)
+{
 	struct help *h = help_structs[help_index];
 
 	hlptxt = h->hlptxt;
@@ -153,33 +157,35 @@ int help_on (SCREEN *t) {
 		t->wind = skiptop;
 		return -1;
 	}
-	wfit (t);
-	msetI (t->t->updtab + skiptop, 1, t->wind);
+	wfit(t);
+	msetI(t->t->updtab + skiptop, 1, t->wind);
 	return 0;
 }
 
-void help_off (SCREEN *t) {
+void help_off(SCREEN * t)
+{
 	t->wind = skiptop;
-	wfit (t);
+	wfit(t);
 }
 
 /*
  * Toggle help on/off
  */
-int u_help (BASE *base) {
+int u_help(BASE * base)
+{
 	int h;
 	W *w = base->parent;
 
-	if (w->huh && (h = get_help (w->huh)) > -1) {
+	if (w->huh && (h = get_help(w->huh)) > -1) {
 		if (w->t->wind != skiptop) {
-			help_off (w->t);
+			help_off(w->t);
 		}
 		help_index = h;
-		return help_on (w->t);
+		return help_on(w->t);
 	} else if (w->t->wind == skiptop) {
-		return help_on (w->t);
+		return help_on(w->t);
 	} else {
-		help_off (w->t);
+		help_off(w->t);
 		return 0;
 	}
 }
@@ -187,29 +193,31 @@ int u_help (BASE *base) {
 /*
  * Goto next/prev help screen
  */
-int u_help_next (BASE *base) {
+int u_help_next(BASE * base)
+{
 	W *w = base->parent;
 
 	if (help_structs[help_index + 1]) {
 		if (w->t->wind != skiptop) {
-			help_off (w->t);
+			help_off(w->t);
 		}
 		++help_index;
-		return help_on (w->t);
+		return help_on(w->t);
 	} else {
 		return -1;
 	}
 }
 
-int u_help_prev (BASE *base) {
+int u_help_prev(BASE * base)
+{
 	W *w = base->parent;
 
 	if (help_index) {
 		if (w->t->wind != skiptop) {
-			  help_off (w->t);
+			help_off(w->t);
 		}
 		--help_index;
-		return help_on (w->t);
+		return help_on(w->t);
 	} else {
 		return -1;
 	}
@@ -218,21 +226,23 @@ int u_help_prev (BASE *base) {
 /*
  * Convert list of help screens into an array 
  */
-void help_to_array (void) {
+void help_to_array(void)
+{
 	struct help *tmp;
 	int nhelp = 0;		/* number of help screens */
 
-	for (tmp = help_first; (tmp = tmp->next); ++nhelp);
+	for (tmp = help_first; (tmp = tmp->next); ++nhelp) ;
 	++nhelp;
 
 	if (nhelp) {
-		  help_structs = (struct help **) malloc (sizeof (struct help *) * (nhelp + 1));
-		  help_structs[nhelp] = NULL;
-		  tmp = help_first;
+		help_structs = (struct help **) malloc(sizeof(struct help *) * (nhelp + 1));
 
-		  while (nhelp--) {
-			    help_structs[nhelp] = tmp;
-			    tmp = tmp->next;
-		    }
+		help_structs[nhelp] = NULL;
+		tmp = help_first;
+
+		while (nhelp--) {
+			help_structs[nhelp] = tmp;
+			tmp = tmp->next;
+		}
 	}
 }

@@ -1,3 +1,4 @@
+# Generated automatically from Makefile.in by configure.
 ###########################################################
 ##### Makefile for Joe's Own Editor #######################
 ###########################################################
@@ -13,21 +14,21 @@ SHELL = /bin/sh
 ###########################################################
 package_prefix = 
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-srcdir = @srcdir@
-bindir = @bindir@
-sysconfdir = @sysconfdir@
-mandir = @mandir@
+prefix = /usr/local
+exec_prefix = ${prefix}
+srcdir = .
+bindir = ${exec_prefix}/bin
+sysconfdir = ${prefix}/etc
+mandir = ${prefix}/man
 man1dir = $(mandir)/man1
 
 ###########################################################
 ##### Programs
 ###########################################################
-INSTALL = @INSTALL@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_DATA = @INSTALL_DATA@
-CC = @CC@
+INSTALL = /usr/bin/ginstall -c
+INSTALL_PROGRAM = ${INSTALL}
+INSTALL_DATA = ${INSTALL} -m 644
+CC = gcc
 
 ###########################################################
 ##### System dependant variables

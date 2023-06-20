@@ -3,8 +3,9 @@
                            WordStar / Turbo-C Joe
 
  JOE looks for this file in:
-	1 - $HOME/.jstarrc
-	2 - SYSCONFDIR/jstarrc
+	1 - .jstarrc
+	2 - $HOME/.jstarrc
+	3 - /usr/local/lib/jstarrc
 
  This file can include other files by placing the following include command
  in the first column:
@@ -344,7 +345,6 @@ nxterr		^[ =
 prverr		^[ -
 edit,rtn,filt,query,parserr	^[ ^C
 edit,rtn,filt,query,parserr	^[ c
-edit,rtn,filt,query,parserr	^[ C
 
 quote8		^\		Quote Meta chars
 quote		^P		Quote Ctrl chars
