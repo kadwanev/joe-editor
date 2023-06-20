@@ -1,26 +1,17 @@
-/* Regular expression subroutines
-   Copyright (C) 1992 Joseph H. Allen
-
-This file is part of JOE (Joe's Own Editor)
-
-JOE is free software; you can redistribute it and/or modify it under the 
-terms of the GNU General Public License as published by the Free Software 
-Foundation; either version 1, or (at your option) any later version.  
-
-JOE is distributed in the hope that it will be useful, but WITHOUT ANY 
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS 
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
-details.  
-
-You should have received a copy of the GNU General Public License along with 
-JOE; see the file COPYING.  If not, write to the Free Software Foundation, 
-675 Mass Ave, Cambridge, MA 02139, USA.  */
-
-#include <ctype.h>
+/*
+ *	Regular expression subroutines
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
-#include "vs.h"
+#include "types.h"
+ 
+#include <ctype.h>
+
 #include "b.h"
-#include "regex.h"
+#include "vs.h"
 
 static int escape(unsigned char **a, int *b)
 {
@@ -32,51 +23,49 @@ static int escape(unsigned char **a, int *b)
 		++s;
 		--l;
 		switch (*s) {
-			case 'n':
+		case 'n':
 			c = 10;
 			break;
-			case 't':
+		case 't':
 			c = 9;
 			break;
-			case 'a':
+		case 'a':
 			c = 7;
 			break;
-			case 'b':
+		case 'b':
 			c = 8;
 			break;
-			case 'f':
+		case 'f':
 			c = 12;
 			break;
-			case 'e':
+		case 'e':
 			c = 27;
 			break;
-			case 'r':
+		case 'r':
 			c = 13;
 			break;
-			case '8':
+		case '8':
 			c = 8;
 			break;
-			case '9':
+		case '9':
 			c = 9;
 			break;
-
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
 			c = *s - '0';
 			if (l > 1 && s[1] >= '0' && s[1] <= '7')
 				c = c * 8 + s[1] - '0', ++s, --l;
 			if (l > 1 && s[1] >= '0' && s[1] <= '7')
 				c = c * 8 + s[1] - '0', ++s, --l;
 			break;
-
-			case 'x':
-			case 'X':
+		case 'x':
+		case 'X':
 			c = 0;
 			if (l > 1 && s[1] >= '0' && s[1] <= '9')
 				c = c * 16 + s[1] - '0', ++s, --l;
@@ -91,8 +80,7 @@ static int escape(unsigned char **a, int *b)
 			else if (l > 1 && s[1] >= 'a' && s[1] <= 'f')
 				c = c * 16 + s[1] - 'a' + 10, ++s, --l;
 			break;
-
-			default:
+		default:
 			c = *s;
 			break;
 		}
@@ -173,16 +161,15 @@ static int skip_special(P *p)
 	int to, s;
 
 	switch (s = pgetc(p)) {
-		case '"':
-		do
+	case '"':
+		do {
 			if ((s = pgetc(p)) == '\\')
 				pgetc(p), s = pgetc(p);
-		while (s != MAXINT && s != '\"') ;
+		} while (s != MAXINT && s != '\"');
 		if (s == '\"')
 			return MAXINT - 1;
 		break;
-
-		case '\'':
+	case '\'':
 		if ((s = pgetc(p)) == '\\')
 			s = pgetc(p), s = pgetc(p);
 		if (s == '\'')
@@ -192,23 +179,22 @@ static int skip_special(P *p)
 		if ((s = pgetc(p)) == '\'')
 			return MAXINT - 1;
 		break;
-
-		case '[':
+	case '[':
 		to = ']';
 		goto skip;
-		case '(':
+	case '(':
 		to = ')';
 		goto skip;
-		case '{':
+	case '{':
 		to = '}';
-	      skip:do
+skip:
+		do {
 			s = skip_special(p);
-		while (s != to && s != MAXINT);
+		} while (s != to && s != MAXINT);
 		if (s == to)
 			return MAXINT - 1;
 		break;
-
-		case '/':
+	case '/':
 		s = pgetc(p);
 		if (s == '*')
 			do {
@@ -216,19 +202,17 @@ static int skip_special(P *p)
 				while (s == '*')
 					if ((s = pgetc(p)) == '/')
 						return MAXINT - 1;
-			}
-			while (s != MAXINT);
+			} while (s != MAXINT);
 		else if (s != MAXINT)
 			s = prgetc(p);
 		else
 			s = '/';
 		break;
-
 	}
 	return s;
 }
 
-int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
+int pmatch(char **pieces, unsigned char *regex, int len, P *p, int n, int icase)
 {
 	int c, d;
 	P *q = pdup(p);
@@ -236,43 +220,41 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 
 	while (len--)
 		switch (c = *regex++) {
-			case '\\':
+		case '\\':
 			if (!len--)
 				goto fail;
 			switch (c = *regex++) {
-				case '?':
+			case '?':
 				d = pgetc(p);
 				if (d == MAXINT)
 					goto fail;
 				savec(pieces, n++, (char) d);
 				break;
-
-				case 'n':
-				case 'r':
-				case 'a':
-				case 'f':
-				case 'b':
-				case 't':
-				case 'e':
-				case 'x':
-				case 'X':
-				case '0':
-				case '1':
-				case '2':
-				case '3':
-				case '4':
-				case '5':
-				case '6':
-				case '7':
-				case '8':
-				case '9':
+			case 'n':
+			case 'r':
+			case 'a':
+			case 'f':
+			case 'b':
+			case 't':
+			case 'e':
+			case 'x':
+			case 'X':
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
 				regex -= 2;
 				len += 2;
 				if (pgetc(p) != escape(&regex, &len))
 					goto fail;
 				break;
-
-				case '*':
+			case '*':
 				/* Find shortest matching sequence */
 				o = pdup(p);
 				do {
@@ -283,11 +265,9 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 						goto succeed;
 					}
 					c = pgetc(p);
-				}
-				while (c != MAXINT && c != '\n');
+				} while (c != MAXINT && c != '\n');
 				goto fail;
-
-				case 'c':
+			case 'c':
 				o = pdup(p);
 				do {
 					long pb = p->byte;
@@ -296,11 +276,9 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 						saves(pieces, n, o, pb - o->byte);
 						goto succeed;
 					}
-				}
-				while (skip_special(p) != MAXINT);
+				} while (skip_special(p) != MAXINT);
 				goto fail;
-
-				case '[':
+			case '[':
 				d = pgetc(p);
 				if (d == MAXINT)
 					goto fail;
@@ -308,13 +286,12 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 					goto fail;
 				savec(pieces, n++, (char) d);
 				break;
-
-				case '+':
+			case '+':
 				{
 					char *oregex = regex;	/* Point to character to skip */
 					int olen = len;
 
-					char *tregex;
+					unsigned char *tregex;
 					int tlen;
 
 					P *r = 0;
@@ -346,8 +323,7 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 						pset(p, z);
 						prm(z);
 						c = pgetc(p);
-					}
-					while (c != MAXINT && (*oregex == '\\' ? (tregex = oregex + 2, tlen = olen - 2, brack(&tregex, &tlen, c))
+					} while (c != MAXINT && (*oregex == '\\' ? (tregex = oregex + 2, tlen = olen - 2, brack(&tregex, &tlen, c))
 							       : (icase ? toupper(c) == toupper(*oregex) : c == *oregex)));
 
 				      done:
@@ -358,28 +334,23 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 					else
 						goto fail;
 				}
-
-				case '^':
+			case '^':
 				if (!pisbol(p))
 					goto fail;
 				break;
-
-				case '$':
+			case '$':
 				if (!piseol(p))
 					goto fail;
 				break;
-
-				case '<':
+			case '<':
 				if (!pisbow(p))
 					goto fail;
 				break;
-
-				case '>':
+			case '>':
 				if (!piseow(p))
 					goto fail;
 				break;
-
-				default:
+			default:
 				d = pgetc(p);
 				if (icase) {
 					if (toupper(d) != toupper(c))
@@ -390,8 +361,7 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 				}
 			}
 			break;
-
-			default:
+		default:
 			d = pgetc(p);
 			if (icase) {
 				if (toupper(d) != toupper(c))
@@ -401,13 +371,13 @@ int pmatch(char **pieces, char *regex, int len, P *p, int n, int icase)
 					goto fail;
 			}
 		}
-      succeed:
+succeed:
 	if (o)
 		prm(o);
 	prm(q);
 	return 1;
 
-      fail:
+fail:
 	if (o)
 		prm(o);
 	pset(p, q);

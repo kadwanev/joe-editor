@@ -24,7 +24,7 @@
 
  -marking	Text between ^KB and cursor is highlighted (use with -lightoff)
 
--asis		Characters 128 - 255 shown as-is
+ -asis		Characters 128 - 255 shown as-is
 
  -force		Force final newline when files are saved
 
@@ -57,7 +57,7 @@
 
  -lines nnn	Set no. screen lines
 
--baud 19200	Set baud rate for terminal optimizations
+ -baud nnn	Set baud rate for terminal optimizations
 
  -columns nnn	Set no. screen columns
 
@@ -101,7 +101,7 @@
   \f  Blink
 
 -lmsg \i%k%T%W%I%X %n %m%R %M
--rmsg  %S Row %r Col %c %t    F1 for help
+-rmsg  %S Row %r Col %c %t  Ctrl-K H for help
 
  SECOND SECTION: File name dependant local option settings:
 
@@ -455,8 +455,6 @@ bof		^K ^U
 bof		^K u
 bol		.kh		Goto beginning of line
 bol		^A
-bol		^[ [ H
-bol		^[ [ 1 ~
 center		^K A		Center line
 center		^K ^A
 center		^K a
@@ -478,9 +476,8 @@ eof		^K V		Go to end of file
 eof		^K ^V
 eof		^K v
 eol		.kH		Go to end of line
+eol		.@7
 eol		^E
-eol		^[ [ F
-eol		^[ [ 4 ~
 exsave		^K X		Save and exit
 exsave		^K ^X
 exsave		^K x

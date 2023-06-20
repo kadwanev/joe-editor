@@ -1,16 +1,22 @@
-/* Math */
-
+/*
+ *	Math
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
 
 #include <stdio.h>
 #include <signal.h>
 #include <string.h>
-#include "w.h"
-#include "bw.h"
+
+#include "b.h"
 #include "pw.h"
-#include "tw.h"
+#include "utils.h"
 #include "vs.h"
-#include "umath.h"
+#include "w.h"
 
 char *merr;
 
@@ -38,7 +44,7 @@ static struct var *get(char *str)
 			return v;
 		}
 	}
-	v = (struct var *) malloc(sizeof(struct var));
+	v = (struct var *) joe_malloc(sizeof(struct var));
 
 	v->set = 0;
 	v->next = vars;
@@ -123,7 +129,7 @@ static double expr(int prec, struct var **rtv)
 	return x;
 }
 
-double calc(BW * bw, char *s)
+double calc(BW *bw, char *s)
 {
 	double result;
 	struct var *v;
@@ -174,7 +180,7 @@ double calc(BW * bw, char *s)
 }
 
 /* Main user interface */
-static int domath(BW * bw, char *s, void *object, int *notify)
+static int domath(BW *bw, char *s, void *object, int *notify)
 {
 	double result = calc(bw, s);
 
@@ -182,24 +188,24 @@ static int domath(BW * bw, char *s, void *object, int *notify)
 		*notify = 1;
 	}
 	if (merr) {
-		msgnw(bw, merr);
+		msgnw(bw->parent, merr);
 		return -1;
 	}
 	vsrm(s);
-	snprintf(msgbuf, MSGBUFSIZE, "%G", result);
+	snprintf(msgbuf, JOE_MSGBUFSIZE, "%G", result);
 	if (bw->parent->watom->what != TYPETW) {
 		binsm(bw->cursor, sz(msgbuf));
 		pfwrd(bw->cursor, strlen(msgbuf));
 		bw->cursor->xcol = piscol(bw->cursor);
 	} else {
-		msgnw(bw, msgbuf);
+		msgnw(bw->parent, msgbuf);
 	}
 	return 0;
 }
 
 B *mathhist = 0;
 
-int umath(BW * bw)
+int umath(BW *bw)
 {
 	signal(SIGFPE, fperr);
 	if (wmkpw(bw->parent, "=", &mathhist, domath, "math", NULL, NULL, NULL, NULL)) {

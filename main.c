@@ -1,11 +1,13 @@
 /*
-	Editor startup and main edit loop
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Editor startup and main edit loop
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ * 	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
@@ -15,20 +17,19 @@
 #if defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE)
 #	include <locale.h>
 #endif
-#include "w.h"
-#include "tty.h"
-#include "help.h"
-#include "rc.h"
-#include "vfile.h"
+
 #include "b.h"
-#include "bw.h"
-#include "tw.h"
+#include "help.h"
 #include "kbd.h"
 #include "macro.h"
-#include "vs.h"
 #include "path.h"
+#include "rc.h"
+#include "scrn.h"
 #include "termcap.h"
-#include "main.h"
+#include "tw.h"
+#include "vfile.h"
+#include "vs.h"
+#include "w.h"
 
 extern int mid, dspasis, force, help, pgamnt, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, marking, beep;
 
@@ -51,8 +52,7 @@ void dofollows(void)
 		if (w->y != -1 && w->watom->follow && w->object)
 			w->watom->follow(w->object);
 		w = (W *) (w->link.next);
-	}
-	while (w != maint->curwin);
+	} while (w != maint->curwin);
 }
 
 /* Update screen */
@@ -84,8 +84,7 @@ void edupd(int flg)
 			msgout(w);
 		}
 		w = (W *) (w->link.next);
-	}
-	while (w != maint->curwin);
+	} while (w != maint->curwin);
 	cpos(maint->t, maint->curwin->x + maint->curwin->curx, maint->curwin->y + maint->curwin->cury);
 	staupd = 0;
 }
@@ -292,12 +291,12 @@ int main(int argc, char **argv, char **envv)
 		if (argv[c][0] == '-') {
 			if (argv[c][1])
 				switch (glopt(argv[c] + 1, argv[c + 1], NULL, 1)) {
-					case 0:
+				case 0:
 					fprintf(stderr, "Unknown option '%s'\n", argv[c]);
 					break;
-					case 1:
+				case 1:
 					break;
-					case 2:
+				case 2:
 					++c;
 					break;
 			} else
@@ -327,7 +326,7 @@ int main(int argc, char **argv, char **envv)
 			if (!orphan || !opened) {
 				bw = wmktw(maint, b);
 				if (er)
-					msgnwt(bw, msgs[5 + er]);
+					msgnwt(bw->parent, msgs[5 + er]);
 			} else
 				b->orphan = 1;
 			if (bw) {
@@ -377,7 +376,7 @@ int main(int argc, char **argv, char **envv)
 		help_on(maint);
 	}
 	if (!nonotice)
-		msgnw(lastw(maint)->object, "\\i** Joe's Own Editor v" VERSION " ** Copyright (C) 2001 **\\i");
+		msgnw(((BASE *)lastw(maint)->object)->parent, "\\i** Joe's Own Editor v" VERSION " ** Copyright (C) 2001 **\\i");
 	edloop(0);
 	vclose(vmem);
 	nclose(n);

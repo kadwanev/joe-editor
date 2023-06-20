@@ -1,32 +1,37 @@
 /*
-	Shell-window functions
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Shell-window functions
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <unistd.h>
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
 #include <signal.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
+
 #include "b.h"
-#include "bw.h"
-#include "w.h"
+#include "main.h"
 #include "pw.h"
 #include "qw.h"
-#include "vs.h"
-#include "va.h"
+#include "tty.h"
 #include "ufile.h"
-#include "main.h"
-#include "ushell.h"
+#include "va.h"
+#include "vs.h"
+#include "w.h"
 
 extern int orphan;
 
 /* Executed when shell process terminates */
 
-static void cdone(BW * bw)
+static void cdone(BW *bw)
 {
 	bw->pid = 0;
 	close(bw->out);
@@ -45,7 +50,7 @@ static void cdone(BW * bw)
 
 /* Executed for each chunk of data we get from the shell */
 
-static void cdata(BW * bw, char *dat, int siz)
+static void cdata(BW *bw, char *dat, int siz)
 {
 	P *q = pdup(bw->cursor);
 	P *r = pdup(bw->b->eof);
@@ -81,14 +86,14 @@ static void cdata(BW * bw, char *dat, int siz)
 	prm(q);
 }
 
-static int cstart(BW * bw, char *name, char **s, void *obj, int *notify)
+static int cstart(BW *bw, char *name, char **s, void *obj, int *notify)
 {
 #ifdef __MSDOS__
 	if (notify) {
 		*notify = 1;
 	}
 	varm(s);
-	msgnw(bw, "Sorry, no sub-processes in DOS (yet)");
+	msgnw(bw->parent, "Sorry, no sub-processes in DOS (yet)");
 	return -1;
 #else
 	MPX *m;
@@ -97,7 +102,7 @@ static int cstart(BW * bw, char *name, char **s, void *obj, int *notify)
 		*notify = 1;
 	}
 	if (bw->pid && orphan) {
-		msgnw(bw, "Program already running in this window");
+		msgnw(bw->parent, "Program already running in this window");
 		varm(s);
 		return -1;
 	}
@@ -108,7 +113,7 @@ static int cstart(BW * bw, char *name, char **s, void *obj, int *notify)
 	bw = (BW *) maint->curwin->object;
 	if (!(m = mpxmk(&bw->out, name, s, cdata, bw, cdone, bw))) {
 		varm(s);
-		msgnw(bw, "No ptys available");
+		msgnw(bw->parent, "No ptys available");
 		return -1;
 	} else {
 		bw->pid = m->pid;
@@ -117,7 +122,7 @@ static int cstart(BW * bw, char *name, char **s, void *obj, int *notify)
 #endif
 }
 
-int ubknd(BW * bw)
+int ubknd(BW *bw)
 {
 	char **a;
 	char *s;
@@ -132,7 +137,7 @@ int ubknd(BW * bw)
 
 /* Run a program in a window */
 
-static int dorun(BW * bw, char *s, void *object, int *notify)
+static int dorun(BW *bw, char *s, void *object, int *notify)
 {
 	char **a = vamk(10);
 	char *cmd = vsncpy(NULL, 0, sc("/bin/sh"));
@@ -146,7 +151,7 @@ static int dorun(BW * bw, char *s, void *object, int *notify)
 
 B *runhist = 0;
 
-int urun(BW * bw)
+int urun(BW *bw)
 {
 	if (wmkpw(bw->parent, "Program to run: ", &runhist, dorun, "Run", NULL, NULL, NULL, NULL)) {
 		return 0;
@@ -157,7 +162,7 @@ int urun(BW * bw)
 
 /* Kill program */
 
-static int pidabort(BW * bw, int c, void *object, int *notify)
+static int pidabort(BW *bw, int c, void *object, int *notify)
 {
 	if (notify) {
 		*notify = 1;
@@ -173,10 +178,10 @@ static int pidabort(BW * bw, int c, void *object, int *notify)
 	}
 }
 
-int ukillpid(BW * bw)
+int ukillpid(BW *bw)
 {
 	if (bw->pid) {
-		if (mkqw(bw, sc("Kill program (y,n,^C)?"), pidabort, NULL, NULL, NULL)) {
+		if (mkqw(bw->parent, sc("Kill program (y,n,^C)?"), pidabort, NULL, NULL, NULL)) {
 			return 0;
 		} else {
 			return -1;

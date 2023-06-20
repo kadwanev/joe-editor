@@ -1,28 +1,16 @@
-/* Query windows
-   Copyright (C) 1992 Joseph H. Allen
-
-This file is part of JOE (Joe's Own Editor)
-
-JOE is free software; you can redistribute it and/or modify it under the 
-terms of the GNU General Public License as published by the Free Software 
-Foundation; either version 1, or (at your option) any later version.  
-
-JOE is distributed in the hope that it will be useful, but WITHOUT ANY 
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS 
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
-details.  
-
-You should have received a copy of the GNU General Public License along with 
-JOE; see the file COPYING.  If not, write to the Free Software Foundation, 
-675 Mass Ave, Cambridge, MA 02139, USA.  */
-
+/*
+ *	Query windows
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#include "w.h"
+#include "types.h"
+
+#include "utils.h"
 #include "vs.h"
-#include "qw.h"
+#include "w.h"
 
 static void dispqw(QW *qw)
 {
@@ -79,7 +67,7 @@ static int utypeqw(QW *qw, int c)
 	win = qw->parent->win;
 	func = qw->func;
 	vsrm(qw->prompt);
-	free(qw);
+	joe_free(qw);
 	w->object = 0;
 	w->notify = 0;
 	wabort(w);
@@ -95,7 +83,7 @@ static int abortqw(QW *qw)
 	int (*abrt) () = qw->abrt;
 
 	vsrm(qw->prompt);
-	free(qw);
+	joe_free(qw);
 	if (abrt)
 		return abrt(win->object, object);
 	else
@@ -146,11 +134,10 @@ static WATOM watqwsr = {
 
 /* Create a query window */
 
-QW *mkqw(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) (/* ??? */), void *object, int *notify)
+QW *mkqw(W *w, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) (/* ??? */), void *object, int *notify)
 {
 	W *new;
 	QW *qw;
-	W *w = obw->parent;
 
 	new = wcreate(w->t, &watomqw, w, w, w->main, 1, NULL, notify);
 	if (!new) {
@@ -159,7 +146,7 @@ QW *mkqw(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) 
 		return 0;
 	}
 	wfit(new->t);
-	new->object = (void *) (qw = (QW *) malloc(sizeof(QW)));
+	new->object = (void *) (qw = (QW *) joe_malloc(sizeof(QW)));
 	qw->parent = new;
 	qw->prompt = vsncpy(NULL, 0, prompt, len);
 	qw->promptlen = len;
@@ -174,11 +161,10 @@ QW *mkqw(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) 
 /* Same as above, but cursor is left in original window */
 /* For Ctrl-Meta thing */
 
-QW *mkqwna(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) (/* ??? */), void *object, int *notify)
+QW *mkqwna(W *w, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) (/* ??? */), void *object, int *notify)
 {
 	W *new;
 	QW *qw;
-	W *w = obw->parent;
 
 	new = wcreate(w->t, &watqwn, w, w, w->main, 1, NULL, notify);
 	if (!new) {
@@ -187,7 +173,7 @@ QW *mkqwna(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt
 		return 0;
 	}
 	wfit(new->t);
-	new->object = (void *) (qw = (QW *) malloc(sizeof(QW)));
+	new->object = (void *) (qw = (QW *) joe_malloc(sizeof(QW)));
 	qw->parent = new;
 	qw->prompt = vsncpy(NULL, 0, prompt, len);
 	qw->promptlen = len;
@@ -202,11 +188,10 @@ QW *mkqwna(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt
 /* Same as above, but cursor is left in original window */
 /* For search and replace thing */
 
-QW *mkqwnsr(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) (/* ??? */), void *object, int *notify)
+QW *mkqwnsr(W *w, char *prompt, int len, int (*func) (/* ??? */), int (*abrt) (/* ??? */), void *object, int *notify)
 {
 	W *new;
 	QW *qw;
-	W *w = obw->parent;
 
 	new = wcreate(w->t, &watqwsr, w, w, w->main, 1, NULL, notify);
 	if (!new) {
@@ -215,7 +200,7 @@ QW *mkqwnsr(BASE *obw, char *prompt, int len, int (*func) (/* ??? */), int (*abr
 		return 0;
 	}
 	wfit(new->t);
-	new->object = (void *) (qw = (QW *) malloc(sizeof(QW)));
+	new->object = (void *) (qw = (QW *) joe_malloc(sizeof(QW)));
 	qw->parent = new;
 	qw->prompt = vsncpy(NULL, 0, prompt, len);
 	qw->promptlen = len;

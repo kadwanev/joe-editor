@@ -1,47 +1,19 @@
 /*
-    Edit buffer window generation
-    Copyright (C) 1992 Joseph H. Allen
-
-    This file is part of JOE (Joe's Own Editor)
-*/
-
-#ifndef _Ibw
-#define _Ibw 1
+ *	Edit buffer window generation
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#ifndef _JOE_BW_H
+#define _JOE_BW_H 1
 
 #include "config.h"
-
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-
-#include "b.h"
-#include "rc.h"
-#include "w.h"
-
-#define LINCOLS 6
+#include "types.h"
 
 extern int dspasis;
-
-typedef struct bw BW;
-
-struct bw {
-	W *parent;
-	B *b;
-	P *top;
-	P *cursor;
-	long offset;
-	SCREEN *t;
-	int h, w, x, y;
-
-	OPTIONS o;
-	void *object;
-
-	pid_t pid;		/* Process id */
-	int out;		/* fd to write to process */
-	int linums;
-};
-
 extern int mid;
+
 void bwfllw PARAMS((BW *w));
 void bwins PARAMS((BW *w, long int l, long int n, int flg));
 void bwdel PARAMS((BW *w, long int l, long int n, int flg));

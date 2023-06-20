@@ -1,9 +1,12 @@
 /*
-    Program to generate termcap index file
-    Copyright (C) 1992 Joseph H. Allen
-
-    This file is part of JOE (Joe's Own Editor)
-*/
+ *	Program to generate termcap index file
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ * This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
+#include "types.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -15,9 +18,9 @@ static void gen(char *s, FILE *fd)
 
       loop:
 	while (c = getc(fd), c == ' ' || c == '\t' || c == '#')
-		do
+		do {
 			c = getc(fd);
-		while (!(c == -1 || c == '\n'));
+		} while (!(c == -1 || c == '\n'));
 	if (c == -1)
 		return;
 	if (c == '\n')
@@ -49,8 +52,7 @@ static void gen(char *s, FILE *fd)
 					}
 					s[y] = c;
 					z = y + 1;
-				}
-				while (c && c != ':');
+				} while (c && c != ':');
 				if (flg)
 					printf(" %lx\n", addr - oaddr);
 			}

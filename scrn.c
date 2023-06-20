@@ -1,28 +1,21 @@
-/* Device independant TTY interface for JOE
-   Copyright (C) 1992 Joseph H. Allen
+/*
+ *	Device independant TTY interface for JOE
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
+#include "types.h"
 
-This file is part of JOE (Joe's Own Editor)
-
-JOE is free software; you can redistribute it and/or modify it under the 
-terms of the GNU General Public License as published by the Free Software 
-Foundation; either version 1, or (at your option) any later version.  
-
-JOE is distributed in the hope that it will be useful, but WITHOUT ANY 
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS 
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
-details.  
-
-You should have received a copy of the GNU General Public License along with 
-JOE; see the file COPYING.  If not, write to the Free Software Foundation, 
-675 Mass Ave, Cambridge, MA 02139, USA.  */
-
+#include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
+
+#include "bw.h"
 #include "blocks.h"
-#include "vs.h"
-#include "termcap.h"
-#include "tty.h"
 #include "scrn.h"
+#include "termcap.h"
+#include "utils.h"
 
 int skiptop = 0;
 int lines = 0;
@@ -30,95 +23,114 @@ int columns = 0;
 
 extern int mid;
 
-/* How to display characters */
-
-unsigned xlata[256] = {
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	UNDERLINE,
-
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE, INVERSE + UNDERLINE, INVERSE + UNDERLINE,
-	INVERSE + UNDERLINE,
-
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-	INVERSE,
-	INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE, INVERSE,
-
-	INVERSE + UNDERLINE,
-};
-
+/* How to display characters (especially the control ones) */
+/* here are characters ... */
 unsigned char xlatc[256] = {
-	64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95,
-	32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
-	48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-	64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95,
-	96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-	110,
-	111,
-	112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124,
-	125,
-	126, 63,
-	64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95,
-	32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
-	48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-	64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95,
-	96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-	110,
-	111,
-	112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124,
-	125,
-	126, 63
+	 64,  65,  66,  67,  68,  69,  70,  71,			/*   8 */
+	 72,  73,  74,  75,  76,  77,  78,  79,			/*  16 */
+	 80,  81,  82,  83,  84,  85,  86,  87,			/*  24 */
+	 88,  89,  90,  91,  92,  93,  94,  95,			/*  32 */
+	 32,  33,  34,  35,  36,  37,  38,  39,			/*  40 */
+	 40,  41,  42,  43,  44,  45,  46,  47,			/*  48 */
+	 48,  49,  50,  51,  52,  53,  54,  55,			/*  56 */
+	 56,  57,  58,  59,  60,  61,  62,  63,			/*  64 */
+
+	 64,  65,  66,  67,  68,  69,  70,  71,			/*  72 */
+	 72,  73,  74,  75,  76,  77,  78,  79,			/*  80 */
+	 80,  81,  82,  83,  84,  85,  86,  87,			/*  88 */
+	 88,  89,  90,  91,  92,  93,  94,  95,			/*  96 */
+	 96,  97,  98,  99, 100, 101, 102, 103,			/* 104 */
+	104, 105, 106, 107, 108, 109, 110, 111,			/* 112 */
+	112, 113, 114, 115, 116, 117, 118, 119,			/* 120 */
+	120, 121, 122, 123, 124, 125, 126,  63,			/* 128 */
+
+	 64,  65,  66,  67,  68,  69,  70,  71,			/* 136 */
+	 72,  73,  74,  75,  76,  77,  78,  79,			/* 144 */
+	 80,  81,  82,  83,  84,  85,  86,  87,			/* 152 */
+	 88,  89,  90,  91,  92,  93,  94,  95,			/* 160 */
+	 32,  33,  34,  35,  36,  37,  38,  39,			/* 168 */
+	 40,  41,  42,  43,  44,  45,  46,  47,			/* 176 */
+	 48,  49,  50,  51,  52,  53,  54,  55,			/* 184 */
+	 56,  57,  58,  59,  60,  61,  62,  63,			/* 192 */
+
+	 64,  65,  66,  67,  68,  69,  70,  71,			/* 200 */
+	 72,  73,  74,  75,  76,  77,  78,  79,			/* 208 */
+	 80,  81,  82,  83,  84,  85,  86,  87,			/* 216 */
+	 88,  89,  90,  91,  92,  93,  94,  95,			/* 224 */
+	 96,  97,  98,  99, 100, 101, 102, 103,			/* 232 */
+	104, 105, 106, 107, 108, 109, 110, 111,			/* 240 */
+	112, 113, 114, 115, 116, 117, 118, 119,			/* 248 */
+	120, 121, 122, 123, 124, 125, 126,  63			/* 256 */
 };
+/* ... and here their attributes */ 
+unsigned xlata[256] = {
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*   4 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*   8 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*  12 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*  16 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*  20 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*  24 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*  28 */
+	UNDERLINE, UNDERLINE, UNDERLINE, UNDERLINE,		/*  32 */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		/*  48 */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		/*  64 */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		/*  80 */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		/*  96 */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		/* 112 */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, UNDERLINE,	/* 128 */
+
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 130 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 132 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 134 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 136 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 138 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 140 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 142 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 144 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 146 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 148 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 150 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 152 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 154 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 156 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 158 */
+	INVERSE + UNDERLINE, INVERSE + UNDERLINE,		/* 160 */
+
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 164 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 168 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 172 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 176 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 180 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 184 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 188 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 192 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 196 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 200 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 204 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 208 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 212 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 216 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 220 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 224 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 228 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 232 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 236 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 240 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 244 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 248 */
+	INVERSE, INVERSE, INVERSE, INVERSE,			/* 252 */
+	INVERSE, INVERSE, INVERSE, INVERSE + UNDERLINE		/* 256 */
+};
+
+void xlat(int *attr, unsigned char *c)
+{
+	if(isprint(*c) || (dspasis && *c > 128))
+		*attr = 0;
+	else {
+		*attr = xlata[*c];
+		*c = xlatc[*c];
+	}
+}
 
 /* Set attributes */
 
@@ -212,12 +224,12 @@ int eraeol(SCRN *t, int x, int y)
 		return 0;
 	s = t->scrn + y * t->co + x;
 	ss = s + w;
-	do
+	do {
 		if (*--ss != ' ') {
 			++ss;
 			break;
 		}
-	while (ss != s) ;
+	} while (ss != s);
 	if ((ss - s > 3 || s[w] != ' ') && t->ce) {
 		cpos(t, x, y);
 		attr(t, 0);
@@ -266,7 +278,7 @@ static void out(char *t, char c)
 
 SCRN *nopen(CAP *cap)
 {
-	SCRN *t = (SCRN *) malloc(sizeof(SCRN));
+	SCRN *t = (SCRN *) joe_malloc(sizeof(SCRN));
 	int x, y;
 
 	ttopen();
@@ -496,7 +508,7 @@ SCRN *nopen(CAP *cap)
 	t->compose = 0;
 	t->ofst = 0;
 	t->ary = 0;
-	t->htab = (struct hentry *) malloc(256 * sizeof(struct hentry));
+	t->htab = (struct hentry *) joe_malloc(256 * sizeof(struct hentry));
 
 	nresize(t, t->co, t->li);
 
@@ -514,23 +526,23 @@ void nresize(SCRN *t, int w, int h)
 	t->li = h;
 	t->co = w;
 	if (t->sary)
-		free(t->sary);
+		joe_free(t->sary);
 	if (t->updtab)
-		free(t->updtab);
+		joe_free(t->updtab);
 	if (t->scrn)
-		free(t->scrn);
+		joe_free(t->scrn);
 	if (t->compose)
-		free(t->compose);
+		joe_free(t->compose);
 	if (t->ofst)
-		free(t->ofst);
+		joe_free(t->ofst);
 	if (t->ary)
-		free(t->ary);
-	t->scrn = (int *) malloc(t->li * t->co * sizeof(int));
-	t->sary = (int *) calloc(t->li, sizeof(int));
-	t->updtab = (int *) malloc(t->li * sizeof(int));
-	t->compose = (int *) malloc(t->co * sizeof(int));
-	t->ofst = (int *) malloc(t->co * sizeof(int));
-	t->ary = (struct hentry *) malloc(t->co * sizeof(struct hentry));
+		joe_free(t->ary);
+	t->scrn = (int *) joe_malloc(t->li * t->co * sizeof(int));
+	t->sary = (int *) joe_calloc(t->li, sizeof(int));
+	t->updtab = (int *) joe_malloc(t->li * sizeof(int));
+	t->compose = (int *) joe_malloc(t->co * sizeof(int));
+	t->ofst = (int *) joe_malloc(t->co * sizeof(int));
+	t->ary = (struct hentry *) joe_malloc(t->co * sizeof(struct hentry));
 
 	nredraw(t);
 }
@@ -772,63 +784,63 @@ static void cposs(register SCRN *t, register int x, register int y)
  */
 
 	switch (bestway) {
-		case 1:
+	case 1:
 		texec(t->cap, t->cr, 1, 0, 0, 0, 0);
 		t->x = 0;
 		break;
-		case 2:
+	case 2:
 		texec(t->cap, t->ho, 1, 0, 0, 0, 0);
 		t->x = 0;
 		t->y = hy;
 		break;
-		case 3:
+	case 3:
 		texec(t->cap, t->ll, 1, 0, 0, 0, 0);
 		t->x = 0;
 		t->y = hl;
 		break;
-		case 9:
+	case 9:
 		texec(t->cap, t->ll, 1, 0, 0, 0, 0);
 		t->x = 0;
 		t->y = hl;
 		goto doch;
-		case 11:
+	case 11:
 		texec(t->cap, t->ho, 1, 0, 0, 0, 0);
 		t->x = 0;
 		t->y = hy;
-	      doch:
-		case 4:
+doch:
+	case 4:
 		texec(t->cap, t->ch, 1, x, 0, 0, 0);
 		t->x = x;
 		break;
-		case 10:
+	case 10:
 		texec(t->cap, t->ll, 1, 0, 0, 0, 0);
 		t->x = 0;
 		t->y = hl;
 		goto docv;
-		case 12:
+	case 12:
 		texec(t->cap, t->ho, 1, 0, 0, 0, 0);
 		t->x = 0;
 		t->y = hy;
 		goto docv;
-		case 8:
+	case 8:
 		texec(t->cap, t->cr, 1, 0, 0, 0, 0);
 		t->x = 0;
-	      docv:
-		case 5:
+docv:
+	case 5:
 		texec(t->cap, t->cv, 1, y, 0, 0, 0);
 		t->y = y;
 		break;
-		case 6:
+	case 6:
 		texec(t->cap, t->cm, 1, y, x, 0, 0);
 		t->y = y, t->x = x;
 		break;
-		case 7:
+	case 7:
 		texec(t->cap, t->cv, 1, y, 0, 0, 0);
 		t->y = y;
 		texec(t->cap, t->ch, 1, x, 0, 0, 0);
 		t->x = x;
 		break;
-		case 13:
+	case 13:
 		texec(t->cap, t->cV, 1, y, 0, 0, 0);
 		t->y = y;
 		t->x = 0;
@@ -866,16 +878,16 @@ static void cposs(register SCRN *t, register int x, register int y)
 		if (cstunder < t->cRI && cstunder < x - t->x && cstover > cstunder) {
 			if (ntabs) {
 				t->x = x - x % t->tw;
-				do
+				do {
 					texec(t->cap, t->ta, 1, 0, 0, 0, 0);
-				while (--ntabs);
+				} while (--ntabs);
 			}
 		} else if (cstover < t->cRI && cstover < x - t->x) {
 			t->x = t->tw + x - x % t->tw;
 			++ntabs;
-			do
+			do {
 				texec(t->cap, t->ta, 1, 0, 0, 0, 0);
-			while (--ntabs);
+			} while (--ntabs);
 		}
 	} else if (x < t->x && t->bt) {
 		int ntabs = ((t->x + t->tw - 1) - (t->x + t->tw - 1) % t->tw - ((x + t->tw - 1) - (x + t->tw - 1) % t->tw)) / t->tw;
@@ -892,17 +904,17 @@ static void cposs(register SCRN *t, register int x, register int y)
 		if (cstunder < t->cLE && (t->bs ? cstunder < (t->x - x) * t->cbs : 1)
 		    && cstover > cstunder) {
 			if (ntabs) {
-				do
+				do {
 					texec(t->cap, t->bt, 1, 0, 0, 0, 0);
-				while (--ntabs);
+				} while (--ntabs);
 				t->x = x + t->tw - x % t->tw;
 			}
 		} else if (cstover < t->cRI && (t->bs ? cstover < (t->x - x) * t->cbs : 1)) {
 			t->x = x - x % t->tw;
 			++ntabs;
-			do
+			do {
 				texec(t->cap, t->bt, 1, 0, 0, 0, 0);
-			while (--ntabs);
+			} while (--ntabs);
 		}
 	}
 
@@ -957,8 +969,7 @@ int cpos(register SCRN *t, register int x, register int y)
 				ttputc(c);
 				++cs;
 				++t->x;
-			}
-			while (x != t->x);
+			} while (x != t->x);
 			return 0;
 		}
 	}
@@ -997,7 +1008,7 @@ static void doinschr(SCRN *t, int x, int y, int *s, int n)
 		}
 	}
 	mmove(t->scrn + x + t->co * y + n, t->scrn + x + t->co * y, (t->co - (x + n)) * sizeof(int));
-	mcpy(t->scrn + x + t->co * y, s, n * sizeof(int));
+	mmove(t->scrn + x + t->co * y, s, n * sizeof(int));
 }
 
 static void dodelchr(SCRN *t, int x, int y, int n)
@@ -1180,7 +1191,7 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 	return;
 
       done:
-	mfwrd(t->scrn + top * t->co, t->scrn + (top + amnt) * t->co, (bot - top - amnt) * t->co * sizeof(int));
+	mmove(t->scrn + top * t->co, t->scrn + (top + amnt) * t->co, (bot - top - amnt) * t->co * sizeof(int));
 
 	if (bot == t->li && t->db) {
 		msetI(t->scrn + (t->li - amnt) * t->co, -1, amnt * t->co);
@@ -1245,7 +1256,7 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 	msetI(t->updtab + top, 1, bot - top);
 	return;
       done:
-	mbkwd(t->scrn + (top + amnt) * t->co, t->scrn + top * t->co, (bot - top - amnt) * t->co * sizeof(int));
+	mmove(t->scrn + (top + amnt) * t->co, t->scrn + top * t->co, (bot - top - amnt) * t->co * sizeof(int));
 
 	if (!top && t->da) {
 		msetI(t->scrn, -1, amnt * t->co);
@@ -1278,8 +1289,7 @@ void nscroll(SCRN *t)
 						dodnscrl(t, z + q, p + 1, -q);
 						p = z + 1;
 					}
-				}
-				while (p-- != y);
+				} while (p-- != y);
 				y = r - 1;
 			}
 		}
@@ -1323,12 +1333,12 @@ void nclose(SCRN *t)
 		texec(t->cap, t->te, 1, 0, 0, 0, 0);
 	ttclose();
 	rmcap(t->cap);
-	free(t->scrn);
-	free(t->sary);
-	free(t->ofst);
-	free(t->htab);
-	free(t->ary);
-	free(t);
+	joe_free(t->scrn);
+	joe_free(t->sary);
+	joe_free(t->ofst);
+	joe_free(t->htab);
+	joe_free(t->ary);
+	joe_free(t);
 }
 
 void nscrldn(SCRN *t, int top, int bot, int amnt)

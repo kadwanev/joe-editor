@@ -1,30 +1,19 @@
-/* Menu selection window
-   Copyright (C) 1992 Joseph H. Allen
-
-This file is part of JOE (Joe's Own Editor)
-
-JOE is free software; you can redistribute it and/or modify it under the 
-terms of the GNU General Public License as published by the Free Software 
-Foundation; either version 1, or (at your option) any later version.  
-
-JOE is distributed in the hope that it will be useful, but WITHOUT ANY 
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS 
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
-details.  
-
-You should have received a copy of the GNU General Public License along with 
-JOE; see the file COPYING.  If not, write to the Free Software Foundation, 
-675 Mass Ave, Cambridge, MA 02139, USA.  */
-
+/*
+ *	Menu selection window
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <string.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+
 #include "scrn.h"
-#include "w.h"
+#include "utils.h"
 #include "vs.h"
-#include "menu.h"
+#include "w.h"
 
 extern int dostaupd;
 
@@ -231,7 +220,7 @@ static int menuabort(MENU *m)
 	int x = m->cursor;
 	W *win = w->win;
 
-	free(m);
+	joe_free(m);
 	if (func)
 		return func(win->object, x, object);
 	else
@@ -259,9 +248,8 @@ void ldmenu(MENU *m, char **s, int cursor)
 	mconfig(m);
 }
 
-MENU *mkmenu(BASE *obw, char **s, int (*func) (/* ??? */), int (*abrt) (/* ??? */), int (*backs) (/* ??? */), int cursor, void *object, int *notify)
+MENU *mkmenu(W *w, char **s, int (*func) (/* ??? */), int (*abrt) (/* ??? */), int (*backs) (/* ??? */), int cursor, void *object, int *notify)
 {
-	W *w = obw->parent;
 	W *new = wcreate(w->t, &watommenu, w, w, w->main, 1, NULL, notify);
 	MENU *m;
 
@@ -271,7 +259,7 @@ MENU *mkmenu(BASE *obw, char **s, int (*func) (/* ??? */), int (*abrt) (/* ??? *
 		return 0;
 	}
 	wfit(new->t);
-	new->object = (void *) (m = (MENU *) malloc(sizeof(MENU)));
+	new->object = (void *) (m = (MENU *) joe_malloc(sizeof(MENU)));
 	m->parent = new;
 	m->func = func;
 	m->abrt = abrt;

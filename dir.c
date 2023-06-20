@@ -1,9 +1,10 @@
 /*
-	Directory package for older UNIXs
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
+ *	Directory package for older UNIXs
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 
 struct direct {
 	short d_ino;
@@ -27,7 +28,7 @@ struct direct *readdir(void *f)
 	return 0;
 }
 
-void closedir(FILE * f)
+void closedir(FILE *f)
 {
 	fclose(f);
 }

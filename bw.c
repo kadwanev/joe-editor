@@ -1,27 +1,28 @@
 /*
-    Edit buffer window generation
-    Copyright (C) 1992 Joseph H. Allen
-
-    This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Edit buffer window generation
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <string.h>
 #include <stdio.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#include "tty.h"
-#include "vfile.h"
-#include "termcap.h"
-#include "kbd.h"
+
+
 #include "b.h"
+#include "blocks.h"
+#include "kbd.h"
+#include "rc.h"
 #include "scrn.h"
-#include "w.h"
 #include "ublock.h"
 #include "utils.h"
-#include "blocks.h"
-#include "bw.h"
+#include "w.h"
 
 /* Display modes */
 int dspasis = 0;
@@ -249,8 +250,7 @@ static int lgen(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, l
 				--amnt;
 				goto loop;
 			}
-		}
-		while (--amnt);
+		} while (--amnt);
 	if (bp == p->ptr + SEGSIZ) {
 		if (pnext(p)) {
 			bp = p->ptr;
@@ -321,12 +321,11 @@ static int lgen(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, l
 						goto bye;
 					if (++x == w)
 						goto eosl;
-				}
-				while (--ta);
+				} while (--ta);
 			} else if (bc == '\n')
 				goto eobl;
 			else {
-				xlat(c, bc);
+				xlat(&c, &bc);
 				c ^= c1;
 				outatr(t, screen + x, x, y, bc, c);
 				if (ifhave)
@@ -334,8 +333,7 @@ static int lgen(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, l
 				if (++x == w)
 					goto eosl;
 			}
-		}
-		while (--amnt);
+		} while (--amnt);
 	if (bp == p->ptr + SEGSIZ) {
 		if (pnext(p)) {
 			bp = p->ptr;
@@ -444,8 +442,7 @@ static int lgena(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, 
 				--amnt;
 				goto loop;
 			}
-		}
-		while (--amnt);
+		} while (--amnt);
 	if (bp == p->ptr + SEGSIZ) {
 		if (pnext(p)) {
 			bp = p->ptr;
@@ -487,19 +484,17 @@ static int lgena(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, 
 					screen[x] = ' ' + c1;
 					if (++x == w)
 						goto eosl;
-				}
-				while (--ta);
+				} while (--ta);
 			} else if (bc == '\n')
 				goto eobl;
 			else {
-				xlat(c, bc);
+				xlat(&c, &bc);
 				c ^= c1;
 				screen[x] = c + bc;
 				if (++x == w)
 					goto eosl;
 			}
-		}
-		while (--amnt);
+		} while (--amnt);
 	if (bp == p->ptr + SEGSIZ) {
 		if (pnext(p)) {
 			bp = p->ptr;
@@ -667,7 +662,7 @@ void bwresz(BW *w, int wi, int he)
 
 BW *bwmk(W *window, B *b, int prompt)
 {
-	BW *w = (BW *) malloc(sizeof(BW));
+	BW *w = (BW *) joe_malloc(sizeof(BW));
 
 	w->parent = window;
 	w->pid = 0;
@@ -706,7 +701,7 @@ void bwrm(BW *w)
 	prm(w->top);
 	prm(w->cursor);
 	brm(w->b);
-	free(w);
+	joe_free(w);
 }
 
 int ustat(BW *bw)
@@ -718,7 +713,7 @@ int ustat(BW *bw)
 		snprintf(buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx) **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte);
 	else
 		snprintf(buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx)  Ascii %d(0%o/0x%X) **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte, 255 & c, 255 & c, 255 & c);
-	msgnw(bw, buf);
+	msgnw(bw->parent, buf);
 	return 0;
 }
 

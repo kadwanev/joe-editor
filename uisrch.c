@@ -1,16 +1,22 @@
-/* Incremental search */
-
+/*
+ *	Incremental search
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+#include "types.h"
 
+#include "b.h"
 #include "bw.h"
-#include "qw.h"
-#include "vs.h"
-#include "usearch.h"
 #include "main.h"
-#include "uisrch.h"
+#include "queue.h"
+#include "qw.h"
+#include "tty.h"
+#include "usearch.h"
+#include "utils.h"
+#include "vs.h"
 
 extern int smode;
 struct isrch *lastisrch = 0;	/* Previous search */
@@ -24,7 +30,7 @@ static IREC *alirec(void)
 	return alitem(&fri, sizeof(IREC));
 }
 
-static void frirec(IREC * i)
+static void frirec(IREC *i)
 {				/* Free an IREC */
 	enquef(IREC, link, &fri, i);
 }
@@ -34,17 +40,17 @@ static void rmisrch(struct isrch *isrch)
 	if (isrch) {
 		vsrm(isrch->pattern);
 		frchn(&fri, &isrch->irecs);
-		free(isrch);
+		joe_free(isrch);
 	}
 }
 
-static int iabrt(BW * bw, struct isrch *isrch)
+static int iabrt(BW *bw, struct isrch *isrch)
 {				/* User hit ^C */
 	rmisrch(isrch);
 	return -1;
 }
 
-static void iappend(BW * bw, struct isrch *isrch, char *s, int len)
+static void iappend(BW *bw, struct isrch *isrch, char *s, int len)
 {				/* Append text and search */
 	/* Append char and search */
 	IREC *i = alirec();
@@ -63,7 +69,7 @@ static void iappend(BW * bw, struct isrch *isrch, char *s, int len)
 }
 
 /* Main user interface */
-static int itype(BW * bw, int c, struct isrch *isrch, int *notify)
+static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 {
 	IREC *i;
 	int omid;
@@ -135,7 +141,7 @@ static int itype(BW * bw, int c, struct isrch *isrch, int *notify)
 	bw->cursor->xcol = piscol(bw->cursor);
 	dofollows();
 	mid = omid;
-	if (mkqwnsr(bw, sv(isrch->pattern), itype, iabrt, isrch, notify)) {
+	if (mkqwnsr(bw->parent, sv(isrch->pattern), itype, iabrt, isrch, notify)) {
 		return 0;
 	} else {
 		rmisrch(isrch);
@@ -143,9 +149,9 @@ static int itype(BW * bw, int c, struct isrch *isrch, int *notify)
 	}
 }
 
-static int doisrch(BW * bw, int dir)
+static int doisrch(BW *bw, int dir)
 {				/* Create a struct isrch */
-	struct isrch *isrch = (struct isrch *) malloc(sizeof(struct isrch));
+	struct isrch *isrch = (struct isrch *) joe_malloc(sizeof(struct isrch));
 
 	izque(IREC, link, &isrch->irecs);
 	isrch->pattern = vsncpy(NULL, 0, sc("I-find: "));
@@ -155,7 +161,7 @@ static int doisrch(BW * bw, int dir)
 	return itype(bw, MAXINT, isrch, NULL);
 }
 
-int uisrch(BW * bw)
+int uisrch(BW *bw)
 {
 	if (smode && lastisrch) {
 		struct isrch *isrch = lastisrch;
@@ -173,7 +179,7 @@ int uisrch(BW * bw)
 	}
 }
 
-int ursrch(BW * bw)
+int ursrch(BW *bw)
 {
 	if (smode && lastisrch) {
 		struct isrch *isrch = lastisrch;

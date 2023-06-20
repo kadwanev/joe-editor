@@ -1,34 +1,31 @@
-/* Software virtual memory system
-   Copyright (C) 1992 Joseph H. Allen
-
-This file is part of JOE (Joe's Own Editor)
-
-JOE is free software; you can redistribute it and/or modify it under the 
-terms of the GNU General Public License as published by the Free Software 
-Foundation; either version 1, or (at your option) any later version.  
-
-JOE is distributed in the hope that it will be useful, but WITHOUT ANY 
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS 
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
-details.  
-
-You should have received a copy of the GNU General Public License along with 
-JOE; see the file COPYING.  If not, write to the Free Software Foundation, 
-675 Mass Ave, Cambridge, MA 02139, USA.  */
-
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <unistd.h>
+/*
+ *	Software virtual memory system
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
-#include "vs.h"
+#include "types.h"
+
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#include <fcntl.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include <unistd.h>
+
 #include "blocks.h"
 #include "queue.h"
 #include "path.h"
-#include "tty.h"
+#include "utils.h"
 #include "vfile.h"
+#include "vs.h"
 
 static VFILE vfiles = { {&vfiles, &vfiles} };	/* Known vfiles */
 static VPAGE *freepages = 0;	/* Linked list of free pages */
@@ -64,10 +61,10 @@ void vflsh(void)
 				vfile->fd = open(vfile->name, O_RDWR);
 			lseek(vfile->fd, addr, 0);
 			if (addr + PGSIZE > vsize(vfile)) {
-				jwrite(vfile->fd, vlowest->data, (int) (vsize(vfile) - addr));
+				joe_write(vfile->fd, vlowest->data, (int) (vsize(vfile) - addr));
 				vfile->size = vsize(vfile);
 			} else {
-				jwrite(vfile->fd, vlowest->data, PGSIZE);
+				joe_write(vfile->fd, vlowest->data, PGSIZE);
 				if (addr + PGSIZE > vfile->size)
 					vfile->size = addr + PGSIZE;
 			}
@@ -100,10 +97,10 @@ void vflshf(VFILE *vfile)
 		}
 		lseek(vfile->fd, addr, 0);
 		if (addr + PGSIZE > vsize(vfile)) {
-			jwrite(vfile->fd, vlowest->data, (int) (vsize(vfile) - addr));
+			joe_write(vfile->fd, vlowest->data, (int) (vsize(vfile) - addr));
 			vfile->size = vsize(vfile);
 		} else {
-			jwrite(vfile->fd, vlowest->data, PGSIZE);
+			joe_write(vfile->fd, vlowest->data, PGSIZE);
 			if (addr + PGSIZE > vfile->size)
 				vfile->size = addr + PGSIZE;
 		}
@@ -114,7 +111,7 @@ void vflshf(VFILE *vfile)
 
 static char *mema(int align, int size)
 {
-	char *z = (char *) malloc(align + size);
+	char *z = (char *) joe_malloc(align + size);
 
 	return z + align - physical(z) % align;
 }
@@ -138,7 +135,7 @@ char *vlock(VFILE *vfile, long int addr)
 	}
 
 	if (curvalloc + PGSIZE <= maxvalloc) {
-		vp = (VPAGE *) malloc(sizeof(VPAGE) * INC);
+		vp = (VPAGE *) joe_malloc(sizeof(VPAGE) * INC);
 		if (vp) {
 			vp->data = (char *) mema(PGSIZE, PGSIZE * INC);
 			if (vp->data) {
@@ -147,21 +144,21 @@ char *vlock(VFILE *vfile, long int addr)
 				curvalloc += PGSIZE * INC;
 				if (!vheaders)
 					vheaders = (VPAGE **)
-					    malloc((vheadsz = INC)
+					    joe_malloc((vheadsz = INC)
 						   * sizeof(VPAGE *)), vbase = vp->data;
 				else if (physical(vp->data) < physical(vbase)) {
 					VPAGE **t = vheaders;
 					int amnt = (physical(vbase) - physical(vp->data)) >> LPGSIZE;
 
 					vheaders = (VPAGE **)
-					    malloc((amnt + vheadsz) * sizeof(VPAGE *));
-					mcpy(vheaders + amnt, t, vheadsz * sizeof(VPAGE *));
+					    joe_malloc((amnt + vheadsz) * sizeof(VPAGE *));
+					mmove(vheaders + amnt, t, vheadsz * sizeof(VPAGE *));
 					vheadsz += amnt;
 					vbase = vp->data;
-					free(t);
+					joe_free(t);
 				} else if (((physical(vp->data + PGSIZE * INC) - physical(vbase)) >> LPGSIZE) > vheadsz) {
 					vheaders = (VPAGE **)
-					    realloc(vheaders, (vheadsz = (((physical(vp->data + PGSIZE * INC) - physical(vbase)) >> LPGSIZE))) * sizeof(VPAGE *));
+					    joe_realloc(vheaders, (vheadsz = (((physical(vp->data + PGSIZE * INC) - physical(vbase)) >> LPGSIZE))) * sizeof(VPAGE *));
 				}
 				for (q = 1; q != INC; ++q) {
 					vp[q].next = freepages;
@@ -172,7 +169,7 @@ char *vlock(VFILE *vfile, long int addr)
 				vheader(vp->data) = vp;
 				goto gotit;
 			}
-			free(vp);
+			joe_free(vp);
 			vp = 0;
 		}
 	}
@@ -207,10 +204,10 @@ char *vlock(VFILE *vfile, long int addr)
 		}
 		lseek(vfile->fd, addr, 0);
 		if (addr + PGSIZE > vfile->size) {
-			jread(vfile->fd, vp->data, (int) (vfile->size - addr));
+			joe_read(vfile->fd, vp->data, (int) (vfile->size - addr));
 			mset(vp->data + vfile->size - addr, 0, PGSIZE - (int) (vfile->size - addr));
 		} else
-			jread(vfile->fd, vp->data, PGSIZE);
+			joe_read(vfile->fd, vp->data, PGSIZE);
 	} else
 		mset(vp->data, 0, PGSIZE);
 
@@ -219,7 +216,7 @@ char *vlock(VFILE *vfile, long int addr)
 
 VFILE *vtmp(void)
 {
-	VFILE *new = (VFILE *) malloc(sizeof(VFILE));
+	VFILE *new = (VFILE *) joe_malloc(sizeof(VFILE));
 
 	new->fd = 0;
 	new->name = 0;
@@ -240,13 +237,13 @@ VFILE *vopen(name)
 char *name;
 {
 	struct stat buf;
-	VFILE *new = (VFILE *) malloc(sizeof(VFILE));
+	VFILE *new = (VFILE *) joe_malloc(sizeof(VFILE));
 
 	new->name = vsncpy(NULL, 0, sz(name));
 	new->fd = open(name, O_RDWR);
 	if (!new->fd) {
 		fprintf(stderr, "Couldn\'t open file \'%s\'\n", name);
-		free(new);
+		joe_free(new);
 		return 0;
 	}
 	fstat(new->fd, &buf);
@@ -281,7 +278,7 @@ void vclose(VFILE *vfile)
 	}
 	if (vfile->fd)
 		close(vfile->fd);
-	free(deque_f(VFILE, link, vfile));
+	joe_free(deque_f(VFILE, link, vfile));
 	for (x = 0; x != HTSIZE; x++)
 		for (pp = (VPAGE *) (htab + x), vp = pp->next; vp;)
 			if (vp->vfile == vfile) {
@@ -306,8 +303,8 @@ long amount;
 		if (freepages) {
 			vp = freepages;
 			freepages = vp->next;
-			free(vp->data);
-			free(vp);
+			joe_free(vp->data);
+			joe_free(vp);
 			curvalloc -= PGSIZE;
 		} else {
 		      again:
@@ -315,8 +312,8 @@ long amount;
 				for (pp = (VPAGE *) (htab + x), vp = pp->next; vp; pp = vp, vp = vp->next)
 					if (!vp->count && !vp->dirty) {
 						pp->next = vp->next;
-						free(vp->data);
-						free(vp);
+						joe_free(vp->data);
+						joe_free(vp);
 						if ((curvalloc -= PGSIZE)
 						    <= maxvalloc)
 							return;
@@ -328,8 +325,8 @@ long amount;
 				for (pp = (VPAGE *) (htab + x), vp = pp->next; vp; pp = vp, vp = vp->next)
 					if (!vp->count && !vp->dirty) {
 						pp->next = vp->next;
-						free(vp->data);
-						free(vp);
+						joe_free(vp->data);
+						joe_free(vp);
 						if ((curvalloc -= PGSIZE)
 						    <= maxvalloc)
 							return;
@@ -731,38 +728,40 @@ char *s;
 				cnt -= 15;
 				goto ovr;
 			}
-		}
-		while (a += 16, b += 16, (cnt -= 16) >= 16);
+		} while (a += 16, b += 16, (cnt -= 16) >= 16);
 
 /*
- x=a, y=b; a+=cnt-15; b+=cnt-15;
- switch(cnt)
-  {
-  case 15: if((b[0]=a[0])=='\n') { a+=1; b+=1; goto zif; }
-  case 14: if((b[1]=a[1])=='\n') { a+=2; b+=2; goto zif; }
-  case 13: if((b[2]=a[2])=='\n') { a+=3; b+=3; goto zif; }
-  case 12: if((b[3]=a[3])=='\n') { a+=4; b+=4; goto zif; }
-  case 11: if((b[4]=a[4])=='\n') { a+=5; b+=5; goto zif; }
-  case 10: if((b[5]=a[5])=='\n') { a+=6; b+=6; goto zif; }
-  case 9: if((b[6]=a[6])=='\n')  { a+=7; b+=7; goto zif; }
-  case 8: if((b[7]=a[7])=='\n')  { a+=8; b+=8; goto zif; }
-  case 7: if((b[8]=a[8])=='\n')  { a+=9; b+=9; goto zif; }
-  case 6: if((b[9]=a[9])=='\n')  { a+=10; b+=10; goto zif; }
-  case 5: if((b[10]=a[10])=='\n'){ a+=11; b+=11; goto zif; }
-  case 4: if((b[11]=a[11])=='\n'){ a+=12; b+=12; goto zif; }
-  case 3: if((b[12]=a[12])=='\n'){ a+=13; b+=13; goto zif; }
-  case 2: if((b[13]=a[13])=='\n'){ a+=14; b+=14; goto zif; }
-  case 1: if((b[14]=a[14])=='\n'){ a+=15; b+=15; goto zif; }
-  }
- a=x+cnt, b=y+cnt; cnt=0; goto ovr;
- zif: cnt-=a-x-1;
+	x = a, y = b;
+	a += cnt - 15;
+	b += cnt - 15;
+	switch(cnt) {
+	case 15:	if((b[0]=a[0])=='\n') { a+=1; b+=1; goto zif; }
+	case 14:	if((b[1]=a[1])=='\n') { a+=2; b+=2; goto zif; }
+	case 13:	if((b[2]=a[2])=='\n') { a+=3; b+=3; goto zif; }
+	case 12:	if((b[3]=a[3])=='\n') { a+=4; b+=4; goto zif; }
+	case 11:	if((b[4]=a[4])=='\n') { a+=5; b+=5; goto zif; }
+	case 10:	if((b[5]=a[5])=='\n') { a+=6; b+=6; goto zif; }
+	case 9:		if((b[6]=a[6])=='\n')  { a+=7; b+=7; goto zif; }
+	case 8:		if((b[7]=a[7])=='\n')  { a+=8; b+=8; goto zif; }
+	case 7:		if((b[8]=a[8])=='\n')  { a+=9; b+=9; goto zif; }
+	case 6:		if((b[9]=a[9])=='\n')  { a+=10; b+=10; goto zif; }
+	case 5:		if((b[10]=a[10])=='\n'){ a+=11; b+=11; goto zif; }
+	case 4:		if((b[11]=a[11])=='\n'){ a+=12; b+=12; goto zif; }
+	case 3:		if((b[12]=a[12])=='\n'){ a+=13; b+=13; goto zif; }
+	case 2:		if((b[13]=a[13])=='\n'){ a+=14; b+=14; goto zif; }
+	case 1:		if((b[14]=a[14])=='\n'){ a+=15; b+=15; goto zif; }
+	}
+	a = x + cnt, b = y + cnt;
+	cnt=0;
+	goto ovr;
+zif:	cnt -= a - x - 1;
 */
 
 	if (cnt)
-		do
+		do {
 			if ((*b++ = *a++) == '\n')
 				break;
-		while (--cnt) ;
+		} while (--cnt);
 
       ovr:
 

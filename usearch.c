@@ -1,20 +1,30 @@
-/* Search & Replace system */
-
+/*
+ *	Search & Replace system
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <ctype.h>
 #include <stdio.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+
+#include "b.h"
+#include "bw.h"
+#include "main.h"
 #include "pw.h"
+#include "queue.h"
 #include "qw.h"
-#include "vs.h"
 #include "regex.h"
 #include "ublock.h"
 #include "uedit.h"
-#include "main.h"
 #include "undo.h"
 #include "usearch.h"
+#include "utils.h"
+#include "vs.h"
+#include "w.h"
 
 int smode = 0;			/* Decremented to zero by execmd */
 int csmode = 0;			/* Set for continued search mode */
@@ -132,7 +142,7 @@ static SRCH *setmark(SRCH *srch)
 
 SRCH *mksrch(char *pattern, char *replacement, int ignore, int backwards, int repeat, int replace, int rest)
 {
-	SRCH *srch = (SRCH *) malloc(sizeof(SRCH));
+	SRCH *srch = (SRCH *) joe_malloc(sizeof(SRCH));
 	int x;
 
 	srch->pattern = pattern;
@@ -179,7 +189,7 @@ void rmsrch(SRCH *srch)
 	vsrm(srch->pattern);
 	vsrm(srch->replacement);
 	vsrm(srch->entire);
-	free(srch);
+	joe_free(srch);
 	updall();
 }
 
@@ -276,39 +286,40 @@ static int set_options(BW *bw, char *s, SRCH *srch, int *notify)
 {
 	int x;
 
-	for (x = 0; s[x]; ++x)
+	for (x = 0; s[x]; ++x) {
 		switch (s[x]) {
-			case 'r':
-			case 'R':
+		case 'r':
+		case 'R':
 			srch->replace = 1;
 			break;
-			case 'b':
-			case 'B':
+		case 'b':
+		case 'B':
 			srch->backwards = 1;
 			break;
-			case 'i':
-			case 'I':
+		case 'i':
+		case 'I':
 			srch->ignore = 1;
 			break;
-			case 'k':
-			case 'K':
+		case 'k':
+		case 'K':
 			srch->restrict = 1;
 			break;
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
-			case '8':
-			case '9':
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
 			if (srch->repeat == -1)
 				srch->repeat = 0;
 			srch->repeat = srch->repeat * 10 + s[x] - '0';
 			break;
 		}
+	}
 	vsrm(s);
 	if (srch->replace) {
 		if (wmkpw(bw->parent, "Replace with (^C to abort): ", &replhist, set_replace, srchstr, pfabort, utypebw, srch, notify))
@@ -335,7 +346,7 @@ static int set_pattern(BW *bw, char *s, SRCH *srch, int *notify)
 		if (srch->backwards)
 			binsc(pbw->cursor, 'b');
 		if (srch->repeat >= 0)
-			snprintf(buf, MSGBUFSIZE, "%d", srch->repeat), binss(pbw->cursor, buf);
+			snprintf(buf, JOE_MSGBUFSIZE, "%d", srch->repeat), binss(pbw->cursor, buf);
 		pset(pbw->cursor, pbw->b->eof);
 		pbw->cursor->xcol = piscol(pbw->cursor);
 		srch->ignore = 0;
@@ -400,7 +411,7 @@ static int doreplace(BW *bw, SRCH *srch)
 	P *q;
 
 	if (bw->b->rdonly) {
-		msgnw(bw, "Read only");
+		msgnw(bw->parent, "Read only");
 		return -1;
 	}
 	if (markk)
@@ -476,7 +487,7 @@ static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
 		nungetc(c);
 		return 0;
 	}
-	if (mkqwnsr(bw, sc("Replace (Y)es (N)o (R)est (B)ackup (^C to abort)?"), dopfrepl, pfsave, srch, notify))
+	if (mkqwnsr(bw->parent, sc("Replace (Y)es (N)o (R)est (B)ackup (^C to abort)?"), dopfrepl, pfsave, srch, notify))
 		return 0;
 	else
 		return pfsave(bw, srch);
@@ -549,9 +560,9 @@ static int fnext(BW *bw, SRCH *srch)
 	} else if (srch->rest || (srch->repeat != -1 && srch->replace)) {
 		if (srch->valid)
 			switch (restrict(bw, srch)) {
-				case -1:
+			case -1:
 				goto again;
-				case 1:
+			case 1:
 				if (srch->addr >= 0)
 					pgoto(bw->cursor, srch->addr);
 				return !srch->rest;
@@ -562,9 +573,9 @@ static int fnext(BW *bw, SRCH *srch)
 	} else if (srch->repeat != -1) {
 		if (srch->valid)
 			switch (restrict(bw, srch)) {
-				case -1:
+			case -1:
 				goto again;
-				case 1:
+			case 1:
 				if (srch->addr >= 0)
 					pgoto(bw->cursor, srch->addr);
 				return 1;
@@ -585,26 +596,24 @@ int dopfnext(BW *bw, SRCH *srch, int *notify)
 		smode = 2;	/* We have started a search mode */
 	if (srch->replace)
 		visit(srch, bw, 0);
-      again:switch (fnext(bw, srch)) {
-		case 0:
+again:	switch (fnext(bw, srch)) {
+	case 0:
 		break;
-
-		case 1:
-	      bye:if (!srch->flg && !srch->rest) {
+	case 1:
+bye:		if (!srch->flg && !srch->rest) {
 			if (srch->valid && srch->restrict)
-				msgnw(bw, "Not found (search restricted to marked block)");
+				msgnw(bw->parent, "Not found (search restricted to marked block)");
 			else
-				msgnw(bw, "Not found");
+				msgnw(bw->parent, "Not found");
 			ret = -1;
 		}
 		break;
-
-		case 2:
+	case 2:
 		if (srch->valid)
 			switch (restrict(bw, srch)) {
-				case -1:
+			case -1:
 				goto again;
-				case 1:
+			case 1:
 				if (srch->addr >= 0)
 					pgoto(bw->cursor, srch->addr);
 				goto bye;

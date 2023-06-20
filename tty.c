@@ -1,14 +1,12 @@
-
 /*
-	UNIX Tty and Process interface
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
-/** System include files **/
-
+ *	UNIX Tty and Process interface
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
 
 #include <sys/types.h>
 #ifdef HAVE_SYS_STAT_H
@@ -34,8 +32,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-extern int errno;
 
 int idleout = 1;
 
@@ -90,27 +86,7 @@ int idleout = 1;
 #include "main.h"
 #include "path.h"
 #include "tty.h"
-
-/* The pwd function */
-#ifdef HAVE_GETCWD
-char *pwd(void)
-{
-	static char buf[1024];
-
-	return getcwd(buf, 1024);
-}
-#else
-#ifdef HAVE_GETWD
-char *pwd(void)
-{
-	static char buf[1024];
-
-	return getwd(buf);
-}
-#else
-#error "Don't know how to get current directory"
-#endif
-#endif
+#include "utils.h"
 
 /** Aliased defines **/
 
@@ -227,29 +203,6 @@ struct packet {
 
 MPX asyncs[NPROC];
 
-/* Versions of 'read' and 'write' which automatically retry during signals
- * (yuck, yuck, yuck... we the #$%#$@ did they have to do this?) */
-
-int jread(int fd, void *buf, int siz)
-{
-	int rt;
-
-	do
-		rt = read(fd, buf, siz);
-	while (rt < 0 && errno == EINTR);
-	return rt;
-}
-
-int jwrite(int fd, void *buf, int siz)
-{
-	int rt;
-
-	do
-		rt = write(fd, buf, siz);
-	while (rt < 0 && errno == EINTR);
-	return rt;
-}
-
 /* Set signals for JOE */
 
 void sigjoe(void)
@@ -301,7 +254,9 @@ static RETSIGTYPE winchd(int unused)
 	++winched;
 #ifdef SIGWINCH
 	signal(SIGWINCH, winchd);
+#ifdef HAVE_SIGINTERRUPT
 	siginterrupt(SIGWINCH, 1);
+#endif
 #endif
 }
 
@@ -366,7 +321,9 @@ void ttopnn(void)
 		} else {
 #ifdef SIGWINCH
 			signal(SIGWINCH, winchd);
+#ifdef HAVE_SIGINTERRUPT
 			siginterrupt(SIGWINCH, 1);
+#endif
 #endif
 			tickon();
 		}
@@ -442,7 +399,7 @@ void ttopnn(void)
 		baud = Baud;
 	upc = DIVIDEND / baud;
 	if (obuf)
-		free(obuf);
+		joe_free(obuf);
 	if (!(TIMES * upc))
 		obufsiz = 4096;
 	else {
@@ -452,7 +409,7 @@ void ttopnn(void)
 	}
 	if (!obufsiz)
 		obufsiz = 1;
-	obuf = (char *) malloc(obufsiz);
+	obuf = (char *) joe_malloc(obufsiz);
 }
 
 /* Close terminal */
@@ -561,17 +518,17 @@ int ttflsh(void)
 			yep = 0;
 			maskit();
 			setitimer(ITIMER_REAL, &a, &b);
-			jwrite(fileno(termout), obuf, obufp);
+			joe_write(fileno(termout), obuf, obufp);
 			while (!yep)
 				pauseit();
 			unmaskit();
 			tickon();
 		} else
-			jwrite(fileno(termout), obuf, obufp);
+			joe_write(fileno(termout), obuf, obufp);
 
 #else
 
-		jwrite(fileno(termout), obuf, obufp);
+		joe_write(fileno(termout), obuf, obufp);
 
 #ifdef FIORDCHK
 		if (baud < 9600 && usec / 1000)
@@ -588,9 +545,9 @@ int ttflsh(void)
 		char c = 0;
 
 		if (pack.who && pack.who->func)
-			jwrite(pack.who->ackfd, &c, 1);
+			joe_write(pack.who->ackfd, &c, 1);
 		else
-			jwrite(ackkbd, &c, 1);
+			joe_write(ackkbd, &c, 1);
 		accept = MAXINT;
 	}
 
@@ -601,7 +558,7 @@ int ttflsh(void)
 			fcntl(mpxfd, F_SETFL, O_NDELAY);
 			if (read(mpxfd, &pack, sizeof(struct packet) - 1024) > 0) {
 				fcntl(mpxfd, F_SETFL, 0);
-				jread(mpxfd, pack.data, pack.size);
+				joe_read(mpxfd, pack.data, pack.size);
 				have = 1, accept = pack.ch;
 			} else
 				fcntl(mpxfd, F_SETFL, 0);
@@ -639,7 +596,7 @@ int ttgetc(void)
 			stat = read(mpxfd, &pack, sizeof(struct packet) - 1024);
 
 			if (pack.size && stat > 0) {
-				jread(mpxfd, pack.data, pack.size);
+				joe_read(mpxfd, pack.data, pack.size);
 			} else if (stat < 1) {
 				if (winched || ticked)
 					goto loop;
@@ -781,15 +738,14 @@ static void mpxstart(void)
 			int sta;
 
 			pack.who = 0;
-			sta = jread(fileno(termin), &c, 1);
+			sta = joe_read(fileno(termin), &c, 1);
 			if (sta == 0)
 				pack.ch = MAXINT;
 			else
 				pack.ch = c;
 			pack.size = 0;
-			jwrite(mpxsfd, &pack, sizeof(struct packet) - 1024);
-		}
-		while (jread(fds[0], &pack, 1) == 1);
+			joe_write(mpxsfd, &pack, sizeof(struct packet) - 1024);
+		} while (joe_read(fds[0], &pack, 1) == 1);
 		_exit(0);
 	}
 	close(fds[0]);
@@ -799,7 +755,8 @@ static void mpxstart(void)
 static void mpxend(void)
 {
 	kill(kbdpid, 9);
-	while (wait(NULL) < 0 && errno == EINTR) ;
+	while (wait(NULL) < 0 && errno == EINTR)
+		/* do nothing */;
 	close(ackkbd);
 	ackkbd = -1;
 	close(mpxfd);
@@ -931,7 +888,7 @@ static char **newenv(char **old, char *s)
 	int x, y, z;
 
 	for (x = 0; old[x]; ++x) ;
-	new = (char **) malloc((x + 2) * sizeof(char *));
+	new = (char **) joe_malloc((x + 2) * sizeof(char *));
 
 	for (x = 0, y = 0; old[x]; ++x) {
 		for (z = 0; s[z] != '='; ++z)
@@ -1046,7 +1003,7 @@ MPX *mpxmk(int *ptyfd, char *cmd, char **args, void (*func) (/* ??? */), void *o
 
 			_exit(0);
 		}
-		jwrite(comm[1], &pid, sizeof(pid));
+		joe_write(comm[1], &pid, sizeof(pid));
 
 	      loop:
 		pack.who = m;
@@ -1056,19 +1013,19 @@ MPX *mpxmk(int *ptyfd, char *cmd, char **args, void (*func) (/* ??? */), void *o
 		else
 			pack.size = read(*ptyfd, pack.data, 1024);
 		if (pack.size > 0) {
-			jwrite(mpxsfd, &pack, sizeof(struct packet) - 1024 + pack.size);
+			joe_write(mpxsfd, &pack, sizeof(struct packet) - 1024 + pack.size);
 
-			jread(fds[0], &pack, 1);
+			joe_read(fds[0], &pack, 1);
 			goto loop;
 		} else {
 			pack.ch = MAXINT;
 			pack.size = 0;
-			jwrite(mpxsfd, &pack, sizeof(struct packet) - 1024);
+			joe_write(mpxsfd, &pack, sizeof(struct packet) - 1024);
 
 			_exit(0);
 		}
 	}
-	jread(comm[0], &m->pid, sizeof(m->pid));
+	joe_read(comm[0], &m->pid, sizeof(m->pid));
 
 	close(comm[0]);
 	close(comm[1]);
@@ -1080,7 +1037,8 @@ void mpxdied(MPX *m)
 {
 	if (!--nmpx)
 		mpxend();
-	while (wait(NULL) < 0 && errno == EINTR) ;
+	while (wait(NULL) < 0 && errno == EINTR)
+		/* do nothing */;
 	if (m->die)
 		m->die(m->dieobj);
 	m->func = 0;

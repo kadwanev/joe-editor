@@ -1,30 +1,28 @@
 /*
-	File selection menu
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	File selection menu
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
 
-#include <stdio.h>
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
-#include <sys/stat.h>
-#include <string.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
 #endif
-#include "tab.h"
-#include "scrn.h"
-#include "kbd.h"
-#include "vs.h"
-#include "w.h"
-#include "bw.h"
-#include "path.h"
-#include "va.h"
-#include "menu.h"
-#include "tty.h"
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+#include "b.h"
 #include "blocks.h"
+#include "menu.h"
+#include "path.h"
+#include "tty.h"
+#include "utils.h"
+#include "va.h"
+#include "w.h"
 
 typedef struct tab TAB;
 
@@ -56,7 +54,7 @@ struct tab {
  * type is set with the file types
  */
 
-static int get_entries(TAB * tab, int prv)
+static int get_entries(TAB *tab, int prv)
 {
 	int a;
 	int which = 0;
@@ -79,8 +77,8 @@ static int get_entries(TAB * tab, int prv)
 	tab->files = files;
 	vasort(files, tab->len);
 	if (tab->type)
-		free(tab->type);
-	tab->type = (char *) malloc(tab->len);
+		joe_free(tab->type);
+	tab->type = (char *) joe_malloc(tab->len);
 	for (a = 0; a != tab->len; a++) {
 		struct stat buf;
 		mset(&buf, 0, sizeof(struct stat));
@@ -99,7 +97,7 @@ static int get_entries(TAB * tab, int prv)
 	return which;
 }
 
-static void insnam(BW * bw, char *path, char *nam)
+static void insnam(BW *bw, char *path, char *nam)
 {
 	P *p = pdup(bw->cursor);
 
@@ -129,7 +127,7 @@ static void insnam(BW * bw, char *path, char *nam)
  * Returns with 0 for success
  */
 
-static int treload(MENU * m, int flg)
+static int treload(MENU *m, int flg)
 {
 	TAB *tab = (TAB *) m->object;	/* The menu */
 	W *w = m->parent;	/* Window menu is in */
@@ -164,7 +162,7 @@ static int treload(MENU * m, int flg)
 	return 0;
 }
 
-static void rmtab(TAB * tab)
+static void rmtab(TAB *tab)
 {
 	vsrm(tab->orgpath);
 	vsrm(tab->orgnam);
@@ -173,13 +171,13 @@ static void rmtab(TAB * tab)
 	vsrm(tab->pattern);
 	varm(tab->files);
 	if (tab->type)
-		free(tab->type);
-	free(tab);
+		joe_free(tab->type);
+	joe_free(tab);
 }
 /*****************************************************************************/
 /****************** The user hit return **************************************/
 /*****************************************************************************/
-static int tabrtn(MENU * m, int cursor, TAB * tab)
+static int tabrtn(MENU *m, int cursor, TAB *tab)
 {
 	if (tab->type[cursor] == F_DIR) {	/* Switch directories */
 		char *orgpath = tab->path;
@@ -197,7 +195,7 @@ static int tabrtn(MENU * m, int cursor, TAB * tab)
 		vsrm(e);
 		tab->pattern = vsncpy(NULL, 0, sc("*"));
 		if (treload(m, 0)) {
-			msgnw(m, "Couldn't read directory ");
+			msgnw(m->parent, "Couldn't read directory ");
 			vsrm(tab->pattern);
 			tab->pattern = orgpattern;
 			vsrm(tab->path);
@@ -222,7 +220,7 @@ static int tabrtn(MENU * m, int cursor, TAB * tab)
 /*****************************************************************************/
 /****************** The user hit backspace ***********************************/
 /*****************************************************************************/
-static int tabbacks(MENU * m, int cursor, TAB * tab)
+static int tabbacks(MENU *m, int cursor, TAB *tab)
 {
 	char *orgpath = tab->path;
 	char *orgpattern = tab->pattern;
@@ -238,7 +236,7 @@ static int tabbacks(MENU * m, int cursor, TAB * tab)
 	tab->pattern = vsncpy(NULL, 0, sc("*"));
 
 	if (treload(m, 1)) {
-		msgnw(m, "Couldn't read directory ");
+		msgnw(m->parent, "Couldn't read directory ");
 		vsrm(tab->pattern);
 		tab->pattern = orgpattern;
 		vsrm(tab->path);
@@ -251,7 +249,7 @@ static int tabbacks(MENU * m, int cursor, TAB * tab)
 	}
 }
 /*****************************************************************************/
-static int tababrt(BW * bw, int cursor, TAB * tab)
+static int tababrt(BW *bw, int cursor, TAB *tab)
 {
 	insnam(bw, tab->orgpath, tab->orgnam);
 	rmtab(tab);
@@ -260,7 +258,7 @@ static int tababrt(BW * bw, int cursor, TAB * tab)
 /*****************************************************************************/
 /****************** Create a tab window **************************************/
 /*****************************************************************************/
-int cmplt(BW * bw)
+int cmplt(BW *bw)
 {
 	MENU *new;
 	TAB *tab;
@@ -268,10 +266,10 @@ int cmplt(BW * bw)
 	char *cline, *tmp;
 	long a, b;
 
-	tab = (TAB *) malloc(sizeof(TAB));
-	new = mkmenu(bw, NULL, tabrtn, tababrt, tabbacks, 0, tab, NULL);
+	tab = (TAB *) joe_malloc(sizeof(TAB));
+	new = mkmenu(bw->parent, NULL, tabrtn, tababrt, tabbacks, 0, tab, NULL);
 	if (!new) {
-		free(tab);
+		joe_free(tab);
 		return -1;
 	}
 

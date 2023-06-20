@@ -1,36 +1,30 @@
 /* 
-	Text editing windows
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Text editing windows
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <stdio.h>
 #ifdef HAVE_TIME_H
 #include <time.h>
 #endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
 
-#include "w.h"
-#include "termcap.h"
-#include "vfile.h"
 #include "b.h"
-#include "tty.h"
-#include "scrn.h"
 #include "bw.h"
-#include "vs.h"
-#include "help.h"
-#include "undo.h"
-#include "main.h"
 #include "macro.h"
+#include "main.h"
+#include "qw.h"
+#include "scrn.h"
 #include "uedit.h"
 #include "ufile.h"
 #include "ushell.h"
-#include "qw.h"
-#include "tw.h"
+#include "utils.h"
+#include "vs.h"
+#include "w.h"
 
 char *ctime(const time_t *);
 extern char *exmsg;
@@ -78,9 +72,9 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 
 	stalin = vstrunc(stalin, 0);
 	while (*s) {
-		if (*s == '%' && s[1])
+		if (*s == '%' && s[1]) {
 			switch (*++s) {
-				case 't':
+			case 't':
 				{
 					long n = time(NULL);
 					int l;
@@ -96,8 +90,7 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 					stalin = vsncpy(sv(stalin), d + 13, 3);
 				}
 				break;
-
-				case 'u':
+			case 'u':
 				{
 					long n = time(NULL);
 					char *d = ctime(&n);
@@ -105,81 +98,69 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 					stalin = vsncpy(sv(stalin), d + 11, 5);
 				}
 				break;
-
-				case 'T':
+			case 'T':
 				if (bw->o.overtype)
 					stalin = vsadd(stalin, 'O');
 				else
 					stalin = vsadd(stalin, 'I');
 				break;
-
-				case 'W':
+			case 'W':
 				if (bw->o.wordwrap)
 					stalin = vsadd(stalin, 'W');
 				else
 					stalin = vsadd(stalin, fill);
 				break;
-
-				case 'I':
+			case 'I':
 				if (bw->o.autoindent)
 					stalin = vsadd(stalin, 'A');
 				else
 					stalin = vsadd(stalin, fill);
 				break;
-
-				case 'X':
+			case 'X':
 				if (square)
 					stalin = vsadd(stalin, 'X');
 				else
 					stalin = vsadd(stalin, fill);
 				break;
-
-				case 'n':
+			case 'n':
 				stalin = vsncpy(sv(stalin), sz(bw->b->name ? bw->b->name : "Unnamed"));
 				break;
-
-				case 'm':
+			case 'm':
 				if (bw->b->changed)
 					stalin = vsncpy(sv(stalin), sc("(Modified)"));
 				break;
-
-				case 'R':
+			case 'R':
 				if (bw->b->rdonly)
 					stalin = vsncpy(sv(stalin), sc("(Read only)"));
 				break;
-
-				case '*':
+			case '*':
 				if (bw->b->changed)
 					stalin = vsadd(stalin, '*');
 				else
 					stalin = vsadd(stalin, fill);
 				break;
-
-				case 'r':
+			case 'r':
 				snprintf(buf, sizeof(buf), "%-4ld", bw->cursor->line + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'o':
+			case 'o':
 				snprintf(buf, sizeof(buf), "%-4ld", bw->cursor->byte);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'O':
+			case 'O':
 				snprintf(buf, sizeof(buf), "%-4lX", bw->cursor->byte);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'a':
+			case 'a':
 				if (!piseof(bw->cursor))
 					snprintf(buf, sizeof(buf), "%3d", 255 & brc(bw->cursor));
 				else
@@ -189,8 +170,7 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'A':
+			case 'A':
 				if (!piseof(bw->cursor))
 					snprintf(buf, sizeof(buf), "%2.2X", 255 & brc(bw->cursor));
 				else
@@ -200,16 +180,14 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'c':
+			case 'c':
 				snprintf(buf, sizeof(buf), "%-3ld", piscol(bw->cursor) + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'p':
+			case 'p':
 				if (bw->b->eof->byte)
 					snprintf(buf, sizeof(buf), "%3ld", bw->cursor->byte * 100 / bw->b->eof->byte);
 				else
@@ -219,16 +197,14 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'l':
+			case 'l':
 				snprintf(buf, sizeof(buf), "%-4ld", bw->b->eof->line + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
-
-				case 'k':
+			case 'k':
 				{
 					int i;
 					char *cpos = buf;
@@ -253,21 +229,19 @@ static char *stagen(char *stalin, BW *bw, char *s, int fill)
 					stalin = vsncpy(sv(stalin), buf, cpos - buf);
 				}
 				break;
-
-				case 'S':
+			case 'S':
 				if (bw->pid)
 					stalin = vsncpy(sv(stalin), sc("*SHELL*"));
 				break;
-
-				case 'M':
+			case 'M':
 				if (recmac) {
 					snprintf(buf, sizeof(buf), "(Macro %d recording...)", recmac->n);
 					stalin = vsncpy(sv(stalin), sz(buf));
 				}
 				break;
-
-				default:
+			default:
 				stalin = vsadd(stalin, *s);
+			}
 		} else
 			stalin = vsadd(stalin, *s);
 		++s;
@@ -349,7 +323,7 @@ int usplitw(BW *bw)
 	new->object = (void *) (newbw = bwmk(new, bw->b, 0));
 	++bw->b->count;
 	newbw->offset = bw->offset;
-	newbw->object = (void *) (newtw = (TW *) malloc(sizeof(TW)));
+	newbw->object = (void *) (newtw = (TW *) joe_malloc(sizeof(TW)));
 	iztw(newtw, new->y);
 	pset(newbw->top, bw->top);
 	pset(newbw->cursor, bw->cursor);
@@ -375,7 +349,7 @@ int uduptw(BW *bw)
 	new->object = (void *) (newbw = bwmk(new, bw->b, 0));
 	++bw->b->count;
 	newbw->offset = bw->offset;
-	newbw->object = (void *) (newtw = (TW *) malloc(sizeof(TW)));
+	newbw->object = (void *) (newtw = (TW *) joe_malloc(sizeof(TW)));
 	iztw(newtw, new->y);
 	pset(newbw->top, bw->top);
 	pset(newbw->cursor, bw->cursor);
@@ -412,7 +386,7 @@ static int naborttw(BW *bw, int k, void *object, int *notify)
 		}
 	bwrm(bw);
 	vsrm(tw->stalin);
-	free(tw);
+	joe_free(tw);
 	w->object = 0;
 	wabort(w);		/* Eliminate this window and it's children */
 	return 0;
@@ -429,8 +403,6 @@ static void deltw(BW *bw, B *b, long int l, long int n, int flg)
 	if (b == bw->b)
 		bwdel(bw, l, n, flg);
 }
-
-int uabort(BW *bw, int k);
 
 static WATOM watomtw = {
 	"main",
@@ -453,13 +425,13 @@ int uabort(BW *bw, int k)
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte && k != MAXINT) {
 		char c = k;
 
-		jwrite(bw->out, &c, 1);
+		joe_write(bw->out, &c, 1);
 		return 0;
 	}
 	if (bw->pid)
 		return ukillpid(bw);
 	if (bw->b->changed && bw->b->count == 1)
-		if (mkqw(bw, sc("Lose changes to this file (y,n,^C)? "), naborttw, NULL, NULL, NULL))
+		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), naborttw, NULL, NULL, NULL))
 			return 0;
 		else
 			return -1;
@@ -493,7 +465,7 @@ int uabortbuf(BW *bw)
 	return naborttw(bw, 'y', NULL, NULL);
 }
 
-/* Kill this window */
+/* Kill current window (orphans buffer) */
 
 int utw0(BASE *b)
 {
@@ -509,7 +481,7 @@ int utw0(BASE *b)
 	return uabort(bw, MAXINT);
 }
 
-/* Only one window */
+/* Kill all other windows (orphans buffers) */
 
 int utw1(BASE *b)
 {
@@ -521,19 +493,19 @@ int utw1(BASE *b)
 	do {
 		yn = 0;
 	      loop:
-		do
+		do {
 			wnext(t);
-		while (t->curwin->main == mainw && t->curwin != starting);
+		} while (t->curwin->main == mainw && t->curwin != starting);
 		if (t->curwin->main != mainw) {
-			if (((BW *) t->curwin->main->object)->pid) {
-				msgnw(t->curwin->main->object, "Process running in this window");
+			BW *bw = t->curwin->main->object;
+			if (bw->pid) {
+				msgnw(bw->parent, "Process running in this window");
 				return -1;
 			}
-			utw0(t->curwin->main->object), yn = 1;
+			utw0((BASE *)bw), yn = 1;
 			goto loop;
 		}
-	}
-	while (yn);
+	} while (yn);
 	return 0;
 }
 
@@ -541,7 +513,7 @@ void setline(B *b, long int line)
 {
 	W *w = maint->curwin;
 
-	do
+	do {
 		if (w->watom->what == TYPETW) {
 			BW *bw = w->object;
 
@@ -556,7 +528,7 @@ void setline(B *b, long int line)
 					nscrldn(w->t->t, bw->y, bw->y + bw->h, (int) (oline - bw->top->line));
 			}
 		}
-	while ((w = w->link.next) != maint->curwin) ;
+	} while ((w = w->link.next) != maint->curwin);
 }
 
 /* Create a text window.  It becomes the last window on the screen */
@@ -570,7 +542,7 @@ BW *wmktw(SCREEN *t, B *b)
 	w = wcreate(t, &watomtw, NULL, NULL, NULL, t->h, NULL, NULL);
 	wfit(w->t);
 	w->object = (void *) (bw = bwmk(w, b, 0));
-	bw->object = (void *) (tw = (TW *) malloc(sizeof(TW)));
+	bw->object = (void *) (tw = (TW *) joe_malloc(sizeof(TW)));
 	iztw(tw, w->y);
 	return bw;
 }

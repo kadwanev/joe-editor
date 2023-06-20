@@ -1,3 +1,166 @@
+Fri Dec 14 2001  Vitezslav Samel <samel@mail.cz>
+	*** Release joe-2.9.8-pre1 ***
+
+Fri Dec 14 2001  Vitezslav Samel <samel@mail.cz>
+	* configure.ac, NEWS:
+	prepare for -pre release; bump up version to 2.9.8-pre1
+
+Fri Dec 14 2001  Vitezslav Samel <samel@mail.cz>
+	* Makefile.am:
+	add types.h into distribution package
+
+Wed Dec 12 2001  Vitezslav Samel <samel@mail.cz>
+	* acinclude.m4, configure.ac:
+	use our own joe_SETPGRP macro (autoconf's is broken for *BSD)
+
+Tue Dec 11 2001  Vitezslav Samel <samel@mail.cz>
+	* configure.ac, path.c:
+	include <limits.h> if available to get PATH_MAX
+
+Sun Dec 09 2001  Vitezslav Samel <samel@mail.cz>
+	* b.c, bw.c, cmd.c, hash.c, help.c, kbd.c, macro.c, menu.c, pw.c,
+	queue.c, qw.c, rc.c, scrn.c, tab.c, termcap.c, tty.c, tw.c, ufile.c,
+	uformat.c, uisrch.c, umath.c, undo.c, usearch.c, utils.c, utils.h,
+	va.c, vfile.c, vs.c, w.c:
+	prepare memory allocation functions (change (m|re|c)alloc() and free()
+	into joe_(m|re|c)alloc() and joe_free()) in the utils.c for further
+	checking
+
+Sun Dec 09 2001  Vitezslav Samel <samel@mail.cz>
+	* b.c, cmd.c, dir.c, hash.c, hash.h, pw.c, pw.h, rc.c, tab.c, tab.h,
+	uedit.c, uedit.h, ufile.c, uisrch.c, uisrch.h, umath.c, umath.h, undo.c,
+	ushell.c, utag.c, w.c:
+	change function declaration "void a(P * p)" to "void a(P *p)" (when
+	using GNU indent we must use -Ttype to achieve this behaviour)
+
+Sat Dec 08 2001  Vitezslav Samel <samel@mail.cz>
+	* bw.c, scrn.c, scrn.h, uedit.c, w.c:
+	change xlat macro into xlat(int *, char *) function;
+	change indentation of xlat[ac] tables
+
+Sat Dec 08 2001  Vitezslav Samel <samel@mail.cz>
+	* joerc.in:
+	turn off asis (setlocale(LC_CTYPE) takes care of it);
+	turn off baudrate (leave optimizations of terminal baudrate on the user)
+
+Sat Dec 08 2001  Vitezslav Samel <samel@mail.cz>
+	* configure.ac, tty.c:
+	make joe compilable (not only) on cygwin - check if siginterrupt() is
+	available on this host
+
+Sat Dec 08 2001  Vitezslav Samel <samel@mail.cz>
+	* ublock.c:
+	remove feature: exchange points of start and end of the block when
+	checking validity of block pointers
+
+Sat Dec 08 2001  Vitezslav Samel <samel@mail.cz>
+	* rc.c:
+	change indentation of initialization of pdefault, fdefault
+	and glopts arrays; add comments to [pf]default struct members
+
+Sat Dec 01 2001  Vitezslav Samel <samel@mail.cz>
+	* configure.ac, path.c, path.h, tty.c, tty.h:
+	move pwd() into path.c; check in autoconf if we have at least one
+	of getcwd() / getwd()
+
+Sat Dec 01 2001  Vitezslav Samel <samel@mail.cz>
+	* b.c, configure.ac, tty.c, tty.h, tw.c, uedit.c, utils.c, utils.h,
+	vfile.c:
+	move jread() / jwrite() into utils.c and rename them to joe_read() /
+	joe_write(); add checking of size_t and ssize_t into configure scripts
+
+Sat Dec 01 2001  Vitezslav Samel <samel@mail.cz>
+	* joerc.in:
+	use .@7 terminfo entry for "End" key
+
+Sat Dec 01 2001  Vitezslav Samel <samel@mail.cz>
+	* joerc.in:
+	use "Ctrl-K H for help" in -rmsg (F1 doesn't work in all cases)
+
+Sat Dec 01 2001  Vitezslav Samel <samel@mail.cz>
+	* blocks.c, help.c, macro.c, main.c, path.c, rc.c, regex.c, scrn.c,
+	termcap.c, tw.c, ublock.c, uedit.c, usearch.c, vs.c, w.c:
+	change indentation of cases in the switch() statement
+
+Sat Dec 01 2001  Vitezslav Samel <samel@mail.cz>
+	* b.c, bw.c, main.c, path.c, rc.c, regex.c, scrn.c, termcap.c,
+	termidx.c, tty.c, tw.c, ublock.c, uedit.c, uerror.c, uformat.c, undo.c,
+	utag.c, vfile.c, vs.c, w.c:
+	change indentation of do {} while(); cycles
+
+Wed Nov 28 2001  Vitezslav Samel <samel@mail.cz>
+	* b.c, b.h, blocks.c, blocks.h, bw.c, bw.h, cmd.c, cmd.h, dir.c,
+	help.c, help.h, kbd.c, kbd.h, macro.c, macro.h, main.c, main.h, menu.c,
+	menu.h, path.c, path.h, poshist.c, poshist.h, pw.c, pw.h, queue.h,
+	qw.c, qw.h, rc.c, rc.h, regex.c, scrn.c, scrn.h, tab.c, tab.h,
+	termcap.c, tty.h, tw.c, tw.h, types.h, ublock.c, ublock.h, uedit.c,
+	uerror.c, ufile.c, ufile.h, uformat.c, uformat.h, uisrch.c, uisrch.h,
+	umath.c, umath.h, undo.c, undo.h, usearch.c, usearch.h, ushell.c,
+	ushell.h, utag.c, utag.h, utils.c, utils.h, va.c, va.h, vfile.c,
+	vfile.h, vs.c, vs.h, w.c, w.h: include only headers which are
+	necessary and since the headers now don't depend on each other,
+	include them in alphabetic order
+
+Thu Nov 22 2001  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+	* *.h, *.c: almost all definitions are in types.h (except those from
+	vs.h, va.h). 
+
+Thu Nov 22 2001  Marek 'marx' Grac <xgrac@fi.muni.cz>
+	* uedit.c: correction of last change
+
+Tue Nov 20 2001  Marek 'marx' Grac <xgrac@fi.muni.cz>
+	* w.h, w.c, usearch.c, ufile.c, macro.c, uerror.c, umath.c:
+	MSGBUFSIZE was renamed to JOE_MSGBUFSIZE, because MSGBUFSIZE is
+	defined on BSD like systems.
+
+Mon Nov 12 2001  Vitezslav Samel <samel@mail.cz>
+	* Makefile.am, deleted chain.asm, kbdhdl.c, kbdhdl.h, msscrn.c,
+	mstty.c, termcap, terminfo: delete unused files from distribution
+
+Mon Nov 12 2001  Peter Breitenlohner <peb@mppmu.mpg.de>
+	* Makefile.am: make joe installable into another root dir
+	with "make DESTDIR=/path/ install"
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* ufile.c: comment out unused functions (nask2()/uask2())
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* uedit.c: correct typo: utype(bw, c) --> utypebw(bw,c)
+	I'm not 100% sure about this, but "works for me here"(tm)
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* termcap.c, termcap.h: correct prototype to the output routine
+	the CAP structure (and setcap()/getcap() etc.)
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* regex.c, regex.h: change regex pointer to be 'unsigned char *regex'
+	This kills some warnings during build.
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* cmd.c, menu.c, menu.h, rc.c, tab.c, ufile.c: use mkmenu(W *, ...)
+	instead of mkmenu(BASE *, ...).
+	This kills some warnings during build.
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* tw.c, w.h: non-code clean up
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* macro.c, qw.c, qw.h, tw.c, uedit.c, uisrch.c, usearch.c, ushell.c:
+	use mkqw(W *, ...) instead of mkqw(BASE *, ...) (same applies to
+	mkqwna() and mkqwnsr()).
+	This kills a lot of warnings during build.
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* bw.c, cmd.c, macro.c, main.c, rc.c, tab.c, tw.c, ublock.c, uedit.c,
+	uerror.c, ufile.c, umath.c, undo.c, usearch.c, ushell.c, utag.c, w.c,
+	w.h: use msgnw[t](W *, char *) instead of msgnw[t](BASE *, char *).
+	This kills a lot of warnings during build.
+
+Sun Nov 11 2001  Vitezslav Samel <samel@mail.cz>
+	* b.c, blocks.c, blocks.h, scrn.c, termcap.c, undo.c, vfile.c, vs.c:
+	use mfwrd() and mbkwd() only as internal functions to mmove().
+	This kills some of the remaining warnings during build.
+
 Wed Nov 07 2001  Vitezslav Samel <samel@mail.cz>
 	*** Release joe-2.9.7 ***
 

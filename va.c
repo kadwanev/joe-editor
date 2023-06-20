@@ -1,28 +1,22 @@
-/* Variable length array of strings
-   Copyright (C) 1992 Joseph H. Allen
+/*
+ *	Variable length array of strings
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
 
-This file is part of JOE (Joe's Own Editor)
-
-JOE is free software; you can redistribute it and/or modify it under the 
-terms of the GNU General Public License as published by the Free Software 
-Foundation; either version 1, or (at your option) any later version.  
-
-JOE is distributed in the hope that it will be useful, but WITHOUT ANY 
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS 
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
-details.  
-
-You should have received a copy of the GNU General Public License along with 
-JOE; see the file COPYING.  If not, write to the Free Software Foundation, 
-675 Mass Ave, Cambridge, MA 02139, USA.  */
-
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
-#include "blocks.h"
+#endif
+
+#include "utils.h"
 #include "va.h"
 
 aELEMENT(*vamk(int len))
 {
-	int *new = (int *) malloc((1 + len) * sizeof(aCAST) + 2 * sizeof(int));
+	int *new = (int *) joe_malloc((1 + len) * sizeof(aCAST) + 2 * sizeof(int));
 
 	new[0] = len;
 	new[1] = 0;
@@ -34,7 +28,7 @@ void varm(char **vary)
 {
 	if (vary) {
 		vazap(vary, 0, aLen(vary));
-		free((int *) vary - 2);
+		joe_free((int *) vary - 2);
 	}
 }
 
@@ -55,7 +49,7 @@ aELEMENT(*vaensure(aELEMENT(*vary), int len))
 		vary = vamk(len);
 	else if (len > aSiz(vary)) {
 		len += (len >> 2);
-		vary = (aELEMENT(*))(2 + (int *) realloc((int *) vary - 2, (len + 1) * sizeof(aCAST) + 2 * sizeof(int)));
+		vary = (aELEMENT(*))(2 + (int *) joe_realloc((int *) vary - 2, (len + 1) * sizeof(aCAST) + 2 * sizeof(int)));
 
 		aSiz(vary) = len;
 	}

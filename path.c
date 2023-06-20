@@ -1,12 +1,13 @@
-
 /* 
-	Directory and path functions
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Directory and path functions
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #ifdef HAVE_SYS_STAT_H
@@ -19,14 +20,16 @@
 #ifdef HAVE_PATHS_H
 #  include <paths.h>	/* for _PATH_TMP */
 #endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 
+#include "path.h"
 #include "vs.h"
 #include "va.h"
-#include "tty.h"
-#include "path.h"
 
 #ifdef HAVE_DIRENT_H
 #  include <dirent.h>
@@ -73,6 +76,11 @@
 #  else
 #    define	_PATH_TMP	"/tmp/"
 #  endif
+#endif
+
+#ifndef PATH_MAX
+#warning What should we include to have PATH_MAX defined?
+#define PATH_MAX	4096
 #endif
 
 /********************************************************************/
@@ -238,14 +246,14 @@ int rmatch(char *a, char *b)
 
 	for (;;)
 		switch (*a) {
-			case '*':
+		case '*':
 			++a;
-			do
+			do {
 				if (rmatch(a, b))
 					return 1;
-			while (*b++) ;
+			} while (*b++);
 			return 0;
-			case '[':
+		case '[':
 			++a;
 			flag = 0;
 			if (*a == '^')
@@ -265,18 +273,18 @@ int rmatch(char *a, char *b)
 				return 0;
 			++b;
 			break;
-			case '?':
+		case '?':
 			++a;
 			if (!*b)
 				return 0;
 			++b;
 			break;
-			case 0:
+		case 0:
 			if (!*b)
 				return 1;
 			else
 				return 0;
-			default:
+		default:
 			if (*a++ != *b++)
 				return 0;
 		}
@@ -380,4 +388,20 @@ int chpwd(char *path)
 		return 0;
 	return chdir(path);
 #endif
+}
+
+/* The pwd function */
+char *pwd(void)
+{
+	static char buf[PATH_MAX];
+	char	*ret;
+
+#ifdef HAVE_GETCWD
+	ret = getcwd(buf, PATH_MAX - 1);
+#else
+	ret = getwd(buf);
+#endif
+	buf[PATH_MAX - 1] = '\0';
+
+	return ret;
 }

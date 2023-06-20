@@ -1,19 +1,23 @@
 /*
-	UNDO system
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	UNDO system
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
+
 #include "b.h"
-#include "bw.h"
 #include "blocks.h"
+#include "queue.h"
 #include "ublock.h"
-#include "undo.h"
+#include "utils.h"
+#include "w.h"
 
 extern int lightoff;
 
@@ -41,11 +45,11 @@ static UNDOREC *alrec(void)
 	return rec;
 }
 
-static void frrec(UNDOREC * rec)
+static void frrec(UNDOREC *rec)
 {
 	if (rec->del) {
 		if (rec->len < SMALL)
-			free(rec->small);
+			joe_free(rec->small);
 		else {
 			B *b = rec->big;
 
@@ -56,7 +60,7 @@ static void frrec(UNDOREC * rec)
 	enquef(UNDOREC, link, &frrecs, rec);
 }
 
-UNDO *undomk(B * b)
+UNDO *undomk(B *b)
 {
 	UNDO *undo = (UNDO *) alitem(&frdos, sizeof(UNDO));
 
@@ -70,13 +74,13 @@ UNDO *undomk(B * b)
 	return undo;
 }
 
-void undorm(UNDO * undo)
+void undorm(UNDO *undo)
 {
 	frchn(&frrecs, &undo->recs);
 	demote(UNDO, link, &frdos, undo);
 }
 
-static void doundo(BW * bw, UNDOREC * ptr)
+static void doundo(BW *bw, UNDOREC *ptr)
 {
 	dostaupd = 1;
 
@@ -100,7 +104,7 @@ static void doundo(BW * bw, UNDOREC * ptr)
 	bw->b->changed = ptr->changed;
 }
 
-int uundo(BW * bw)
+int uundo(BW *bw)
 {
 	UNDOREC *upto;
 	UNDO *undo = bw->b->undo;
@@ -131,7 +135,7 @@ int uundo(BW * bw)
 	return 0;
 }
 
-int uredo(BW * bw)
+int uredo(BW *bw)
 {
 	UNDOREC *upto;
 	UNDOREC *ptr;
@@ -152,8 +156,7 @@ int uredo(BW * bw)
 		inredo = 0;
 		frrec(deque_f(UNDOREC, link, ptr));
 		undo->ptr = undo->ptr->link.next;
-	}
-	while (upto && upto != ptr);
+	} while (upto && upto != ptr);
 	return 0;
 }
 
@@ -171,7 +174,7 @@ void umclear(void)
 
 /* Eliminate excess undo records */
 
-static void undogc(UNDO * undo)
+static void undogc(UNDO *undo)
 {
 	UNDOREC *unit = undo->recs.link.next->unit;
 	int flg = 0;
@@ -205,12 +208,12 @@ void undomark(void)
  * undoing some number of changes
  */
 
-static void undoover(UNDO * undo)
+static void undoover(UNDO *undo)
 {
 	undo->ptr = 0;
 }
 
-void undoins(UNDO * undo, P * p, long size)
+void undoins(UNDO *undo, P *p, long size)
 {
 	UNDOREC *rec;
 
@@ -238,7 +241,7 @@ void undoins(UNDO * undo, P * p, long size)
 }
 
 
-int uyapp(BW * bw)
+int uyapp(BW *bw)
 {
 	UNDOREC *rec = yanked.link.prev;
 
@@ -247,7 +250,7 @@ int uyapp(BW * bw)
 	return 0;
 }
 
-static void yankdel(long where, B * b)
+static void yankdel(long where, B *b)
 {
 	UNDOREC *rec;
 	long size = b->eof->byte;
@@ -261,13 +264,13 @@ static void yankdel(long where, B * b)
 					rec->big = bmk(NULL);
 					binsm(rec->big->bof, rec->small, (int) rec->len);
 					boffline(rec->big);
-					free(rec->small);
+					joe_free(rec->small);
 				}
 				bonline(rec->big);
 				binsb(rec->big->eof, bcpy(b->bof, b->eof));
 				boffline(rec->big);
 			} else {
-				rec->small = (char *) realloc(rec->small, rec->len + size);
+				rec->small = (char *) joe_realloc(rec->small, rec->len + size);
 				brmem(b->bof, rec->small + rec->len, (int) size);
 			}
 			rec->len += size;
@@ -277,14 +280,14 @@ static void yankdel(long where, B * b)
 					rec->big = bmk(NULL);
 					binsm(rec->big->bof, rec->small, (int) rec->len);
 					boffline(rec->big);
-					free(rec->small);
+					joe_free(rec->small);
 				}
 				bonline(rec->big);
 				binsb(rec->big->bof, bcpy(b->bof, b->eof));
 				boffline(rec->big);
 			} else {
-				rec->small = (char *) realloc(rec->small, rec->len + size);
-				mbkwd(rec->small + size, rec->small, (int) rec->len);
+				rec->small = (char *) joe_realloc(rec->small, rec->len + size);
+				mmove(rec->small + size, rec->small, (int) rec->len);
 				brmem(b->bof, rec->small, (int) size);
 			}
 			rec->len += size;
@@ -294,7 +297,7 @@ static void yankdel(long where, B * b)
 				frrec(deque_f(UNDOREC, link, yanked.link.next)), --nyanked;
 			rec = alrec();
 			if (size < SMALL) {
-				rec->small = (char *) malloc(size);
+				rec->small = (char *) joe_malloc(size);
 				brmem(b->bof, rec->small, (int) b->eof->byte);
 			} else {
 				rec->big = bcpy(b->bof, b->eof);
@@ -308,7 +311,7 @@ static void yankdel(long where, B * b)
 	}
 }
 
-void undodel(UNDO * undo, long where, B * b)
+void undodel(UNDO *undo, long where, B *b)
 {
 	UNDOREC *rec;
 	long size = b->eof->byte;
@@ -331,13 +334,13 @@ void undodel(UNDO * undo, long where, B * b)
 				rec->big = bmk(NULL);
 				binsm(rec->big->bof, rec->small, (int) rec->len);
 				boffline(rec->big);
-				free(rec->small);
+				joe_free(rec->small);
 			}
 			bonline(rec->big);
 			binsb(rec->big->eof, b);
 			boffline(rec->big);
 		} else {
-			rec->small = (char *) realloc(rec->small, rec->len + size);
+			rec->small = (char *) joe_realloc(rec->small, rec->len + size);
 			brmem(b->bof, rec->small + rec->len, (int) size);
 			brm(b);
 		}
@@ -348,14 +351,14 @@ void undodel(UNDO * undo, long where, B * b)
 				rec->big = bmk(NULL);
 				binsm(rec->big->bof, rec->small, (int) rec->len);
 				boffline(rec->big);
-				free(rec->small);
+				joe_free(rec->small);
 			}
 			bonline(rec->big);
 			binsb(rec->big->bof, b);
 			boffline(rec->big);
 		} else {
-			rec->small = (char *) realloc(rec->small, rec->len + size);
-			mbkwd(rec->small + size, rec->small, (int) rec->len);
+			rec->small = (char *) joe_realloc(rec->small, rec->len + size);
+			mmove(rec->small + size, rec->small, (int) rec->len);
 			brmem(b->bof, rec->small, (int) size);
 			brm(b);
 		}
@@ -364,7 +367,7 @@ void undodel(UNDO * undo, long where, B * b)
 	} else {
 		rec = alrec();
 		if (size < SMALL) {
-			rec->small = (char *) malloc(size);
+			rec->small = (char *) joe_malloc(size);
 			brmem(b->bof, rec->small, (int) b->eof->byte);
 			brm(b);
 		} else {
@@ -387,7 +390,7 @@ void undodel(UNDO * undo, long where, B * b)
 B *yankbuf = 0;
 long yankwhere = -1;
 
-int uyank(BW * bw)
+int uyank(BW *bw)
 {
 	UNDOREC *ptr = yanked.link.prev;
 
@@ -409,7 +412,7 @@ int uyank(BW * bw)
 		return -1;
 }
 
-int uyankpop(BW * bw)
+int uyankpop(BW *bw)
 {
 	if (bw->b == yankbuf && bw->cursor->byte == yankwhere) {
 		P *q;
@@ -430,14 +433,14 @@ int uyankpop(BW * bw)
 
 /* Clear changed-flag: make buffer look unmodified */
 
-int unotmod(BW * bw)
+int unotmod(BW *bw)
 {
 	bw->b->changed = 0;
-	msgnw(bw, "Modified flag cleared");
+	msgnw(bw->parent, "Modified flag cleared");
 	return 0;
 }
 
-int ucopy(BW * bw)
+int ucopy(BW *bw)
 {
 	if (markv(1) && !square) {
 		B *b = bcpy(markb, markk);
@@ -448,7 +451,7 @@ int ucopy(BW * bw)
 			unmark(bw);
 		return 0;
 	} else {
-		msgnw(bw, "No block");
+		msgnw(bw->parent, "No block");
 		return -1;
 	}
 }

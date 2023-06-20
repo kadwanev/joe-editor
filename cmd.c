@@ -1,36 +1,44 @@
-
-/* Command execution */
+/*
+ *	Command execution
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
+#include "types.h"
 
 #include <string.h>
 
-#include "config.h"
-#include "vs.h"
-#include "va.h"
-#include "w.h"
-#include "tw.h"
+#include "b.h"
 #include "bw.h"
-#include "pw.h"
-#include "tab.h"
-#include "qw.h"
-#include "menu.h"
+#include "cmd.h"
+#include "hash.h"
 #include "help.h"
+#include "macro.h"
+#include "main.h"
+#include "menu.h"
+#include "path.h"
+#include "poshist.h"
+#include "pw.h"
+#include "rc.h"
+#include "tty.h"
+#include "tw.h"
 #include "ublock.h"
 #include "uedit.h"
+#include "uerror.h"
 #include "ufile.h"
 #include "uformat.h"
+#include "uisrch.h"
+#include "umath.h"
 #include "undo.h"
 #include "usearch.h"
-#include "uisrch.h"
 #include "ushell.h"
 #include "utag.h"
-#include "poshist.h"
-#include "macro.h"
-#include "hash.h"
-#include "rc.h"
-#include "umath.h"
-#include "uerror.h"
-#include "path.h"
-#include "cmd.h"
+#include "utils.h"
+#include "va.h"
+#include "vs.h"
+#include "w.h"
 
 extern int smode;
 int beep = 0;
@@ -247,7 +255,7 @@ int execmd(CMD *cmd, int k)
 		goto skip;
 
 	if ((maint->curwin->watom->what & TYPETW) && bw->b->rdonly && (cmd->flag & EMOD)) {
-		msgnw(bw, "Read only");
+		msgnw(bw->parent, "Read only");
 		if (beep)
 			ttputc(7);
 		goto skip;
@@ -323,7 +331,7 @@ CMD *findcmd(char *s)
 
 void addcmd(char *s, MACRO *m)
 {
-	CMD *cmd = (CMD *) malloc(sizeof(CMD));
+	CMD *cmd = (CMD *) joe_malloc(sizeof(CMD));
 
 	if (!cmdhash)
 		izcmds();
@@ -410,7 +418,7 @@ static int cmdcmplt(BW *bw)
 	line = brvs(p, (int) (q->byte - p->byte));	/* Assumes short lines :-) */
 	prm(p);
 	prm(q);
-	m = mkmenu(bw, NULL, cmdrtn, cmdabrt, NULL, 0, line, NULL);
+	m = mkmenu(bw->parent, NULL, cmdrtn, cmdabrt, NULL, 0, line, NULL);
 	if (!m)
 		return -1;
 	line1 = vsncpy(NULL, 0, sv(line));
@@ -447,7 +455,7 @@ static int docmd(BW *bw, char *s, void *object, int *notify)
 	CMD *cmd = findcmd(s);
 
 	if (!cmd)
-		msgnw(bw, "No such command");
+		msgnw(bw->parent, "No such command");
 	else {
 		mac = mkmacro(MAXINT, 0, 0, cmd);
 		ret = exmacro(mac, 1);
@@ -460,7 +468,7 @@ static int docmd(BW *bw, char *s, void *object, int *notify)
 
 B *cmdhist = 0;
 
-int uexecmd(BW * bw)
+int uexecmd(BW *bw)
 {
 	if (wmkpw(bw->parent, "cmd: ", &cmdhist, docmd, "cmd", NULL, cmdcmplt, NULL, NULL)) {
 		return 0;

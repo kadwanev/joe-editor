@@ -1,30 +1,31 @@
 /*
-	Prompt windows
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Prompt windows
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <string.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#include "w.h"
-#include "tw.h"
-#include "vfile.h"
-#include "termcap.h"
+
 #include "b.h"
-#include "kbd.h"
-#include "scrn.h"
 #include "bw.h"
 #include "help.h"
-#include "tab.h"
-#include "undo.h"
-#include "uedit.h"
+#include "kbd.h"
 #include "pw.h"
+#include "scrn.h"
+#include "tab.h"
+#include "termcap.h"
+#include "tw.h"
+#include "uedit.h"
+#include "undo.h"
+#include "utils.h"
+#include "vfile.h"
+#include "w.h"
 
-static void disppw(BW * bw, int flg)
+static void disppw(BW *bw, int flg)
 {
 	W *w = bw->parent;
 	PW *pw = (PW *) bw->object;
@@ -71,7 +72,7 @@ static void disppw(BW * bw, int flg)
 
 extern volatile int dostaupd;
 
-static int rtnpw(BW * bw)
+static int rtnpw(BW *bw)
 {
 	W *w = bw->parent;
 	PW *pw = (PW *) bw->object;
@@ -114,8 +115,8 @@ static int rtnpw(BW * bw)
 	pfunc = pw->pfunc;
 	object = pw->object;
 	bwrm(bw);
-	free(pw->prompt);
-	free(pw);
+	joe_free(pw->prompt);
+	joe_free(pw);
 	w->object = 0;
 	notify = w->notify;
 	w->notify = 0;
@@ -128,7 +129,7 @@ static int rtnpw(BW * bw)
 	}
 }
 
-int ucmplt(BW * bw, int k)
+int ucmplt(BW *bw, int k)
 {
 	PW *pw = (PW *) bw->object;
 
@@ -139,21 +140,21 @@ int ucmplt(BW * bw, int k)
 	}
 }
 
-static void inspw(BW * bw, B * b, long l, long n, int flg)
+static void inspw(BW *bw, B *b, long l, long n, int flg)
 {
 	if (b == bw->b) {
 		bwins(bw, l, n, flg);
 	}
 }
 
-static void delpw(BW * bw, B * b, long l, long n, int flg)
+static void delpw(BW *bw, B *b, long l, long n, int flg)
 {
 	if (b == bw->b) {
 		bwdel(bw, l, n, flg);
 	}
 }
 
-static int abortpw(BW * b)
+static int abortpw(BW *b)
 {
 	PW *pw = b->object;
 	void *object = pw->object;
@@ -162,8 +163,8 @@ static int abortpw(BW * b)
 	W *win = b->parent->win;
 
 	bwrm(b);
-	free(pw->prompt);
-	free(pw);
+	joe_free(pw->prompt);
+	joe_free(pw);
 	if (abrt) {
 		return abrt(win->object, object);
 	} else {
@@ -187,7 +188,7 @@ static WATOM watompw = {
 
 /* Create a prompt window */
 
-BW *wmkpw(W * w, char *prompt, B ** history, int (*func) (), char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify)
+BW *wmkpw(W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify)
 {
 	W *new;
 	PW *pw;
@@ -202,7 +203,7 @@ BW *wmkpw(W * w, char *prompt, B ** history, int (*func) (), char *huh, int (*ab
 	}
 	wfit(new->t);
 	new->object = (void *) (bw = bwmk(new, bmk(NULL), 1));
-	bw->object = (void *) (pw = (PW *) malloc(sizeof(PW)));
+	bw->object = (void *) (pw = (PW *) joe_malloc(sizeof(PW)));
 	pw->abrt = abrt;
 	pw->tab = tab;
 	pw->object = object;

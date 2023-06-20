@@ -1,15 +1,15 @@
 /*
- 	Doubly linked list primitives
- 	Copyright (C) 1992 Joseph H. Allen
- 
- 	This file is part of JOE (Joe's Own Editor)
+ * 	Doubly linked list primitives
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
  */
-
 #include "config.h"
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+#include "types.h"
+
 #include "queue.h"
+#include "utils.h"
 
 void *QUEUE;
 void *ITEM;
@@ -20,7 +20,7 @@ void *alitem(void *list, int itemsize)
 	STDITEM	*freelist = (STDITEM *)list;
 
 	if (qempty(STDITEM, link, freelist)) {
-		STDITEM *i = (STDITEM *) malloc(itemsize * 16);
+		STDITEM *i = (STDITEM *) joe_malloc(itemsize * 16);
 		STDITEM *z = (STDITEM *) ((char *) i + itemsize * 16);
 
 		while (i != z) {

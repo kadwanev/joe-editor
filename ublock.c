@@ -1,27 +1,31 @@
 /*
-	Highlighted block functions
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ * 	Highlighted block functions
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
 
 #include <unistd.h>
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
+#endif
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
+
 #include "b.h"
-#include "bw.h"
-#include "scrn.h"
-#include "w.h"
 #include "pw.h"
-#include "qw.h"
+#include "queue.h"
+#include "scrn.h"
+#include "tty.h"
+#include "ublock.h"
 #include "uedit.h"
 #include "utils.h"
 #include "vs.h"
-#include "ublock.h"
+#include "w.h"
 
 /* Global options */
 
@@ -94,15 +98,7 @@ int markv(int r)
 {
 	if (markb && markk && markb->b == markk->b && markk->byte > markb->byte && (!square || markk->xcol > markb->xcol))
 		return 1;
-	else if (r && markb && markk && markb->b == markk->b && markk->byte < markb->byte && (!square || markk->xcol < markb->xcol)) {
-		P *t = markb;
-
-		markb = markk;
-		markk = t;
-		markb->owner = &markb;
-		markk->owner = &markk;
-		return 1;
-	} else
+	else
 		return 0;
 }
 
@@ -356,7 +352,7 @@ int ublkdel(BW *bw)
 		if (lightoff)
 			unmark(bw);
 	} else {
-		msgnw(bw, "No block");
+		msgnw(bw->parent, "No block");
 		return -1;
 	}
 	return 0;
@@ -393,7 +389,7 @@ int ublkmove(BW *bw)
 {
 	if (markv(1)) {
 		if (markb->b->rdonly) {
-			msgnw(bw, "Read only");
+			msgnw(bw->parent, "Read only");
 			return -1;
 		}
 		if (square) {
@@ -441,7 +437,7 @@ int ublkmove(BW *bw)
 			return 0;
 		}
 	}
-	msgnw(bw, "No block");
+	msgnw(bw->parent, "No block");
 	return -1;
 }
 
@@ -484,7 +480,7 @@ int ublkcpy(BW *bw)
 			updall();
 			return 0;
 	} else {
-		msgnw(bw, "No block");
+		msgnw(bw->parent, "No block");
 		return -1;
 	}
 }
@@ -505,7 +501,7 @@ int dowrite(BW *bw, char *s, void *object, int *notify)
 					  markk->xcol);
 
 			if ((fl = bsave(tmp->bof, s, tmp->eof->byte)) != 0)
-				msgnw(bw, msgs[5 + fl]), ret = -1;
+				msgnw(bw->parent, msgs[5 + fl]), ret = -1;
 			brm(tmp);
 			if (lightoff)
 				unmark(bw);
@@ -516,14 +512,14 @@ int dowrite(BW *bw, char *s, void *object, int *notify)
 			int ret = 0;
 
 			if ((fl = bsave(markb, s, markk->byte - markb->byte)) != 0)
-				msgnw(bw, msgs[5 + fl]), ret = -1;
+				msgnw(bw->parent, msgs[5 + fl]), ret = -1;
 			if (lightoff)
 				unmark(bw);
 			vsrm(s);
 			return ret;
 	} else {
 		vsrm(s);
-		msgnw(bw, "No block");
+		msgnw(bw->parent, "No block");
 		return -1;
 	}
 }
@@ -542,12 +538,12 @@ void setindent(BW *bw)
 	q = pdup(p);
 	indent = pisindent(p);
 
-	do
+	do {
 		if (!pprevl(p))
 			goto done;
 		else
 			p_goto_bol(p);
-	while (pisindent(p) >= indent && !pisblank(p));
+	} while (pisindent(p) >= indent && !pisblank(p));
 	pnextl(p);
       done:
 	p_goto_bol(p);
@@ -557,10 +553,10 @@ void setindent(BW *bw)
 	markb = p;
 	p->owner = &markb;
 
-	do
+	do {
 		if (!pnextl(q))
 			break;
-	while (pisindent(q) >= indent && !pisblank(q)) ;
+	} while (pisindent(q) >= indent && !pisblank(q));
 
 	if (markk)
 		prm(markk);
@@ -582,8 +578,7 @@ int urindent(BW *bw)
 			do {
 				pcol(p, markb->xcol);
 				pfill(p, markb->xcol + bw->o.istep, bw->o.indentc == '\t' ? 1 : 0);
-			}
-			while (pnextl(p) && p->line <= markk->line);
+			} while (pnextl(p) && p->line <= markk->line);
 			prm(p);
 		}
 	} else {
@@ -625,16 +620,14 @@ int ulindent(BW *bw)
 						return -1;
 					}
 				}
-			}
-			while (pnextl(p) && p->line <= markk->line);
+			} while (pnextl(p) && p->line <= markk->line);
 			pset(p, markb);
 			do {
 				pcol(p, markb->xcol);
 				pset(q, p);
 				pcol(q, markb->xcol + bw->o.istep);
 				bdel(p, q);
-			}
-			while (pnextl(p) && p->line <= markk->line);
+			} while (pnextl(p) && p->line <= markk->line);
 			prm(p);
 			prm(q);
 		}
@@ -694,7 +687,7 @@ int doinsf(BW *bw, char *s, void *object, int *notify)
 
 			tmp = bload(s);
 			if (error) {
-				msgnw(bw, msgs[error + 5]);
+				msgnw(bw->parent, msgs[error + 5]);
 				brm(tmp);
 				return -1;
 			}
@@ -718,14 +711,14 @@ int doinsf(BW *bw, char *s, void *object, int *notify)
 			updall();
 			return 0;
 		} else {
-			msgnw(bw, "No block");
+			msgnw(bw->parent, "No block");
 			return -1;
 	} else {
 		int ret = 0;
 		B *tmp = bload(s);
 
 		if (error)
-			msgnw(bw, msgs[error + 5]), brm(tmp), ret = -1;
+			msgnw(bw->parent, msgs[error + 5]), brm(tmp), ret = -1;
 		else
 			binsb(bw->cursor, tmp);
 		vsrm(s);
@@ -749,7 +742,7 @@ static int dofilt(BW *bw, char *s, void *object, int *notify)
 	if (markb && markk && !square && markb->b == bw->b && markk->b == bw->b && markb->byte == markk->byte)
 		goto ok;
 	if (!markv(1)) {
-		msgnw(bw, "No block");
+		msgnw(bw->parent, "No block");
 		return -1;
 	}
       ok:
@@ -868,25 +861,23 @@ static int checkmark(BW *bw)
 int ufilt(BW *bw)
 {
 #ifdef __MSDOS__
-	msgnw(bw, "Sorry, no sub-processes in DOS (yet)");
+	msgnw(bw->parent, "Sorry, no sub-processes in DOS (yet)");
 	return -1;
 #else
 	switch (checkmark(bw)) {
-		case 0:
+	case 0:
 		if (wmkpw(bw->parent, "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL))
 			return 0;
 		else
 			return -1;
-
-		case 1:
+	case 1:
 		if (wmkpw(bw->parent, "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL))
 			return 0;
 		else
 			return -1;
-
-		case 2:
-		default:
-		msgnw(bw, "No block");
+	case 2:
+	default:
+		msgnw(bw->parent, "No block");
 		return -1;
 	}
 #endif

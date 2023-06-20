@@ -1,16 +1,24 @@
 /*
-	User file operations
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ * 	User file operations
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
+
 #include <stdio.h>
 #include <unistd.h>
-#include <fcntl.h>
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
-#include <string.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
@@ -27,25 +35,24 @@
 
 #include "b.h"
 #include "bw.h"
-#include "scrn.h"
-#include "tw.h"
-#include "w.h"
-#include "pw.h"
-#include "qw.h"
-#include "ublock.h"
+#include "macro.h"
 #include "main.h"
-#include "vs.h"
-#include "va.h"
 #include "menu.h"
 #include "path.h"
-#include "ublock.h"
-#include "tty.h"
+#include "pw.h"
+#include "qw.h"
+#include "scrn.h"
 #include "tab.h"
+#include "tty.h"
+#include "tw.h"
+#include "ublock.h"
 #include "uerror.h"
-#include "macro.h"
 #include "ufile.h"
-#include "undo.h"
 #include "ushell.h"
+#include "utils.h"
+#include "va.h"
+#include "vs.h"
+#include "w.h"
 
 extern int orphan;
 char *backpath = 0;		/* Place to store backup files */
@@ -55,7 +62,7 @@ int exask = 0;
 
 /* Ending message generator */
 /**** message which is shown after closing joe (CTRL+x; CTRL+k) *****/
-void genexmsg(BW * bw, int saved, char *name)
+void genexmsg(BW *bw, int saved, char *name)
 {
 	char *s;
 
@@ -67,18 +74,18 @@ void genexmsg(BW * bw, int saved, char *name)
 
 	if (name) {
 		if (saved) {
-			snprintf(msgbuf, MSGBUFSIZE, "File %s saved", name);
+			snprintf(msgbuf, JOE_MSGBUFSIZE, "File %s saved", name);
 		} else {
-			snprintf(msgbuf, MSGBUFSIZE, "File %s not saved", name);
+			snprintf(msgbuf, JOE_MSGBUFSIZE, "File %s not saved", name);
 		}
 	} else if (bw->b->changed && bw->b->count == 1) {
-		snprintf(msgbuf, MSGBUFSIZE, "File %s not saved", s);
+		snprintf(msgbuf, JOE_MSGBUFSIZE, "File %s not saved", s);
 	} else if (saved) {
-		snprintf(msgbuf, MSGBUFSIZE, "File %s saved", s);
+		snprintf(msgbuf, JOE_MSGBUFSIZE, "File %s saved", s);
 	} else {
-		snprintf(msgbuf, MSGBUFSIZE, "File %s not changed so no update needed", s);
+		snprintf(msgbuf, JOE_MSGBUFSIZE, "File %s not changed so no update needed", s);
 	}
-	msgnw(bw, msgbuf);
+	msgnw(bw->parent, msgbuf);
 
 	if (!exmsg) {
 		if (bw->b->changed && bw->b->count == 1) {
@@ -99,7 +106,7 @@ void genexmsg(BW * bw, int saved, char *name)
 
 /* Write highlighted block to a file */
 
-int ublksave(BW * bw)
+int ublksave(BW *bw)
 {
 	if (markb && markk && markb->b == markk->b && (markk->byte - markb->byte) > 0 && (!square || piscol(markk) > piscol(markb))) {
 		if (wmkpw(bw->parent, "Name of file to write (^C to abort): ", &filehist, dowrite, "Names", NULL, cmplt, NULL, NULL)) {
@@ -114,7 +121,7 @@ int ublksave(BW * bw)
 
 /* Shell escape */
 
-int ushell(BW * bw)
+int ushell(BW *bw)
 {
 	nescape(bw->parent->t->t);
 	ttsusp();
@@ -179,7 +186,7 @@ static int cp(char *from, char *to)
  * Returns 1 for error
  */
 
-static int backup(BW * bw)
+static int backup(BW *bw)
 {
 	if (!bw->b->backup && !nobackups && bw->b->name && bw->b->name[0]) {
 		char tmp[1024];
@@ -250,11 +257,11 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 	callback = req->callback;
 	if (c == 'n' || c == 'N') {
 		vsrm(req->name);
-		free(req);
+		joe_free(req);
 		if (notify) {
 			*notify = 1;
 		}
-		msgnw(bw, "Couldn't make backup file... file not saved");
+		msgnw(bw->parent, "Couldn't make backup file... file not saved");
 		if (callback) {
 			return callback(bw, -1);
 		} else {
@@ -280,9 +287,9 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 		exemac(bw->o.msold);
 	}
 	if ((fl = bsave(bw->b->bof, req->name, bw->b->eof->byte)) != 0) {
-		msgnw(bw, msgs[fl + 5]);
+		msgnw(bw->parent, msgs[fl + 5]);
 		vsrm(req->name);
-		free(req);
+		joe_free(req);
 		if (callback) {
 			return callback(bw, -1);
 		} else {
@@ -316,7 +323,7 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 		}
 		genexmsg(bw, 1, req->name);
 		vsrm(req->name);
-		free(req);
+		joe_free(req);
 		if (callback) {
 			return callback(bw, 0);
 		} else {
@@ -327,7 +334,7 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 
 static int dosave(BW *bw, char *s, int (*callback) (), int *notify)
 {
-	struct savereq *req = (struct savereq *) malloc(sizeof(struct savereq));
+	struct savereq *req = (struct savereq *) joe_malloc(sizeof(struct savereq));
 
 	req->name = s;
 	req->callback = callback;
@@ -402,7 +409,7 @@ int doedit(BW *bw, char *s, void *obj, int *notify)
 		*notify = 1;
 	}
 	if (bw->pid) {
-		msgnw(bw, "Process running in this window");
+		msgnw(bw->parent, "Process running in this window");
 		return -1;
 	}
 	b = bfind(s);
@@ -419,7 +426,7 @@ int doedit(BW *bw, char *s, void *obj, int *notify)
 		}
 	}
 	if (er) {
-		msgnwt(bw, msgs[er + 5]);
+		msgnwt(bw->parent, msgs[er + 5]);
 		if (er != -1) {
 			ret = -1;
 		}
@@ -443,7 +450,7 @@ int doedit(BW *bw, char *s, void *obj, int *notify)
 int okrepl(BW *bw)
 {
 	if (bw->b->count == 1 && bw->b->changed) {
-		msgnw(bw, "Can't replace modified file");
+		msgnw(bw->parent, "Can't replace modified file");
 		return -1;
 	} else {
 		return 0;
@@ -473,13 +480,13 @@ static int dorepl(BW *bw, char *s, void *obj, int *notify)
 		*notify = 1;
 	}
 	if (bw->pid) {
-		msgnw(bw, "Process running in this window");
+		msgnw(bw->parent, "Process running in this window");
 		return -1;
 	}
 	b = bfind(s);
 	er = error;
 	if (error) {
-		msgnwt(bw, msgs[error + 5]);
+		msgnwt(bw->parent, msgs[error + 5]);
 		if (error != -1) {
 			ret = -1;
 		}
@@ -510,7 +517,7 @@ int unbuf(BW *bw)
 	B *b;
 
 	if (bw->pid) {
-		msgnw(bw, "Process running in this window");
+		msgnw(bw->parent, "Process running in this window");
 		return -1;
 	}
 	b = bnext();
@@ -542,7 +549,7 @@ int upbuf(BW *bw)
 	B *b;
 
 	if (bw->pid) {
-		msgnw(bw, "Process running in this window");
+		msgnw(bw->parent, "Process running in this window");
 		return -1;
 	}
 	b = bprev();
@@ -582,7 +589,7 @@ static int exdone(BW *bw, int flg)
 {
 	if (flg) {
 		if (bw->b->name)
-			free(bw->b->name);
+			joe_free(bw->b->name);
 		bw->b->name = 0;
 		return -1;
 	} else {
@@ -673,6 +680,8 @@ int uask(BW *bw)
 	return nask(bw, 0, NULL, NULL);
 }
 
+/* FIXME: unused ???? */
+#if 0
 /* Ask to save file if it is modified.  If user answers yes, run save */
 
 static int nask2(BW *bw, int c, void *object, int *notify)
@@ -705,8 +714,6 @@ static int nask2(BW *bw, int c, void *object, int *notify)
 	}
 }
 
-/* FIXME: unused ???? */
-#if 0
 static int uask2(BW *bw)
 {
 	return nask2(bw, 0, NULL, NULL);
@@ -743,7 +750,7 @@ static int dolose(BW *bw, int c, void *object, int *notify)
 
 int ulose(BW *bw)
 {
-	msgnw(bw, NULL);
+	msgnw(bw->parent, NULL);
 	if (bw->pid) {
 		return ukillpid(bw);
 	}
@@ -783,7 +790,7 @@ int ubufed(BW *bw)
 	char **s = getbufs();
 
 	vasort(av(s));
-	if (mkmenu(bw, s, dobuf, abrtb, NULL, 0, s, NULL))
+	if (mkmenu(bw->parent, s, dobuf, abrtb, NULL, 0, s, NULL))
 		return 0;
 	else {
 		varm(s);

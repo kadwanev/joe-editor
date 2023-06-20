@@ -1,12 +1,12 @@
-
 /*
-	Keyboard macros
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
+ *	Keyboard macros
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
+#include "types.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -14,18 +14,18 @@
 #include <stdlib.h>
 #endif
 
-#include "main.h"
-#include "qw.h"
-#include "pw.h"
-#include "bw.h"
-#include "vs.h"
-#include "undo.h"
+#include "b.h"
 #include "cmd.h"
+#include "main.h"
+#include "pw.h"
+#include "qw.h"
+#include "tty.h"
 #include "ublock.h"
-#include "umath.h"
 #include "uedit.h"
-#include "macro.h"
+#include "umath.h"
+#include "undo.h"
 #include "utils.h"
+#include "vs.h"
 #include "w.h"
 
 MACRO *freemacros = 0;
@@ -39,8 +39,8 @@ MACRO *mkmacro(int k, int arg, int n, CMD *cmd)
 	if (!freemacros) {
 		int x;
 
-		macro = (MACRO *) malloc(sizeof(MACRO) * 64);
-		for (x = 0; x != 64; ++x)
+		macro = (MACRO *) joe_malloc(sizeof(MACRO) * 64);
+		for (x = 0; x != 64; ++x)	/* FIXME: why limit to 64? */
 			macro[x].steps = (MACRO **) freemacros, freemacros = macro + x;
 	}
 	macro = freemacros;
@@ -64,7 +64,7 @@ void rmmacro(MACRO *macro)
 
 			for (x = 0; x != macro->n; ++x)
 				rmmacro(macro->steps[x]);
-			free(macro->steps);
+			joe_free(macro->steps);
 		}
 		macro->steps = (MACRO **) freemacros;
 		freemacros = macro;
@@ -77,9 +77,9 @@ void addmacro(MACRO *macro, MACRO *m)
 {
 	if (macro->n == macro->size) {
 		if (macro->steps)
-			macro->steps = (MACRO **) realloc(macro->steps, (macro->size += 8) * sizeof(MACRO *));
+			macro->steps = (MACRO **) joe_realloc(macro->steps, (macro->size += 8) * sizeof(MACRO *));
 		else
-			macro->steps = (MACRO **) malloc((macro->size = 8) * sizeof(MACRO *));
+			macro->steps = (MACRO **) joe_malloc((macro->size = 8) * sizeof(MACRO *));
 	}
 	macro->steps[macro->n++] = m;
 }
@@ -93,7 +93,7 @@ MACRO *dupmacro(MACRO *mac)
 	if (mac->steps) {
 		int x;
 
-		m->steps = (MACRO **) malloc((m->size = mac->n) * sizeof(MACRO *));
+		m->steps = (MACRO **) joe_malloc((m->size = mac->n) * sizeof(MACRO *));
 		for (x = 0; x != m->n; ++x)
 			m->steps[x] = dupmacro(mac->steps[x]);
 	}
@@ -139,25 +139,25 @@ MACRO *mparse(MACRO *m, char *buf, int *sta)
 			if (buf[x] == '\\' && buf[x + 1]) {
 				++x;
 				switch (buf[x]) {
-					case 'n':
+				case 'n':
 					buf[x] = 10;
 					break;
-					case 'r':
+				case 'r':
 					buf[x] = 13;
 					break;
-					case 'b':
+				case 'b':
 					buf[x] = 8;
 					break;
-					case 'f':
+				case 'f':
 					buf[x] = 12;
 					break;
-					case 'a':
+				case 'a':
 					buf[x] = 7;
 					break;
-					case 't':
+				case 't':
 					buf[x] = 9;
 					break;
-					case 'x':
+				case 'x':
 					c = 0;
 					if (buf[x + 1] >= '0' && buf[x + 1] <= '9')
 						c = c * 16 + buf[++x] - '0';
@@ -169,16 +169,16 @@ MACRO *mparse(MACRO *m, char *buf, int *sta)
 						c = c * 16 + (buf[++x] & 0xF) + 9;
 					buf[x] = c;
 					break;
-					case '0':
-					case '1':
-					case '2':
-					case '3':
-					case '4':
-					case '5':
-					case '6':
-					case '7':
-					case '8':
-					case '9':
+				case '0':
+				case '1':
+				case '2':
+				case '3':
+				case '4':
+				case '5':
+				case '6':
+				case '7':
+				case '8':
+				case '9':
 					c = buf[x] - '0';
 					if (buf[x + 1] >= '0' && buf[x + 1] <= '7')
 						c = c * 8 + buf[++x] - '0';
@@ -459,7 +459,7 @@ static int dorecord(BW *bw, int c, void *object, int *notify)
 	for (n = 0; n != 10; ++n)
 		if (playmode[n])
 			return -1;
-	r = (struct recmac *) malloc(sizeof(struct recmac));
+	r = (struct recmac *) joe_malloc(sizeof(struct recmac));
 
 	r->m = mkmacro(0, 1, 0, NULL);
 	r->next = recmac;
@@ -472,7 +472,7 @@ int urecord(BW *bw, int c)
 {
 	if (c >= '0' && c <= '9')
 		return dorecord(bw, c, NULL, NULL);
-	else if (mkqw(bw, sc("Macro to record (0-9 or ^C to abort): "), dorecord, NULL, NULL, NULL))
+	else if (mkqw(bw->parent, sc("Macro to record (0-9 or ^C to abort): "), dorecord, NULL, NULL, NULL))
 		return 0;
 	else
 		return -1;
@@ -494,7 +494,7 @@ int ustop(void)
 		kbdmacro[r->n] = r->m;
 		if (recmac)
 			record(m = mkmacro(r->n + '0', 1, 0, findcmd("play"))), rmmacro(m);
-		free(r);
+		joe_free(r);
 	}
 	return 0;
 }
@@ -530,7 +530,7 @@ int umacros(BW *bw)
 			mtext(buf, kbdmacro[x]);
 			binss(bw->cursor, buf);
 			p_goto_eol(bw->cursor);
-			snprintf(buf, MSGBUFSIZE, "\t^K %c\tMacro %d", x + '0', x);
+			snprintf(buf, JOE_MSGBUFSIZE, "\t^K %c\tMacro %d", x + '0', x);
 			binss(bw->cursor, buf);
 			p_goto_eol(bw->cursor);
 			binsc(bw->cursor, '\n');
@@ -543,7 +543,7 @@ int uplay(BW *bw, int c)
 {
 	if (c >= '0' && c <= '9')
 		return doplay(bw, c, NULL, NULL);
-	else if (mkqwna(bw, sc("Play-"), doplay, NULL, NULL, NULL))
+	else if (mkqwna(bw->parent, sc("Play-"), doplay, NULL, NULL, NULL))
 		return 0;
 	else
 		return -1;
@@ -559,7 +559,7 @@ static int doarg(BW *bw, char *s, void *object, int *notify)
 		*notify = 1;
 	num = calc(bw, s);
 	if (merr) {
-		msgnw(bw, merr);
+		msgnw(bw->parent, merr);
 		return -1;
 	}
 	arg = num;
@@ -609,8 +609,8 @@ static int douarg(BW *bw, int c, void *object, int *notify)
 			*notify = 1;
 		return 0;
 	}
-	snprintf(msgbuf, MSGBUFSIZE, "Repeat %s%d", negarg ? "-" : "", unaarg);
-	if (mkqwna(bw, sz(msgbuf), douarg, NULL, NULL, notify))
+	snprintf(msgbuf, JOE_MSGBUFSIZE, "Repeat %s%d", negarg ? "-" : "", unaarg);
+	if (mkqwna(bw->parent, sz(msgbuf), douarg, NULL, NULL, notify))
 		return 0;
 	else
 		return -1;
@@ -622,7 +622,7 @@ int uuarg(BW *bw, int c)
 	negarg = 0;
 	if ((c >= '0' && c <= '9') || c == '-')
 		return douarg(bw, c, NULL, NULL);
-	else if (mkqwna(bw, sc("Repeat"), douarg, NULL, NULL, NULL))
+	else if (mkqwna(bw->parent, sc("Repeat"), douarg, NULL, NULL, NULL))
 		return 0;
 	else
 		return -1;

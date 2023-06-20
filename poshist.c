@@ -1,16 +1,16 @@
 /*
-	Position history
-	Copyright (C) 1992 Joseph H. Allen
+ *	Position history
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
+#include "types.h"
 
-	This file is part of JOE (Joe's Own Editor)
-*/
-
-#include <stdlib.h>
-#include "poshist.h"
-#include "queue.h"
 #include "b.h"
+#include "queue.h"
 #include "w.h"
-#include "bw.h"
 
 typedef struct pos POS;
 

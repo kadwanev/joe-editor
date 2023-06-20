@@ -1,14 +1,15 @@
 /*
-	Basic user edit functions
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
-#ifndef _Iuedit
-#define _Iuedit 1
+ *	Basic user edit functions
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#ifndef _JOE_UEDIT_H
+#define _JOE_UEDIT_H 1
 
 #include "config.h"
+#include "types.h"
 
 extern int pgamnt;
 
@@ -17,15 +18,15 @@ extern int pgamnt;
  *	return 0 if action was done
  *	return -1 otherwise
  */
-int u_goto_bol PARAMS((BW * bw));	/* move cursor to beginning of line */
-int u_goto_eol PARAMS((BW * bw));	/* move cursor to end of line */
-int u_goto_bof PARAMS((BW * bw));	/* move cursor to beginning of file */
-int u_goto_eof PARAMS((BW * bw));	/* move cursor to end of file */
-int u_goto_left PARAMS((BW * bw));	/* move cursor to left (left arrow) */
-int u_goto_right PARAMS((BW * bw));	/* move cursor to right (right arrow) */
-int u_goto_prev PARAMS((BW * bw));	/* move cursor to prev. word, edge,
+int u_goto_bol PARAMS((BW *bw));	/* move cursor to beginning of line */
+int u_goto_eol PARAMS((BW *bw));	/* move cursor to end of line */
+int u_goto_bof PARAMS((BW *bw));	/* move cursor to beginning of file */
+int u_goto_eof PARAMS((BW *bw));	/* move cursor to end of file */
+int u_goto_left PARAMS((BW *bw));	/* move cursor to left (left arrow) */
+int u_goto_right PARAMS((BW *bw));	/* move cursor to right (right arrow) */
+int u_goto_prev PARAMS((BW *bw));	/* move cursor to prev. word, edge,
 					   or beginning of line */
-int u_goto_next PARAMS((BW * bw));	/* move cursor to next word, edge,
+int u_goto_next PARAMS((BW *bw));	/* move cursor to next word, edge,
 					   or end of line */
 
 int utomatch PARAMS((BW *bw));

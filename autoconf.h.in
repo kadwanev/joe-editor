@@ -30,6 +30,9 @@
 /* Define if you have the `isblank' function. */
 #undef HAVE_ISBLANK
 
+/* Define if you have the <limits.h> header file. */
+#undef HAVE_LIMITS_H
+
 /* Define if you have the <locale.h> header file. */
 #undef HAVE_LOCALE_H
 
@@ -75,6 +78,9 @@
 
 /* Define if you have the <sgtty.h> header file. */
 #undef HAVE_SGTTY_H
+
+/* Define if you have the `siginterrupt' function. */
+#undef HAVE_SIGINTERRUPT
 
 /* Define if you have the `sigprocmask' function. */
 #undef HAVE_SIGPROCMASK
@@ -168,7 +174,7 @@
 /* Define as the return type of signal handlers (`int' or `void'). */
 #undef RETSIGTYPE
 
-/* Define if the `setpgrp' function takes no argument. */
+/* Define if setpgrp() takes no arguments */
 #undef SETPGRP_VOID
 
 /* The size of a `char', as computed by sizeof. */
@@ -210,3 +216,9 @@
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
+
+/* Define to `unsigned' if <sys/types.h> does not define. */
+#undef size_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef ssize_t

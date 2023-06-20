@@ -1,11 +1,17 @@
-/* Simple hash table */
-
+/*
+ *	Simple hash table
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
 #include "config.h"
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+#include "types.h"
+
 #include <string.h>
+
 #include "hash.h"
+#include "utils.h"
 
 static HENTRY *freentry = 0;
 
@@ -21,27 +27,27 @@ unsigned long hash(char *s)
 
 HASH *htmk(int len)
 {
-	HASH *t = (HASH *) malloc(sizeof(HASH));
+	HASH *t = (HASH *) joe_malloc(sizeof(HASH));
 
 	t->len = len - 1;
-	t->tab = (HENTRY **) calloc(sizeof(HENTRY *), len);
+	t->tab = (HENTRY **) joe_calloc(sizeof(HENTRY *), len);
 	return t;
 }
 
-void htrm(HASH * ht)
+void htrm(HASH *ht)
 {
-	free(ht->tab);
-	free(ht);
+	joe_free(ht->tab);
+	joe_free(ht);
 }
 
-void *htadd(HASH * ht, char *name, void *val)
+void *htadd(HASH *ht, char *name, void *val)
 {
 	int idx = hash(name) & ht->len;
 	HENTRY *entry;
 	int x;
 
 	if (!freentry) {
-		entry = (HENTRY *) malloc(sizeof(HENTRY) * 64);
+		entry = (HENTRY *) joe_malloc(sizeof(HENTRY) *64);
 		for (x = 0; x != 64; ++x) {
 			entry[x].next = freentry, freentry = entry + x;
 		}
@@ -54,7 +60,7 @@ void *htadd(HASH * ht, char *name, void *val)
 	return entry->val = val;
 }
 
-void *htfind(HASH * ht, char *name)
+void *htfind(HASH *ht, char *name)
 {
 	HENTRY *e;
 

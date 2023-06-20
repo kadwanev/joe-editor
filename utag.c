@@ -1,27 +1,27 @@
 /*
-	tags file symbol lookup
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
+ *	tags file symbol lookup
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ * 	This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
+#include "types.h"
 
 #include <stdio.h>
-#include <string.h>
-#include "config.h"
+
 #include "b.h"
 #include "bw.h"
-#include "w.h"
-#include "pw.h"
-#include "qw.h"
-#include "vs.h"
-#include "utils.h"
-#include "usearch.h"
-#include "tab.h"
 #include "main.h"
-#include "utag.h"
+#include "pw.h"
+#include "tab.h"
 #include "ufile.h"
+#include "usearch.h"
+#include "utils.h"
+#include "vs.h"
+#include "w.h"
 
-static int dotag(BW * bw, char *s, void *obj, int *notify)
+static int dotag(BW *bw, char *s, void *obj, int *notify)
 {
 	char buf[512];
 	FILE *f;
@@ -37,7 +37,7 @@ static int dotag(BW * bw, char *s, void *obj, int *notify)
 	}
 	f = fopen("tags", "r");
 	if (!f) {
-		msgnw(bw, "Couldn't open tags file");
+		msgnw(bw->parent, "Couldn't open tags file");
 		vsrm(s);
 		vsrm(t);
 		return -1;
@@ -83,7 +83,7 @@ static int dotag(BW * bw, char *s, void *obj, int *notify)
 							dofollows();
 							mid = omid;
 						} else {
-							msgnw(bw, "Invalid line number");
+							msgnw(bw->parent, "Invalid line number");
 						}
 					} else {
 						if (buf[y] == '/' || buf[y] == '?') {
@@ -116,7 +116,7 @@ static int dotag(BW * bw, char *s, void *obj, int *notify)
 			}
 		}
 	}
-	msgnw(bw, "Not found");
+	msgnw(bw->parent, "Not found");
 	vsrm(s);
 	vsrm(t);
 	fclose(f);
@@ -125,7 +125,7 @@ static int dotag(BW * bw, char *s, void *obj, int *notify)
 
 static B *taghist = 0;
 
-int utag(BW * bw)
+int utag(BW *bw)
 {
 	BW *pbw;
 
@@ -135,12 +135,14 @@ int utag(BW * bw)
 		P *q = pdup(p);
 		int c;
 
-		while (isalnum_(c = prgetc(p))) ;
+		while (isalnum_(c = prgetc(p)))
+			/* do nothing */;
 		if (c != MAXINT) {
 			pgetc(p);
 		}
 		pset(q, p);
-		while (isalnum_(c = pgetc(q))) ;
+		while (isalnum_(c = pgetc(q)))
+			/* do nothing */;
 		if (c != MAXINT) {
 			prgetc(q);
 		}

@@ -1,22 +1,29 @@
 /*
-	TERMCAP/TERMINFO database interface
-	Copyright (C) 1992 Joseph H. Allen
-
-	This file is part of JOE (Joe's Own Editor)
-*/
+ *	TERMCAP/TERMINFO database interface
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#include "config.h"
+#include "types.h"
 
 #include <stdio.h>
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
-#include <string.h>
+#endif
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
+#endif
 
-#include "config.h"
 #include "blocks.h"
-#include "vs.h"
-#include "va.h"
-#include "queue.h"
 #include "termcap.h"
+#include "utils.h"
+#include "va.h"
+#include "vs.h"
 
 int dopadding = 0;
 char *joeterm = 0;
@@ -55,8 +62,7 @@ static int match(char *s, char *name)
 		while (s[x] != ':' && s[x] != '|' && s[x])
 			++x;
 		s += x + 1;
-	}
-	while (s[-1] == '|');
+	} while (s[-1] == '|');
 	return 0;
 }
 
@@ -70,9 +76,9 @@ static char *lfind(char *s, int pos, FILE *fd, char *name)
 		s = vsmk(1024);
       loop:
 	while (c = getc(fd), c == ' ' || c == '\t' || c == '#')
-		do
+		do {
 			c = getc(fd);
-		while (!(c == -1 || c == '\n'));
+		} while (!(c == -1 || c == '\n'));
 	if (c == -1)
 		return s = vstrunc(s, pos);
 	ungetc(c, fd);
@@ -128,8 +134,7 @@ static long findidx(FILE *file, char *name)
 			} else if (!strcmp(buf + x, name))
 				flg = 1;
 			x = y + 1;
-		}
-		while (c && c != '\n');
+		} while (c && c != '\n');
 		if (flg)
 			return addr;
 	}
@@ -138,7 +143,7 @@ static long findidx(FILE *file, char *name)
 
 /* Load termcap entry */
 
-CAP *getcap(char *name, unsigned int baud, void (*out) (/* ??? */), void *outptr)
+CAP *getcap(char *name, unsigned int baud, void (*out) (char *, char), void *outptr)
 {
 	CAP *cap;
 	FILE *f, *f1;
@@ -149,24 +154,24 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (/* ??? */), void *outptr
 
 	if (!name && !(name = joeterm) && !(name = getenv("TERM")))
 		return 0;
-	cap = (CAP *) malloc(sizeof(CAP));
+	cap = (CAP *) joe_malloc(sizeof(CAP));
 	cap->tbuf = vsmk(4096);
 	cap->abuf = 0;
 	cap->sort = 0;
 
 #ifdef TERMINFO
-	cap->abuf = (char *) malloc(4096);
+	cap->abuf = (char *) joe_malloc(4096);
 	cap->abufp = cap->abuf;
 	if (tgetent(cap->tbuf, name) == 1)
 		return setcap(cap, baud, out, outptr);
 	else {
-		free(cap->abuf);
+		joe_free(cap->abuf);
 		cap->abuf = 0;
 	}
 #endif
 
 	name = vsncpy(NULL, 0, sz(name));
-	cap->sort = (struct sortentry *) malloc(sizeof(struct sortentry) * (sortsiz = 64));
+	cap->sort = (struct sortentry *) joe_malloc(sizeof(struct sortentry) * (sortsiz = 64));
 
 	cap->sortlen = 0;
 
@@ -207,8 +212,8 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (/* ??? */), void *outptr
  varm(npbuf);
  vsrm(name);
  vsrm(cap->tbuf);
- free(cap->sort);
- free(cap);
+ joe_free(cap->sort);
+ joe_free(cap);
  return 0;
 */
 		fprintf(stderr, "Couldn't load termcap entry.  Using ansi default\n");
@@ -246,9 +251,9 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (/* ??? */), void *outptr
 	x = sLEN(cap->tbuf);
 	do {
 		cap->tbuf[x] = 0;
-		while (x && cap->tbuf[--x] != ':') ;
-	}
-	while (x && (!cap->tbuf[x + 1] || cap->tbuf[x + 1] == ':'));
+		while (x && cap->tbuf[--x] != ':')
+			/* do nothing */;
+	} while (x && (!cap->tbuf[x + 1] || cap->tbuf[x + 1] == ':'));
 
 	if (cap->tbuf[x + 1] == 't' && cap->tbuf[x + 2] == 'c' && cap->tbuf[x + 3] == '=') {
 		name = vsncpy(NULL, 0, sz(cap->tbuf + x + 4));
@@ -295,15 +300,15 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (/* ??? */), void *outptr
 		while (z != (x + y) / 2) {
 			z = (x + y) / 2;
 			switch (strcmp(qq, cap->sort[z].name)) {
-				case 1:
+			case 1:
 				x = z;
 				break;
-				case -1:
+			case -1:
 				y = z;
 				break;
-				case 0:
+			case 0:
 				if (c == '@')
-					mfwrd(cap->sort + z, cap->sort + z + 1, (cap->sortlen-- - (z + 1)) * sizeof(struct sortentry));
+					mmove(cap->sort + z, cap->sort + z + 1, (cap->sortlen-- - (z + 1)) * sizeof(struct sortentry));
 
 				else if (c && c != ':')
 					cap->sort[z].value = qq + q + 1;
@@ -317,8 +322,8 @@ CAP *getcap(char *name, unsigned int baud, void (*out) (/* ??? */), void *outptr
 		}
 	      in:
 		if (cap->sortlen == sortsiz)
-			cap->sort = (struct sortentry *) realloc(cap->sort, (sortsiz += 32) * sizeof(struct sortentry));
-		mbkwd(cap->sort + y + 1, cap->sort + y, (cap->sortlen++ - y) * sizeof(struct sortentry));
+			cap->sort = (struct sortentry *) joe_realloc(cap->sort, (sortsiz += 32) * sizeof(struct sortentry));
+		mmove(cap->sort + y + 1, cap->sort + y, (cap->sortlen++ - y) * sizeof(struct sortentry));
 
 		cap->sort[y].name = qq;
 		if (c && c != ':')
@@ -359,20 +364,20 @@ static struct sortentry *findcap(CAP *cap, char *name)
 	while (z != (x + y) / 2) {
 		z = (x + y) / 2;
 		switch (strcmp(name, cap->sort[z].name)) {
-			case 1:
+		case 1:
 			x = z;
 			break;
-			case -1:
+		case -1:
 			y = z;
 			break;
-			case 0:
+		case 0:
 			return cap->sort + z;
 		}
 	}
 	return 0;
 }
 
-CAP *setcap(CAP *cap, unsigned int baud, void (*out) (/* ??? */), void *outptr)
+CAP *setcap(CAP *cap, unsigned int baud, void (*out) (char *, char), void *outptr)
 {
 	cap->baud = baud;
 	cap->div = 100000 / baud;
@@ -423,10 +428,10 @@ void rmcap(CAP *cap)
 {
 	vsrm(cap->tbuf);
 	if (cap->abuf)
-		free(cap->abuf);
+		joe_free(cap->abuf);
 	if (cap->sort)
-		free(cap->sort);
-	free(cap);
+		joe_free(cap->sort);
+	joe_free(cap);
 }
 
 static char escape(char **s)
@@ -440,37 +445,37 @@ static char escape(char **s)
 			return (*s)++, 127;
 	else if (c == '\\' && **s)
 		switch (c = *((*s)++)) {
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
 			c -= '0';
 			if (**s >= '0' && **s <= '7')
 				c = (c << 3) + *((*s)++) - '0';
 			if (**s >= '0' && **s <= '7')
 				c = (c << 3) + *((*s)++) - '0';
 			return c;
-			case 'e':
-			case 'E':
+		case 'e':
+		case 'E':
 			return 27;
-			case 'n':
-			case 'l':
+		case 'n':
+		case 'l':
 			return 10;
-			case 'r':
+		case 'r':
 			return 13;
-			case 't':
+		case 't':
 			return 9;
-			case 'b':
+		case 'b':
 			return 8;
-			case 'f':
+		case 'f':
 			return 12;
-			case 's':
+		case 's':
 			return 32;
-			default:
+		default:
 			return c;
 	} else
 		return c;
@@ -524,25 +529,25 @@ void texec(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 
 /* Output string */
 	while ((c = *s++) != '\0')
-		if (c == '%' && *s)
+		if (c == '%' && *s) {
 			switch (x = a[0], c = escape(&s)) {
-				case 'C':
+			case 'C':
 				if (x >= 96)
 					cap->out(cap->outptr, x / 96), x %= 96;
-				case '+':
+			case '+':
 				if (*s)
 					x += escape(&s);
-				case '.':
+			case '.':
 				cap->out(cap->outptr, x);
 				++a;
 				break;
-				case 'd':
+			case 'd':
 				if (x < 10)
 					goto one;
-				case '2':
+			case '2':
 				if (x < 100)
 					goto two;
-				case '3':
+			case '3':
 				c = '0';
 				while (x >= 100)
 					++c, x -= 100;
@@ -554,73 +559,74 @@ void texec(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 			      one:cap->out(cap->outptr, '0' + x);
 				++a;
 				break;
-				case 'r':
+			case 'r':
 				a[0] = a[1];
 				a[1] = x;
 				break;
-				case 'i':
+			case 'i':
 				++a[0];
 				++a[1];
 				break;
-				case 'n':
+			case 'n':
 				a[0] ^= 0140;
 				a[1] ^= 0140;
 				break;
-				case 'm':
+			case 'm':
 				a[0] ^= 0177;
 				a[1] ^= 0177;
 				break;
-				case 'f':
+			case 'f':
 				++a;
 				break;
-				case 'b':
+			case 'b':
 				--a;
 				break;
-				case 'a':
+			case 'a':
 				x = s[2];
 				if (s[1] == 'p')
 					x = a[x - 0100];
 				switch (*s) {
-					case '+':
+				case '+':
 					a[0] += x;
 					break;
-					case '-':
+				case '-':
 					a[0] -= x;
 					break;
-					case '*':
+				case '*':
 					a[0] *= x;
 					break;
-					case '/':
+				case '/':
 					a[0] /= x;
 					break;
-					case '%':
+				case '%':
 					a[0] %= x;
 					break;
-					case 'l':
+				case 'l':
 					a[0] = vars[x];
 					break;
-					case 's':
+				case 's':
 					vars[x] = a[0];
 					break;
-					default:
+				default:
 					a[0] = x;
 				}
 				s += 3;
 				break;
-				case 'D':
+			case 'D':
 				a[0] = a[0] - 2 * (a[0] & 15);
 				break;
-				case 'B':
+			case 'B':
 				a[0] = 16 * (a[0] / 10) + a[0] % 10;
 				break;
-				case '>':
+			case '>':
 				if (a[0] > escape(&s))
 					a[0] += escape(&s);
 				else
 					escape(&s);
-				default:
+			default:
 				cap->out(cap->outptr, '%');
 				cap->out(cap->outptr, c);
+			}
 		} else
 			--s, cap->out(cap->outptr, escape(&s));
 
@@ -638,14 +644,14 @@ void texec(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 
 static int total;
 
-static void cst(void)
+static void cst(char *ptr, char c)
 {
 	++total;
 }
 
 int tcost(CAP *cap, char *s, int l, int a0, int a1, int a2, int a3)
 {
-	void (*out) () = cap->out;
+	void (*out) (char *, char) = cap->out;
 
 	if (!s)
 		return 10000;
@@ -664,7 +670,7 @@ static void cpl(char *ptr, char c)
 
 char *tcompile(CAP *cap, char *s, int a0, int a1, int a2, int a3)
 {
-	void (*out) () = cap->out;
+	void (*out) (char *, char) = cap->out;
 	int div = cap->div;
 
 	if (!s)

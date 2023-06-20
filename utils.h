@@ -1,17 +1,20 @@
 /*
-	Various utilities
-	
-	Copyright
-		(C) 1992 Joseph H. Allen
-		(C) 2001 Marek 'Marx' Grac
-
-	This file is part of JOE (Joe's Own Editor)
-*/
-
-#ifndef _JOEutils
-#define _JOEutils 1
+ *	Various utilities
+ *	
+ *	Copyright
+ *		(C) 1992 Joseph H. Allen
+ *		(C) 2001 Marek 'Marx' Grac
+ *
+ *	This file is part of JOE (Joe's Own Editor)
+ */
+#ifndef _JOE_UTILS_H
+#define _JOE_UTILS_H 1
 
 #include "config.h"
+
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>			/* we need size_t, ssize_t */
+#endif
 
 /* 
  * Characters which are considered as word characters 
@@ -44,5 +47,15 @@ unsigned int uns_min PARAMS((unsigned int a, unsigned int b));
 signed int int_min PARAMS((signed int a, int signed b));
 signed long long_max PARAMS((signed long a, signed long b));
 signed long long_min PARAMS((signed long a, signed long b));
+
+/* Versions of 'read' and 'write' which automatically retry when interrupted */
+ssize_t joe_read PARAMS((int fd, void *buf, size_t siz));
+ssize_t joe_write PARAMS((int fd, void *buf, size_t siz));
+
+/* wrappers to *alloc routines */
+void *joe_malloc PARAMS((size_t size));
+void *joe_calloc PARAMS((size_t nmemb, size_t size));
+void *joe_realloc PARAMS((void *ptr, size_t size));
+void joe_free PARAMS((void *ptr));
 
 #endif
