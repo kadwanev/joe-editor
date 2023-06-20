@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 4.3)
+AC_INIT(joe, 4.4)
 AC_CONFIG_SRCDIR([joe/b.c])
 
 AC_CANONICAL_BUILD
@@ -72,7 +72,12 @@ AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
 AC_CHECK_HEADERS([sys/dirent.h time.h pwd.h paths.h pty.h libutil.h])
 AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
-AC_CHECK_HEADERS([curses.h term.h utmp.h sys/utime.h stddef.h])
+AC_CHECK_HEADERS([curses.h utmp.h sys/utime.h stddef.h])
+AC_CHECK_HEADERS([term.h],[],[],
+[#ifdef HAVE_CURSES_H
+#include <curses.h>
+#endif
+])
 
 AC_CHECK_HEADERS([selinux/selinux.h selinux/context.h])
 if test "$ac_cv_header_selinux_selinux_h" = "yes" -a "$ac_cv_header_selinux_context_h" = "yes" ; then
