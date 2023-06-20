@@ -1,8 +1,6 @@
 #ifndef _Isyntax
 #define _Isyntax 1
 
-#include "hash.h"
-
 /*
  *	Syntax highlighting DFA interpreter
  *	Copyright
@@ -29,19 +27,32 @@ struct high_state {
 	struct high_cmd *delim;		/* Matching delimiter */
 };
 
+/* Parameter list */
+
+struct syparm {
+	struct syparm *next;
+	unsigned char *name;
+};
+
 /* Command (transition) */
 
 struct high_cmd {
-	int noeat;			/* Set to give this character to next state */
+	unsigned noeat : 1;		/* Set to give this character to next state */
+	unsigned start_buffering : 1;	/* Set if we should start buffering */
+	unsigned stop_buffering : 1;	/* Set if we should stop buffering */
+	unsigned save_c : 1;		/* Save character */
+	unsigned save_s : 1;		/* Save string */
+	unsigned ignore : 1;		/* Set to ignore case */
+	unsigned start_mark : 1;	/* Set to begin marked area including this char */
+	unsigned stop_mark : 1;		/* Set to end marked area excluding this char */
+	unsigned recolor_mark : 1;	/* Set to recolor marked area with new state */
 	int recolor;			/* No. chars to recolor if <0. */
-	int start_buffering;		/* Set if we should start buffering */
-	int stop_buffering;		/* Set if we should stop buffering */
-	int save_c;			/* Save character */
-	int save_s;			/* Save string */
 	struct high_state *new_state;	/* The new state */
 	HASH *keywords;			/* Hash table of keywords */
 	struct high_cmd *delim;		/* Matching delimiter */
-	int ignore;			/* Set to ignore case */
+	unsigned char *call;		/* Set with name of file with subroutine */
+	unsigned char *call_subr;	/* Set with name of subroutine (or NULL for whole file) */
+	struct syparm *parms;		/* Parameters for call */
 };
 
 /* Loaded form of syntax file */
@@ -55,22 +66,27 @@ struct high_syntax {
 	struct high_color *color;	/* Linked list of color definitions */
 	int sync_lines;			/* No. lines back to start parsing when we lose sync.  -1 means start at beginning */
 	struct high_cmd default_cmd;	/* Default transition for new states */
+	int istates;			/* Loaded no. states */
+	int recur;			/* Recursion depth counter */
 };
 
 /* Find a syntax.  Load it if necessary. */
 
-struct high_syntax *load_dfa(unsigned char *name);
+struct high_syntax *load_dfa PARAMS((unsigned char *name));
 
 /* Parse a lines.  Returns new state. */
 
 extern int *attr_buf;
-HIGHLIGHT_STATE parse(struct high_syntax *syntax,P *line,HIGHLIGHT_STATE state);
+HIGHLIGHT_STATE parse PARAMS((struct high_syntax *syntax,P *line,HIGHLIGHT_STATE state));
 
 #define clear_state(s) ((s)->saved_s[0] = (s)->state = 0)
 #define invalidate_state(s) ((s)->state = -1)
 #define move_state(to,from) (*(to)= *(from))
+#define eq_state(x,y) ((x)->state == (y)->state && !zcmp((x)->saved_s, (y)->saved_s))
 
 extern struct high_color *global_colors;
-void parse_color_def(struct high_color **color_list,unsigned char *p,unsigned char *name,int line);
+void parse_color_def PARAMS((struct high_color **color_list,unsigned char *p,unsigned char *name,int line));
+
+void dump_syntax PARAMS((BW *bw));
 
 #endif

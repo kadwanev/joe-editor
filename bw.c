@@ -5,35 +5,11 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <stdio.h>
-#include <string.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-
-#include "b.h"
-#include "blocks.h"
-#include "kbd.h"
-#include "rc.h"
-#include "scrn.h"
-#include "ublock.h"
-#include "utils.h"
-#include "syntax.h"
-#include "utf8.h"
-#include "charmap.h"
-#include "w.h"
 
 /* Display modes */
 int dspasis = 0;
 int marking = 0;
-extern int square;
-extern int staen;
-extern SCREEN *maint;
-extern int bg_text;
 
 static P *getto(P *p, P *cur, P *top, long int line)
 {
@@ -53,7 +29,7 @@ static P *getto(P *p, P *cur, P *top, long int line)
 			dist = d;
 			best = top;
 		}
-		p = pdup(best);
+		p = pdup(best, US "getto");
 		p_goto_bol(p);
 	}
 	while (line > p->line)
@@ -127,14 +103,13 @@ void bwfllwh(BW *w)
 void bwfllwt(BW *w)
 {
 	P *newtop;
-	int x;
 
 	if (!pisbol(w->top)) {
 		p_goto_bol(w->top);
 	}
 
 	if (w->cursor->line < w->top->line) {
-		newtop = pdup(w->cursor);
+		newtop = pdup(w->cursor, US "bwfllwt");
 		p_goto_bol(newtop);
 		if (mid) {
 			if (newtop->line >= w->h / 2)
@@ -146,8 +121,6 @@ void bwfllwt(BW *w)
 			nscrldn(w->t->t, w->y, w->y + w->h, (int) (w->top->line - newtop->line));
 		else {
 			msetI(w->t->t->updtab + w->y, 1, w->h);
-			for(x=0; x!=w->h; ++x)
-				invalidate_state(w->t->t->syntab + w->y + x);
 		}
 		pset(w->top, newtop);
 		prm(newtop);
@@ -162,8 +135,6 @@ void bwfllwt(BW *w)
 			nscrlup(w->t->t, w->y, w->y + w->h, (int) (newtop->line - w->top->line));
 		else {
 			msetI(w->t->t->updtab + w->y, 1, w->h);
-			for(x=0; x!=w->h; ++x)
-				invalidate_state(w->t->t->syntab + w->y + x);
 		}
 		pset(w->top, newtop);
 		prm(newtop);
@@ -171,9 +142,17 @@ void bwfllwt(BW *w)
 
 /* Adjust column */
 	if (w->cursor->xcol < w->offset) {
-		w->offset = w->cursor->xcol;
+		long target = w->cursor->xcol;
+		if (target < 5)
+			target = 0;
+		else {
+			target -= 5;
+			target -= (target % 5);
+		}
+		w->offset = target;
 		msetI(w->t->t->updtab + w->y, 1, w->h);
-	} else if (w->cursor->xcol >= w->offset + w->w) {
+	}
+	if (w->cursor->xcol >= w->offset + w->w) {
 		w->offset = w->cursor->xcol - (w->w - 1);
 		msetI(w->t->t->updtab + w->y, 1, w->h);
 	}
@@ -193,8 +172,38 @@ void bwfllw(BW *w)
    If the state is not known, it is computed and the state for all
    of the remaining lines of the window are also recalculated. */
 
-HIGHLIGHT_STATE get_highlight_state(BW *w,int line)
+HIGHLIGHT_STATE get_highlight_state(BW *w, P *p, int line)
 {
+	HIGHLIGHT_STATE state;
+
+	if(!w->o.highlight || !w->o.syntax) {
+		invalidate_state(&state);
+		return state;
+	}
+
+	return lattr_get(w->db, w->o.syntax, p, line);
+
+	/* Old way... */
+#ifdef junk
+
+	ln = line;
+
+	lattr_get(w->db, &ln, &state);
+
+	if (ln != line) {
+		tmp = pdup(p, US "get_highlight_state");
+		pline(tmp, ln);
+		while (tmp->line < line && !piseof(tmp)) {
+			state = parse(w->o.syntax, tmp, state);
+		}
+		if (tmp->line == line)
+			lattr_set(w->db, line, state);
+		prm(tmp);
+	}
+	return state;
+#endif
+
+#ifdef junk
 	P *tmp = 0;
 	HIGHLIGHT_STATE state;
 
@@ -218,7 +227,7 @@ HIGHLIGHT_STATE get_highlight_state(BW *w,int line)
 	if (w->parent->t->t->syntab[y].state<0) {
 		/* We must be on the top line */
 		clear_state(&state);
-		tmp = pdup(w->top);
+		tmp = pdup(w->top, US "get_highlight_state");
 		if(w->o.syntax->sync_lines >= 0 && tmp->line > w->o.syntax->sync_lines)
 			pline(tmp, tmp->line-w->o.syntax->sync_lines);
 		else
@@ -231,7 +240,7 @@ HIGHLIGHT_STATE get_highlight_state(BW *w,int line)
 	}
 
 	/* Color to end of screen */
-	tmp = pdup(w->top);
+	tmp = pdup(w->top, US "get_highlight_state");
 	pline(tmp, y-w->y+w->top->line);
 	state = w->parent->t->t->syntab[y];
 	while(tmp->line!=w->top->line+w->h-1 && !piseof(tmp)) {
@@ -253,6 +262,7 @@ HIGHLIGHT_STATE get_highlight_state(BW *w,int line)
 	/* Return state of requested line */
 	y = line - w->top->line + w->y;
 	return w->parent->t->t->syntab[y];
+#endif
 }
 
 /* Scroll a buffer window after an insert occured.  'flg' is set to 1 if
@@ -261,21 +271,33 @@ HIGHLIGHT_STATE get_highlight_state(BW *w,int line)
 
 void bwins(BW *w, long int l, long int n, int flg)
 {
-	int q;
+	/* If highlighting is enabled... */
+	if (w->o.highlight && w->o.syntax) {
+		/* Invalidate cache */
+		/* lattr_cut(w->db, l + 1); */
+		/* Force updates */
+		if (l < w->top->line) {
+			msetI(w->t->t->updtab + w->y, 1, w->h);
+		} else if ((l + 1) < w->top->line + w->h) {
+			int start = l + 1 - w->top->line;
+			int size = w->h - start;
+			msetI(w->t->t->updtab + w->y + start, 1, size);
+		}
+	}
+
+	/* Scroll */
 	if (l + flg + n < w->top->line + w->h && l + flg >= w->top->line && l + flg <= w->b->eof->line) {
 		if (flg)
 			w->t->t->sary[w->y + l - w->top->line] = w->t->t->li;
 		nscrldn(w->t->t, (int) (w->y + l + flg - w->top->line), w->y + w->h, (int) n);
 	}
+
+	/* Force update of lines in opened hole */
 	if (l < w->top->line + w->h && l >= w->top->line) {
 		if (n >= w->h - (l - w->top->line)) {
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, w->h - (int) (l - w->top->line));
-			for(q=0; q!=w->h - (int)(l - w->top->line); ++q)
-				invalidate_state(w->t->t->syntab + w->y + l - w->top->line + q);
 		} else {
 			msetI(w->t->t->updtab + w->y + l - w->top->line, 1, (int) n + 1);
-			for(q=0; q!=n+1; ++q)
-				invalidate_state(w->t->t->syntab + w->y + l - w->top->line + q);
 		}
 	}
 }
@@ -284,17 +306,23 @@ void bwins(BW *w, long int l, long int n, int flg)
 
 void bwdel(BW *w, long int l, long int n, int flg)
 {
-/* Update the line where the delete began */
+	/* If highlighting is enabled... */
+	if (w->o.highlight && w->o.syntax) {
+		/* lattr_cut(w->db, l + 1); */
+		if (l < w->top->line) {
+			msetI(w->t->t->updtab + w->y, 1, w->h);
+		} else if ((l + 1) < w->top->line + w->h) {
+			int start = l + 1 - w->top->line;
+			int size = w->h - start;
+			msetI(w->t->t->updtab + w->y + start, 1, size);
+		}
+	}
+
+	/* Update the line where the delete began */
 	if (l < w->top->line + w->h && l >= w->top->line)
 		w->t->t->updtab[w->y + l - w->top->line] = 1;
 
-/* Update highlight for line after first one which changed */
-	if ((l+1) < w->top->line + w->h && (l+1) >= w->top->line) {
-		invalidate_state(w->t->t->syntab + w->y + l + 1 - w->top->line);
-		w->t->t->updtab[w->y + (l+1) - w->top->line] = 1;
-		}
-
-/* Update the line where the delete ended */
+	/* Update the line where the delete ended */
 	if (l + n < w->top->line + w->h && l + n >= w->top->line)
 		w->t->t->updtab[w->y + l + n - w->top->line] = 1;
 
@@ -344,7 +372,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 
 	struct utf8_sm utf8_sm;
 
-        int *syn;
+        int *syn = 0;
         P *tmp;
         int idx=0;
         int atr = BG_COLOR(bg_text); 
@@ -352,7 +380,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 	utf8_init(&utf8_sm);
 
 	if(st.state!=-1) {
-		tmp=pdup(p);
+		tmp=pdup(p, US "lgen");
 		p_goto_bol(tmp);
 		parse(bw->o.syntax,tmp,st);
 		syn = attr_buf;
@@ -442,7 +470,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 			} else if (bc == '\n')
 				goto eobl;
 			else {
-				int wid;
+				int wid = 1;
 				if (p->b->o.charmap->type) {
 					c = utf8_decode(&utf8_sm,bc);
 
@@ -648,7 +676,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 }
 
 /* Generate line into an array */
-
+#ifdef junk
 static int lgena(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, long int from, long int to)
         
       
@@ -804,6 +832,7 @@ static int lgena(SCRN *t, int y, int *screen, int x, int w, P *p, long int scr, 
 	pnextl(p);
 	return 0;
 }
+#endif
 
 static void gennum(BW *w, int *screen, int *attr, SCRN *t, int y, int *comp)
 {
@@ -812,9 +841,13 @@ static void gennum(BW *w, int *screen, int *attr, SCRN *t, int y, int *comp)
 	int lin = w->top->line + y - w->y;
 
 	if (lin <= w->b->eof->line)
-		joe_snprintf_1((char *)buf, sizeof(buf), "%5ld ", w->top->line + y - w->y + 1);
-	else
-		zcpy(buf, US "      ");
+		joe_snprintf_1(buf, sizeof(buf), "%9ld ", w->top->line + y - w->y + 1);
+	else {
+		int x;
+		for (x = 0; x != LINCOLS; ++x)
+			buf[x] = ' ';
+		buf[x] = 0;
+	}
 	for (z = 0; buf[z]; ++z) {
 		outatr(w->b->o.charmap, t, screen + z, attr + z, z, y, buf[z], BG_COLOR(bg_text)); 
 		if (ifhave)
@@ -827,7 +860,7 @@ void bwgenh(BW *w)
 {
 	int *screen;
 	int *attr;
-	P *q = pdup(w->top);
+	P *q = pdup(w->top, US "bwgenh");
 	int bot = w->h + w->y;
 	int y;
 	SCRN *t = w->t->t;
@@ -877,7 +910,7 @@ void bwgenh(BW *w)
 		msetI(fmt,BG_COLOR(bg_text),76);
 		txt[76]=0;
 		if (!flg) {
-			sprintf((char *)bf,"%8x ",q->byte);
+			sprintf((char *)bf,"%8lx ",q->byte);
 			memcpy(txt,bf,9);
 			for (x=0; x!=8; ++x) {
 				int c;
@@ -944,9 +977,20 @@ void bwgen(BW *w, int linums)
 	long fromline, toline;
 	SCRN *t = w->t->t;
 
+	/* Set w.db to correct value */
+	if (w->o.highlight && w->o.syntax && (!w->db || w->db->syn != w->o.syntax))
+		w->db = find_lattr_db(w->b, w->o.syntax);
+
 	fromline = toline = from = to = 0;
 
-	if (markv(0) && markk->b == w->b)
+	if (w->b == errbuf) {
+		P *tmp = pdup(w->cursor, US "bwgen");
+		p_goto_bol(tmp);
+		from = tmp->byte;
+		pnextl(tmp);
+		to = tmp->byte;
+		prm(tmp);
+	} else if (markv(0) && markk->b == w->b)
 		if (square) {
 			from = markb->xcol;
 			to = markk->xcol;
@@ -973,7 +1017,7 @@ void bwgen(BW *w, int linums)
 	if (marking && w==maint->curwin->object)
 		msetI(t->updtab + w->y, 1, w->h);
 
-	q = pdup(w->cursor);
+	q = pdup(w->cursor, US "bwgen");
 
 	y = w->cursor->line - w->top->line + w->y;
 	attr = t->attr + y*w->t->w;
@@ -997,11 +1041,11 @@ void bwgen(BW *w, int linums)
 			} */
 			if (dosquare)
 				if (w->top->line + y - w->y >= fromline && w->top->line + y - w->y <= toline)
-					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,w->top->line+y-w->y),w);
+					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,p,w->top->line+y-w->y),w);
 				else
-					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, 0L, 0L, get_highlight_state(w,w->top->line+y-w->y),w);
+					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, 0L, 0L, get_highlight_state(w,p,w->top->line+y-w->y),w);
 			else
-				t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,w->top->line+y-w->y),w);
+				t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,p,w->top->line+y-w->y),w);
 		}
 	}
 
@@ -1027,11 +1071,11 @@ void bwgen(BW *w, int linums)
 			} */
 			if (dosquare)
 				if (w->top->line + y - w->y >= fromline && w->top->line + y - w->y <= toline)
-					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,w->top->line+y-w->y),w);
+					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,p,w->top->line+y-w->y),w);
 				else
-					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, 0L, 0L, get_highlight_state(w,w->top->line+y-w->y),w);
+					t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, 0L, 0L, get_highlight_state(w,p,w->top->line+y-w->y),w);
 			else
-				t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,w->top->line+y-w->y),w);
+				t->updtab[y] = lgen(t, y, screen, attr, w->x, w->x + w->w, p, w->offset, from, to, get_highlight_state(w,p,w->top->line+y-w->y),w);
 		}
 	}
 	prm(q);
@@ -1047,12 +1091,9 @@ void bwmove(BW *w, int x, int y)
 
 void bwresz(BW *w, int wi, int he)
 {
-	int x;
 	if (he > w->h && w->y != -1) {
 		msetI(w->t->t->updtab + w->y + w->h, 1, he - w->h);
-		for(x=0;x!=he-w->h; ++x)
-			invalidate_state(w->t->t->syntab + w->y + w->h + x);
-		}
+	}
 	w->w = wi;
 	w->h = he;
 }
@@ -1078,8 +1119,8 @@ BW *bwmk(W *window, B *b, int prompt)
 		b->oldcur = NULL;
 		w->cursor->owner = NULL;
 	} else {
-		w->top = pdup(b->bof);
-		w->cursor = pdup(b->bof);
+		w->top = pdup(b->bof, US "bwmk");
+		w->cursor = pdup(b->bof, US "bwmk");
 	}
 	w->t = window->t;
 	w->object = NULL;
@@ -1099,11 +1140,114 @@ BW *bwmk(W *window, B *b, int prompt)
 	w->top->xcol = 0;
 	w->cursor->xcol = 0;
 	w->top_changed = 1;
+	w->linums = 0;
+	w->db = 0;
 	return w;
+}
+
+/* Database of last file positions */
+
+#define MAX_FILE_POS 20 /* Maximum number of file positions we track */
+
+static struct file_pos {
+	LINK(struct file_pos) link;
+	unsigned char *name;
+	long line;
+} file_pos = { { &file_pos, &file_pos } };
+
+static int file_pos_count;
+
+struct file_pos *find_file_pos(unsigned char *name)
+{
+	struct file_pos *p;
+	for (p = file_pos.link.next; p != &file_pos; p = p->link.next)
+		if (!zcmp(p->name, name)) {
+			promote(struct file_pos,link,&file_pos,p);
+			return p;
+		}
+	p = (struct file_pos *)malloc(sizeof(struct file_pos));
+	p->name = zdup(name);
+	p->line = 0;
+	enquef(struct file_pos,link,&file_pos,p);
+	if (++file_pos_count == MAX_FILE_POS) {
+		free(deque_f(struct file_pos,link,file_pos.link.prev));
+		--file_pos_count;
+	}
+	return p;
+}
+
+int restore_file_pos;
+
+long get_file_pos(unsigned char *name)
+{
+	if (name && restore_file_pos) {
+		struct file_pos *p = find_file_pos(name);
+		return p->line;
+	} else {
+		return 0;
+	}
+}
+
+void set_file_pos(unsigned char *name, long pos)
+{
+	if (name) {
+		struct file_pos *p = find_file_pos(name);
+		p->line = pos;
+	}
+}
+
+void save_file_pos(FILE *f)
+{
+	struct file_pos *p;
+	for (p = file_pos.link.prev; p != &file_pos; p = p->link.prev) {
+		fprintf(f,"	%ld ",p->line);
+		emit_string(f,p->name,zlen(p->name));
+		fprintf(f,"\n");
+	}
+	fprintf(f,"done\n");
+}
+
+void load_file_pos(FILE *f)
+{
+	unsigned char buf[1024];
+	while (fgets((char *)buf,sizeof(buf)-1,f) && zcmp(buf,US "done\n")) {
+		unsigned char *p = buf;
+		long pos;
+		unsigned char name[1024];
+		parse_ws(&p,'#');
+		if (!parse_long(&p, &pos)) {
+			parse_ws(&p, '#');
+			if (parse_string(&p, name, sizeof(name)) > 0) {
+				set_file_pos(name, pos);
+			}
+		}
+	}
+}
+
+/* Save file position for all windows */
+
+void set_file_pos_all(Screen *t)
+{
+	/* Step through all windows */
+	W *w = t->topwin;
+	do {
+		if (w->watom == &watomtw) {
+			BW *bw = w->object;
+			set_file_pos(bw->b->name, bw->cursor->line);
+		}
+		w = w->link.next;
+	} while(w != t->topwin);
+	/* Set through orphaned buffers */
+	set_file_pos_orphaned();
 }
 
 void bwrm(BW *w)
 {
+	if (w->b == errbuf && w->b->count == 1) {
+		/* Do not lose message buffer */
+		orphit(w);
+	}
+	set_file_pos(w->b->name,w->cursor->line);
 	prm(w->top);
 	prm(w->cursor);
 	brm(w->b);
@@ -1116,9 +1260,9 @@ int ustat(BW *bw)
 	int c = brch(bw->cursor);
 
 	if (c == NO_MORE_DATA)
-		joe_snprintf_4((char *)buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx) **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte);
+		joe_snprintf_4(buf, sizeof(buf), joe_gettext(_("** Line %ld  Col %ld  Offset %ld(0x%lx) **")), bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte);
 	else
-		joe_snprintf_9((char *)buf, sizeof(buf), "** Line %ld  Col %ld  Offset %ld(0x%lx)  %s %d(0%o/0x%X) Width %d **", bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte, bw->b->o.charmap->name, c, c, c, joe_wcwidth(bw->o.charmap->type,c));
+		joe_snprintf_9(buf, sizeof(buf), joe_gettext(_("** Line %ld  Col %ld  Offset %ld(0x%lx)  %s %d(0%o/0x%X) Width %d **")), bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte, bw->b->o.charmap->name, c, c, c, joe_wcwidth(bw->o.charmap->type,c));
 	msgnw(bw->parent, buf);
 	return 0;
 }
@@ -1154,10 +1298,13 @@ int ucrawll(BW *bw)
 	return 0;
 }
 
+/* If we are about to call bwrm, and b->count is 1, and orphan mode
+ * is set, call this. */
+
 void orphit(BW *bw)
 {
-	++bw->b->count;
+	++bw->b->count; /* Assumes bwrm() is abour to be called */
 	bw->b->orphan = 1;
-	pdupown(bw->cursor, &bw->b->oldcur);
-	pdupown(bw->top, &bw->b->oldtop);
+	pdupown(bw->cursor, &bw->b->oldcur, US "orphit");
+	pdupown(bw->top, &bw->b->oldtop, US "orphit");
 }

@@ -1,3 +1,99 @@
+JOE 3.4
+
+- Paragraph reformatter and word wrap now handle '*' and '-' bullet lists.
+
+- Better internationalization (i18n):
+
+    JOE now uses gettext(), so that internal messages can be translated to
+    the local language.  The /etc/joe directory now has a lang subdirectory
+    for the .po files.
+
+    Internationalized joerc files are now possible.  If LANG is en_GB, JOE
+    tries successively to load joerc.en_GB, joerc.en and joerc.
+
+- Multi-file search and replace:
+
+    There are two new search and replace options:
+
+      'a': the search covers all loaded buffers.  So you can say:
+
+            joe *.c
+            and then ^KF foo <return>
+                     ra <return>
+                     bar <return>
+            to replace all instances of foo in all .c files.
+
+      'e': the search covers all files in the error list.
+
+            You can use grep-find to create a list of files:
+
+            ESC g
+             grep -n foo f*.c
+            ^KF foo <return>
+            re
+            bar <return>
+
+            You can also use 'ls' and 'find' instead of grep to
+	    create the file list.
+
+- JOE now restores cursor position in previously visited files.
+
+- Build and grep window work more like Turbo-C: the messages window is
+  forced onto the screen when you hit ^[ = and ^[ -.
+
+- Syntax highlighter definition files (.jsf files) can now have subroutines. 
+  This eases highlighter reuse: for example, Mason and PHP can share the HTML
+  highlighter.
+
+- I've changed the way JOE handles '-' and redirected input:
+
+	joe < file		A shell process is started which 'cat's the
+				file into the first buffer.
+
+	tail -f log | joe	A shell process is started which 'cat's the
+				output from 'tail -f' (watch a log file) into
+				the first buffer.
+
+	joe -			JOE does not try to read from stdin, but
+				when the file is saved, it writes to stdout.
+
+	echo "hi" | joe - | mail fred
+				"hi" ends up in first buffer.  When you
+				save, mail is sent.
+
+- Many bugs have been fixed.  I've tried to address every issue in the bug
+  tracker.  Hopefully I didn't create too many new ones :-)
+
+- You can now define which characters can indent paragraphs.  Also the
+  default list has been reduced so that formatting of TeX/LaTeX files works
+  better.
+
+- Highlighting now uses less CPU time and always parses from the beginning
+  of the file (the number of sync lines option is deprecated).  Here is a
+  CPU usage comparison for scrolling forwards and backwards through a 35K
+  line C file:
+
+	JOE	.58
+	JED	.57
+	NEDIT	3.26
+	VIM	7.33
+	EMACS	11.98
+
+- JOE now matches Thomas Dickey's implementation of my xterm patch (but
+  configure xterm with --paste64).
+
+- File selection menu/completion-list is now above the prompt (which is more
+  like bash).  Also it is transposed, so that it is sorted by columns
+  instead of rows.
+
+- "Bufed" (prompt for a buffer to edit), works like other file prompt
+  commands: it's a real prompt with history and completion.
+
+- Automatic horizontal left scroll jumps by 5-10 columns.
+
+- New syntax files: troff, Haskell, Cadance SKILL, REXX, LUA, RUBY.  Many of
+  the existing syntax files have been improved.
+
 JOE 3.3
 
 - The default background color can now be set.
@@ -18,6 +114,8 @@ JOE 3.3
 
 - Grep find: use ESC g to grep.  Then use ESC space to jump to
   to indicated file/line.
+
+- Cygwin setup.exe support
 
 JOE 3.2
 

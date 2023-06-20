@@ -5,21 +5,12 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
-#include <sys/types.h>
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
 #ifdef GWINSZ_IN_SYS_IOCTL
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
-#endif
-#include <stdio.h>
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
 #endif
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
@@ -34,13 +25,7 @@
 #endif
 #endif
 
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
-
 int idleout = 1;
-
-#include "config.h"
 
 #ifdef __amigaos
 #undef SIGTSTP
@@ -89,15 +74,6 @@ int idleout = 1;
 #ifdef __svr4__
 #include <stropts.h>
 #endif
-
-/* JOE include files */
-
-#include "main.h"
-#include "path.h"
-#include "tty.h"
-#include "utils.h"
-#include "mouse.h"
-#include "cmd.h"
 
 /** Aliased defines **/
 
@@ -220,6 +196,7 @@ void sigjoe(void)
 	ttysig = 1;
 	joe_set_signal(SIGHUP, ttsig);
 	joe_set_signal(SIGTERM, ttsig);
+	joe_set_signal(SIGABRT, ttsig);
 	joe_set_signal(SIGINT, SIG_IGN);
 	joe_set_signal(SIGPIPE, SIG_IGN);
 }
@@ -230,6 +207,7 @@ void signrm(void)
 	if (!ttysig)
 		return;
 	ttysig = 0;
+	joe_set_signal(SIGABRT, SIG_DFL);
 	joe_set_signal(SIGHUP, SIG_DFL);
 	joe_set_signal(SIGTERM, SIG_DFL);
 	joe_set_signal(SIGINT, SIG_DFL);
@@ -265,13 +243,10 @@ static RETSIGTYPE winchd(int unused)
 /* Second ticker */
 
 int ticked = 0;
-extern int dostaupd;
 static RETSIGTYPE dotick(int unused)
 {
 	ticked = 1;
 }
-
-extern int auto_scroll;
 
 void tickoff(void)
 {
@@ -286,9 +261,6 @@ void tickoff(void)
 	alarm(0);
 #endif
 }
-
-extern int auto_scroll;
-extern int auto_trig_time;
 
 void tickon(void)
 {
@@ -337,7 +309,7 @@ void ttopnn(void)
 
 	if (!termin) {
 		if (idleout ? (!(termin = stdin) || !(termout = stdout)) : (!(termin = fopen("/dev/tty", "r")) || !(termout = fopen("/dev/tty", "w")))) {
-			fprintf(stderr, "Couldn\'t open /dev/tty\n");
+			fprintf(stderr, (char *)joe_gettext(_("Couldn\'t open /dev/tty\n")));
 			exit(1);
 		} else {
 #ifdef SIGWINCH
@@ -754,7 +726,7 @@ int ttshell(unsigned char *cmd)
 		if (cmd)
 			execl((char *)s, (char *)s, "-c", cmd, NULL);
 		else {
-			fprintf(stderr, "You are at the command shell.  Type 'exit' to return\n");
+			fprintf(stderr, (char *)joe_gettext(_("You are at the command shell.  Type 'exit' to return\n")));
 			execl((char *)s, (char *)s, NULL);
 		}
 		_exit(0);
@@ -818,7 +790,7 @@ void ttsusp(void)
 	omode = ttymode;
 	mpxsusp();
 	ttclsn();
-	fprintf(stderr, "You have suspended the program.  Type 'fg' to return\n");
+	fprintf(stderr, (char *)joe_gettext(_("You have suspended the program.  Type 'fg' to return\n")));
 	kill(0, SIGTSTP);
 #ifdef junk
 	/* Hmmm... this should not have been necessary */
@@ -909,7 +881,6 @@ static unsigned char *getpty(int *ptyfd)
 
 static unsigned char *getpty(int *ptyfd)
 {
-	int fdm;
 	static unsigned char name[32];
 	int ttyfd;
 
@@ -1003,8 +974,6 @@ static RETSIGTYPE death(int unused)
 
 /* Build a new environment, but replace one variable */
 
-extern unsigned char **mainenv;
-
 static unsigned char **newenv(unsigned char **old, unsigned char *s)
 {
 	unsigned char **new;
@@ -1031,7 +1000,9 @@ static unsigned char **newenv(unsigned char **old, unsigned char *s)
 
 /* Create a shell process */
 
-MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/* ??? */), void *object, void (*die) (/* ??? */), void *dieobj)
+/* If out_only is set, leave program's stdin attached to JOE's stdin */
+
+MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/* ??? */), void *object, void (*die) (/* ??? */), void *dieobj, int out_only)
 {
 	unsigned char buf[80];
 	int fds[2];
@@ -1081,6 +1052,7 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 	/* PID number pipe */
 	pipe(comm);
 
+
 	/* Create processes... */
 	if (!(m->kpid = fork())) {
 		/* This process copies data from shell to joe */
@@ -1123,53 +1095,73 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 #endif
 
 #endif
+
 			/* Close all fds */
-			for (x = 0; x != 32; ++x)
+			for (x = (out_only ? 1 : 0); x != 32; ++x)
 				close(x);	/* Yes, this is quite a kludge... all in the
 						   name of portability */
+
 
 			/* Open the TTY */
 			if ((x = open((char *)name, O_RDWR)) != -1) {	/* Standard input */
 				unsigned char **env = newenv(mainenv, US "TERM=");
 
+
+				if (!out_only) {
 #ifdef HAVE_LOGIN_TTY
-				login_tty(x);
+					login_tty(x);
 
 #else
 				/* This tells the fd that it's a tty (I think) */
 #ifdef __svr4__
-				ioctl(x, I_PUSH, "ptem");
-				ioctl(x, I_PUSH, "ldterm");
+					ioctl(x, I_PUSH, "ptem");
+					ioctl(x, I_PUSH, "ldterm");
 #endif
 
 				/* Open stdout, stderr */
-				dup(x);
-				dup(x);	/* Standard output, standard error */
-				/* (yes, stdin, stdout, and stderr must all be open for reading and
-				 * writing.  On some systems the shell assumes this */
+					dup(x);
+					dup(x);	/* Standard output, standard error */
+					/* (yes, stdin, stdout, and stderr must all be open for reading and
+					 * writing.  On some systems the shell assumes this */
 #endif
 
-				/* We could probably have a special TTY set-up for JOE, but for now
-				 * we'll just use the TTY setup for the TTY was was run on */
 #ifdef HAVE_POSIX_TERMIOS
-				tcsetattr(0, TCSADRAIN, &oldterm);
+					tcsetattr(0, TCSADRAIN, &oldterm);
 #else
 #ifdef HAVE_SYSV_TERMIO
-				ioctl(0, TCSETAW, &oldterm);
+					ioctl(0, TCSETAW, &oldterm);
 #else
-				ioctl(0, TIOCSETN, &oarg);
-				ioctl(0, TIOCSETC, &otarg);
-				ioctl(0, TIOCSLTC, &oltarg);
+					ioctl(0, TIOCSETN, &oarg);
+					ioctl(0, TIOCSETC, &otarg);
+					ioctl(0, TIOCSLTC, &oltarg);
 #endif
 #endif
+					/* We could probably have a special TTY set-up for JOE, but for now
+					 * we'll just use the TTY setup for the TTY was was run on */
 
-				/* Execute the shell */
-				execve((char *)cmd, (char **)args, (char **)env);
+					/* Execute the shell */
+					execve((char *)cmd, (char **)args, (char **)env);
 
-				/* If shell didn't execute */
-				joe_snprintf_1((char *)buf,sizeof(buf),"Couldn't execute shell '%s'\n",cmd);
-				write(0,(char *)buf,zlen(buf));
-				sleep(1);
+					/* If shell didn't execute */
+					joe_snprintf_1(buf,sizeof(buf),joe_gettext(_("Couldn't execute shell '%s'\n")),cmd);
+					write(1,(char *)buf,zlen(buf));
+					sleep(1);
+
+				} else {
+					unsigned char buf[1024];
+					int len;
+					dup(x); /* Standard error */
+					
+					for (;;) {
+						len = read(0, buf, sizeof(buf));
+						if (len > 0)
+							write(1, buf, len);
+						else
+							break;
+					}
+				}
+
+
 			}
 
 			_exit(0);

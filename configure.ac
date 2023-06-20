@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 3.3)
+AC_INIT(joe, 3.4)
 AC_CONFIG_SRCDIR([b.c])
 
 AC_CANONICAL_BUILD
@@ -71,6 +71,7 @@ AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
 AC_CHECK_HEADERS([sys/dirent.h time.h pwd.h paths.h pty.h])
 AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
+AC_CHECK_HEADERS([curses.h term.h])
 
 AC_CHECK_HEADERS([selinux/selinux.h selinux/context.h])
 if test "$ac_cv_header_selinux_selinux_h" = "yes" -a "$ac_cv_header_selinux_context_h" = "yes" ; then
@@ -132,8 +133,8 @@ joe_REINSTALL_SIGHANDLERS
 #
 #AC_SUBST(REQRD_LIBS)
 
-dnl not yet :-)
-dnl AM_GNU_GETTEXT
+dnl OK lets try it...
+dnl AM_GNU_GETTEXT([external])
 
 AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 #ifndef PARAMS
@@ -147,12 +148,14 @@ AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 # Check for programs..
 AC_CHECK_PROG(SPELL,aspell,aspell,ispell)
 
-AC_CONFIG_FILES([Makefile
+AC_CONFIG_FILES([Makefile rc/Makefile man/Makefile man/ru/Makefile
+syntax/Makefile po/Makefile
 syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf syntax/sh.jsf syntax/python.jsf
 syntax/conf.jsf syntax/php.jsf syntax/mail.jsf syntax/pascal.jsf syntax/html.jsf
 syntax/vhdl.jsf syntax/fortran.jsf syntax/java.jsf syntax/xml.jsf syntax/tcl.jsf
 charmaps/klingon syntax/lisp.jsf syntax/csh.jsf syntax/mason.jsf syntax/diff.jsf
 syntax/asm.jsf syntax/css.jsf syntax/tex.jsf syntax/ocaml.jsf syntax/4gl.jsf
 syntax/sml.jsf syntax/sql.jsf syntax/awk.jsf syntax/cobol.jsf syntax/sed.jsf
-syntax/ps.jsf syntax/ada.jsf])
+syntax/ps.jsf syntax/ada.jsf syntax/troff.jsf syntax/haskell.jsf
+syntax/rexx.jsf syntax/skill.jsf syntax/lua.jsf syntax/ruby.jsf])
 AC_OUTPUT

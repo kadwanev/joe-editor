@@ -5,47 +5,9 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
-
-#include "b.h"
-#include "bw.h"
-#include "cmd.h"
-#include "mouse.h"
-#include "hash.h"
-#include "help.h"
-#include "macro.h"
-#include "main.h"
-#include "menu.h"
-#include "path.h"
-#include "poshist.h"
-#include "pw.h"
-#include "rc.h"
-#include "tty.h"
-#include "tw.h"
-#include "ublock.h"
-#include "uedit.h"
-#include "uerror.h"
-#include "ufile.h"
-#include "uformat.h"
-#include "uisrch.h"
-#include "umath.h"
-#include "undo.h"
-#include "usearch.h"
-#include "ushell.h"
-#include "utag.h"
-#include "utils.h"
-#include "va.h"
-#include "vs.h"
-#include "utf8.h"
-#include "kbd.h"
-#include "w.h"
-
-extern int nowmarking;
-extern int smode;
 int joe_beep = 0;
-int uexecmd(BW *bw);
 
 /* Command table */
 
@@ -85,7 +47,7 @@ CMD cmds[] = {
 	{US "center", TYPETW + TYPEPW + EFIXXCOL + EMOD, ucenter, NULL, 1, NULL},
 	{US "ctrl", TYPETW + TYPEPW + EMOD, uctrl, NULL, 0, NULL},
 	{US "col", TYPETW + TYPEPW, ucol, NULL, 0, NULL},
-	{US "complete", TYPETW + TYPEPW + EMINOR + EMOD, ucmplt, NULL, 0, NULL},
+	{US "complete", TYPEPW + EMINOR + EMOD, ucmplt, NULL, 0, NULL},
 	{US "copy", TYPETW + TYPEPW, ucopy, NULL, 0, NULL},
 	{US "crawll", TYPETW + TYPEPW, ucrawll, NULL, 1, US "crawlr"},
 	{US "crawlr", TYPETW + TYPEPW, ucrawlr, NULL, 1, US "crawll"},
@@ -150,12 +112,15 @@ CMD cmds[] = {
 	{US "ltarw", TYPETW + TYPEPW /* + EFIXXCOL + ECHKXCOL */, u_goto_left, NULL, 1, US "rtarw"},
 	{US "ltarwmenu", TYPEMENU, umltarw, NULL, 1, US "rtarwmenu"},
 	{US "macros", TYPETW + EFIXXCOL, umacros, NULL, 0, NULL},
+	{US "debug_joe", TYPETW + EFIXXCOL, udebug_joe, NULL, 0, NULL},
 	{US "markb", TYPETW + TYPEPW, umarkb, NULL, 0, NULL},
 	{US "markk", TYPETW + TYPEPW, umarkk, NULL, 0, NULL},
 	{US "markl", TYPETW + TYPEPW, umarkl, NULL, 0, NULL},
 	{US "math", TYPETW + TYPEPW, umath, NULL, 0, NULL},
 	{US "mode", TYPETW + TYPEPW + TYPEQW, umode, NULL, 0, NULL},
 	{US "msg", TYPETW + TYPEPW + TYPEQW + TYPEMENU, umsg, NULL, 0, NULL},
+	{US "mfit", TYPETW, umfit, NULL, 0, NULL},
+	{US "mwind", TYPETW, umwind, NULL, 0, NULL},
 	{US "name", TYPETW + TYPEPW, uname_joe, NULL, 0, NULL}, 
 	{US "nbuf", TYPETW, unbuf, NULL, 1, US "pbuf"},
 	{US "nedge", TYPETW + TYPEPW + EFIXXCOL, unedge, NULL, 1, US "pedge"}, 
@@ -203,6 +168,7 @@ CMD cmds[] = {
 	{US "select", TYPETW + TYPEPW, uselect, NULL, 0, NULL},
 	{US "setmark", TYPETW + TYPEPW, usetmark, NULL, 0, NULL},
 	{US "shell", TYPETW + TYPEPW + TYPEMENU + TYPEQW, ushell, NULL, 0, NULL},
+	{US "showerr", TYPETW + TYPEPW, ucurrent_msg, NULL, 0, NULL},
 	{US "shrinkw", TYPETW, ushrnk, NULL, 1, US "groww"},
 	{US "splitw", TYPETW, usplitw, NULL, 0, NULL},
 	{US "stat", TYPETW + TYPEPW, ustat, NULL, 0, NULL},
@@ -240,6 +206,9 @@ CMD cmds[] = {
 
 int nolocks;
 
+#define LOCKMSG2 _("Could not create lock. (I) edit anyway, (Q) cancel? ")
+#define LOCKMSG1 _("Locked by %s (S)teal lock, (I) edit anyway, (Q) cancel? ")
+
 int steal_lock(BW *bw,int c,B *b,int *notify)
 {
 	if (c=='s' || c=='S') {
@@ -251,9 +220,9 @@ int steal_lock(BW *bw,int c,B *b,int *notify)
 			for(x=0;bf1[x] && bf1[x]!=':';++x);
 			bf1[x]=0;
 			if(bf1[0])
-				joe_snprintf_1((char *)bf,sizeof(bf),"Locked by %s  (S)teal, (I)gnore, (Q)uit? ",bf1);
+				joe_snprintf_1(bf,sizeof(bf),joe_gettext(LOCKMSG1),bf1);
 			else
-				joe_snprintf_0((char *)bf,sizeof(bf),"Could not create lock.  (S)teal, (I)gnore, (Q)uit? ");
+				joe_snprintf_0(bf,sizeof(bf),joe_gettext(LOCKMSG2));
 			if (mkqw(bw->parent, sz(bf), steal_lock, NULL, b, notify)) {
 				return 0;
 			} else {
@@ -278,7 +247,7 @@ int steal_lock(BW *bw,int c,B *b,int *notify)
 			*notify = 1;
 		return 0;
 	} else {
-		if (mkqw(bw->parent, sc("Could not lock.  (S)teal, (I)gnore, (Q)uit? "), steal_lock, NULL, b, notify)) {
+		if (mkqw(bw->parent, sz(joe_gettext(LOCKMSG2)), steal_lock, NULL, b, notify)) {
 			return 0;
 		} else
 			return -1;
@@ -287,7 +256,8 @@ int steal_lock(BW *bw,int c,B *b,int *notify)
 
 int file_changed(BW *bw,int c,B *b,int *notify)
 {
-	if (mkqw(bw->parent, sc("Notice: File on disk changed! (hit ^C to continue)  "), file_changed, NULL, b, notify)) {
+	if (mkqw(bw->parent, sz(joe_gettext(_("Notice: File on disk changed! (hit ^C to continue)  "))), file_changed, NULL, b, notify)) {
+		b->gave_notice = 1;
 		return 0;
 	} else
 		return -1;
@@ -308,9 +278,9 @@ int try_lock(BW *bw,B *b)
 			for(x=0;bf1[x] && bf1[x]!=':';++x);
 			bf1[x]=0;
 			if(bf1[0])
-				joe_snprintf_1((char *)bf,sizeof(bf),"Locked by %s  (S)teal, (I)gnore, (Q)uit? ",bf1);
+				joe_snprintf_1(bf,sizeof(bf),LOCKMSG1,bf1);
 			else
-				joe_snprintf_0((char *)bf,sizeof(bf),"Could not create lock.  (S)teal, (I)gnore, (Q)uit? ");
+				joe_snprintf_0(bf,sizeof(bf),LOCKMSG2);
 			if (mkqw(bw->parent, sz(bf), steal_lock, NULL, b, NULL)) {
 				uquery(bw);
 				if (!b->locked)
@@ -328,7 +298,6 @@ int try_lock(BW *bw,B *b)
 /* Called when we are about to modify a buffer */
 /* Returns 0 if we're not allowed to modify buffer */
 
-extern long last_time;
 #define CHECK_INTERVAL 15
 int nomodcheck;
 
@@ -336,30 +305,48 @@ int modify_logic(BW *bw,B *b)
 {
 	if (last_time > b->check_time + CHECK_INTERVAL) {
 		b->check_time = last_time;
-		if (!nomodcheck && check_mod(b)) {
+		if (!nomodcheck && !b->gave_notice && check_mod(b)) {
 			file_changed(bw,0,b,NULL);
 			return 0;
 		}
 	}
-	if (!b->didfirst) {
-		/* This happens when we try to block move from a window
-		   which is not on the screen */
-		if (b!=bw->b) {
-			msgnw(bw->parent,US "Modify other window first");
-			return 0;
+
+	if (b != bw->b) {
+		if (!b->didfirst) {
+			/* This happens when we try to block move from a window
+			   which is not on the screen */
+			if (bw->o.mfirst) {
+				msgnw(bw->parent,joe_gettext(_("Modify other window first for macro")));
+				return 0;
+			}
+			b->didfirst = 1;
+			if (bw->o.mfirst)
+				exmacro(bw->o.mfirst,1);
 		}
-		b->didfirst = 1;
-		if (bw->o.mfirst)
-			exmacro(bw->o.mfirst,1);
-	}
-	if (b->rdonly) {
-		msgnw(bw->parent, US "Read only");
-		if (joe_beep)
-			ttputc(7);
-		return 0;
-	} else if (!b->changed && !b->locked) {
-		if (!try_lock(bw,b))
+		if (b->rdonly) {
+			msgnw(bw->parent,joe_gettext(_("Other buffer is read only")));
+			if (joe_beep)
+				ttputc(7);
 			return 0;
+		} else if (!b->changed && !b->locked) {
+			if (!try_lock(bw,b))
+				return 0;
+		}
+	} else {
+		if (!b->didfirst) {
+			b->didfirst = 1;
+			if (bw->o.mfirst)
+				exmacro(bw->o.mfirst,1);
+		}
+		if (b->rdonly) {
+			msgnw(bw->parent,joe_gettext(_("Read only")));
+			if (joe_beep)
+				ttputc(7);
+			return 0;
+		} else if (!b->changed && !b->locked) {
+			if (!try_lock(bw,b))
+				return 0;
+		}
 	}
 	return 1;
 }
@@ -376,7 +363,7 @@ int execmd(CMD *cmd, int k)
 
 	/* Send data to shell window: this is broken ^K ^H (help) sends its ^H to shell */
 	if ((maint->curwin->watom->what & TYPETW) && bw->b->pid && piseof(bw->cursor) &&
-	(k==3 || k==9 || k==13 || k==8 || k==127 || k==4 || cmd->func==utype && k>=32 && k<256)) {
+	(k==3 || k==9 || k==13 || k==8 || k==127 || k==4 || (cmd->func==utype && k>=32 && k<256))) {
 		unsigned char c = k;
 		joe_write(bw->b->out, &c, 1);
 		return 0;
@@ -387,11 +374,12 @@ int execmd(CMD *cmd, int k)
 
 	/* We don't execute if we have to fix the column position first
 	 * (i.e., left arrow when cursor is in middle of nowhere) */
-	if (cmd->flag & ECHKXCOL)
+	if (cmd->flag & ECHKXCOL) {
 		if (bw->o.hex)
 			bw->cursor->xcol = piscol(bw->cursor);
 		else if (bw->cursor->xcol != piscol(bw->cursor))
 			goto skip;
+	}
 
 	/* Don't execute command if we're in wrong type of window */
 	if (!(cmd->flag & maint->curwin->watom->what))
@@ -458,8 +446,6 @@ int execmd(CMD *cmd, int k)
 		ttputc(7);
 	return ret;
 }
-
-extern int auto_scroll;
 
 void do_auto_scroll()
 {
@@ -548,7 +534,7 @@ static int docmd(BW *bw, unsigned char *s, void *object, int *notify)
 
 	vsrm(s);	/* allocated in pw.c::rtnpw() */
 	if (!cmd)
-		msgnw(bw->parent, US "No such command");
+		msgnw(bw->parent,joe_gettext(_("No such command")));
 	else {
 		mac = mkmacro(-1, 0, 0, cmd);
 		ret = exmacro(mac, 1);
@@ -563,7 +549,7 @@ B *cmdhist = NULL;
 
 int uexecmd(BW *bw)
 {
-	if (wmkpw(bw->parent, US "cmd: ", &cmdhist, docmd, US "cmd", NULL, cmdcmplt, NULL, NULL, locale_map, 0)) {
+	if (wmkpw(bw->parent, joe_gettext(US _("Command: ")), &cmdhist, docmd, US "cmd", NULL, cmdcmplt, NULL, NULL, locale_map, 0)) {
 		return 0;
 	} else {
 		return -1;

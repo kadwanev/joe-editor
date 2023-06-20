@@ -5,22 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include <stdio.h>
-#include <string.h>
-#include "config.h"
 #include "types.h"
-#include "utils.h"
-
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-/* nl_langinfo(CODESET) is broken on many systems.  If HAVE_SETLOCALE is undefined,
-   JOE uses a limited internal version instead */
-
-#ifndef CODESET
-#undef HAVE_SETLOCALE
-#endif
 
 /* Under AmigaOS we have setlocale() but don't have langinfo.h and associated stuff,
  * so we have to disable the whole piece of code
@@ -34,14 +19,18 @@
 #undef HAVE_SETLOCALE
 #endif
 
+/* If it looks old, forget it */
+#ifndef CODESET
+#undef HAVE_SETLOCALE
+#endif
+
 #if defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE)
 #	include <locale.h>
 #       include <langinfo.h>
 #endif
 
-#include "rc.h"
-#include "utf8.h"
-#include "charmap.h"
+/* nl_langinfo(CODESET) is broken on many systems.  If HAVE_SETLOCALE is undefined,
+   JOE uses a limited internal version instead */
 
 /* UTF-8 Encoder
  *
@@ -174,29 +163,53 @@ int utf8_decode_string(unsigned char *s)
 {
 	struct utf8_sm sm;
 	int x;
-	int c;
+	int c = -1;
 	utf8_init(&sm);
 	for(x=0;s[x];++x)
 		c = utf8_decode(&sm,s[x]);
 	return c;
 }
 
-/* Decode and advance */
+/* Decode and advance
+ *
+ * Returns: 0 - 7FFFFFFF: decoded character
+ *  -2: incomplete sequence
+ *  -3: bad start of sequence found.
+ *
+ * p/plen are always advanced in such a way that repeated called to utf8_decode_fwrd do not cause
+ * infinite loops.
+ */
 
 int utf8_decode_fwrd(unsigned char **p,int *plen)
 {
 	struct utf8_sm sm;
 	unsigned char *s = *p;
 	int len = *plen;
-	int c = -2;
+	int c = -2; /* Return this on no more input. */
 
 	utf8_init(&sm);
 
 	while (len) {
-		--len;
-		c = utf8_decode(&sm,*s++);
-		if (c >= 0)
+		c = utf8_decode(&sm, *s);
+		if (c >= 0) {
+			/* We've got a character */
+			--len;
+			++s;
 			break;
+		} else if (c == -2) {
+			/* Bad sequence detected.  Caller should feed rest of string in again. */
+			break;
+		} else if (c == -3) {
+			/* Bad start of UTF-8 sequence.  We need to eat this char to avoid infinite loops. */
+			--len;
+			++s;
+			/* But we should tell the caller that something bad was found. */
+			break;
+		} else {
+			/* If c is -1, utf8_decode accepted the character, so we should get the next one. */
+			--len;
+			++s;
+		}
 	}
 
 	*plen = len;
@@ -245,7 +258,7 @@ unsigned char *joe_getcodeset(unsigned char *l)
   static unsigned char buf[16];
   unsigned char *p;
   
-  if (((l = (unsigned char *)getenv("LC_ALL"))   && *l) ||
+  if (l || ((l = (unsigned char *)getenv("LC_ALL"))   && *l) ||
       ((l = (unsigned char *)getenv("LC_CTYPE")) && *l) ||
       ((l = (unsigned char *)getenv("LANG"))     && *l)) {
 
@@ -313,14 +326,18 @@ unsigned char *codeset;	/* Codeset of terminal */
 unsigned char *non_utf8_codeset;
 			/* Codeset of local language non-UTF-8 */
 
+unsigned char *locale_lang;
+			/* Our local language */
+
 struct charmap *locale_map;
-			/* Character map of terminal */
+			/* Character map of terminal, default map for new files */
+
+struct charmap *locale_map_non_utf8;
+			/* Old, non-utf8 version of locale */
 
 void joe_locale()
 {
 	unsigned char *s, *t, *u;
-
-	int x;
 
 	s=(unsigned char *)getenv("LC_ALL");
 	if (!s) {
@@ -337,9 +354,10 @@ void joe_locale()
 
 	u = zdup(s);
 
-	if (t=zrchr(s,'.'))
+	if ((t=zrchr(s,'.')))
 		*t = 0;
 
+	locale_lang = s;
 
 #ifdef HAVE_SETLOCALE
 	setlocale(LC_ALL,(char *)s);
@@ -349,8 +367,16 @@ void joe_locale()
 #endif
 
 
+	/* printf("joe_locale\n"); */
 #ifdef HAVE_SETLOCALE
+	/* printf("set_locale\n"); */
 	setlocale(LC_ALL,"");
+#ifdef ENABLE_NLS
+	/* Set up gettext() */
+	bindtextdomain(PACKAGE, LOCALEDIR);
+	textdomain(PACKAGE);
+	/* printf("%s %s %s\n",PACKAGE,LOCALEDIR,joe_gettext("New File")); */
+#endif
 	codeset = zdup((unsigned char *)nl_langinfo(CODESET));
 #else
 	codeset = joe_getcodeset(u);
@@ -359,6 +385,10 @@ void joe_locale()
 	locale_map = find_charmap(codeset);
 	if (!locale_map)
 		locale_map = find_charmap(US "ascii");
+
+	locale_map_non_utf8 = find_charmap(non_utf8_codeset);
+	if (!locale_map_non_utf8)
+		locale_map_non_utf8 = find_charmap(US "ascii");
 
 	fdefault.charmap = locale_map;
 	pdefault.charmap = locale_map;
@@ -384,6 +414,7 @@ void joe_locale()
 	fdefault.charmap = locale_map;
 	pdefault.charmap = locale_map;
 #endif
+	init_gettext(locale_lang);
 }
 
 void to_utf8(struct charmap *map,unsigned char *s,int c)
@@ -438,4 +469,114 @@ int from_utf8(struct charmap *map,unsigned char *s)
 	else
 		return obuf[0];
 #endif
+}
+
+void my_iconv(unsigned char *dest,struct charmap *dest_map,
+              unsigned char *src,struct charmap *src_map)
+{
+	if (dest_map == src_map) {
+		zcpy (dest, src);
+		return;
+	}
+
+	if (src_map->type) {
+		/* src is UTF-8 */
+		if (dest_map->type) {
+			/* UTF-8 to UTF-8? */
+			zcpy (dest, src);
+		} else {
+			/* UTF-8 to non-UTF-8 */
+			while (*src) {
+				int len = -1;
+				int c = utf8_decode_fwrd(&src, &len);
+				if (c >= 0) {
+					int d = from_uni(dest_map, c);
+					if (d >= 0)
+						*dest++ = d;
+					else
+						*dest++ = '?';
+				} else
+					*dest++ = 'X';
+			}
+			*dest = 0;
+		}
+	} else {
+		/* src is not UTF-8 */
+		if (!dest_map->type) {
+			/* Non UTF-8 to non-UTF-8 */
+			while (*src) {
+				int c = to_uni(src_map, *src++);
+				int d;
+				if (c >= 0) {
+					d = from_uni(dest_map, c);
+					if (d >= 0)
+						*dest++ = d;
+					else
+						*dest++ = '?';
+				} else
+					*dest++ = '?';
+			}
+			*dest = 0;
+		} else {
+			/* Non-UTF-8 to UTF-8 */
+			while (*src) {
+				int c = to_uni(src_map, *src++);
+				if (c >= 0)
+					dest += utf8_encode(dest, c);
+				else
+					*dest++ = '?';
+			}
+			*dest = 0;
+		}
+	}
+}
+
+/* Guess character set */
+
+int guess_non_utf8;
+int guess_utf8;
+
+struct charmap *guess_map(unsigned char *buf, int len)
+{
+	unsigned char *p;
+	int plen;
+	int c;
+	int flag;
+
+	/* No info? Use default */
+	if (!len || (!guess_non_utf8 && !guess_utf8))
+		return locale_map;
+
+	/* Does it look like UTF-8? */
+	p = buf;
+	plen = len;
+	c = 0;
+	flag = 0;
+	while (plen) {
+		/* Break if we could possibly run out of data in
+		   the middle of utf-8 sequence */
+		if (plen < 7)
+			break;
+		if (*p >= 128)
+			flag = 1;
+		c = utf8_decode_fwrd(&p, &plen);
+		if (c < 0)
+			break;
+	}
+
+	if (flag && c >= 0) {
+		/* There are characters above 128, and there are no utf-8 errors */
+		if (locale_map->type || !guess_utf8)
+			return locale_map;
+		else
+			return find_charmap(US "utf-8");
+	}
+
+	if (!flag || !guess_non_utf8) {
+		/* No characters above 128 */
+		return locale_map;
+	} else {
+		/* Choose non-utf8 version of locale */
+		return locale_map_non_utf8;
+	}
 }

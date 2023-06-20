@@ -1,9 +1,10 @@
+
                          Initialization file for JOE
-                                Standard Joe
+                            Restricted access Joe
 
  JOE looks for this file in:
-	1 - $HOME/.joerc
-	2 - @JOERC@/joerc
+	1 - $HOME/.rjoerc
+	2 - @JOERC@/rjoerc
 
  This file can include other files by placing the following include command
  in the first column:
@@ -21,8 +22,6 @@
    bold inverse blink dim underline
    white cyan magenta blue yellow green red black
    bg_white bg_cyan bg_magenta bg_blue bg_yellow bg_green bg_red bg_black
-
- Other colors are available: see syntax/c.jsf for documentation.
 
  Override all instances of class Idle:
    =Idle red
@@ -46,10 +45,13 @@
  =Brace      magenta
  =Control
 
+
  Put each option you want set in the first column:
 
  -option	Sets the option
  --option	Clears the option
+
+ -help_is_utf8	Set if help text is in UTF-8 format.  Leave clear if it's a raw 8-bit format.
 
  -mid		Cursor is recentered when scrolling is necessary
 
@@ -89,7 +91,7 @@
 		the 'path', no trailing spaces or comments after the path).
 
  -floatmouse	Clicking past end of line moves the cursor past the end
- 
+
  -rtbutton	Use the right mouse button for action, instead of the left
 
  -nonotice	Disable copyright notice
@@ -121,15 +123,24 @@
 		looks like an ANSI terminal (support bold and capability starts with
 		ESC [).
 
- -assume_256color
+-assume_256color
 		Assume terminal has xterm 256 color support (ESC [ 38 ; 5 ; NNN m and
                 ESC [ 48 ; 5 ; NNN m).
+
+-guess_non_utf8	Allow guess of non-UTF-8 file encoding in a UTF-8 locale.
+
+ -guess_utf8	Allow guess of UTF-8 file encoding in non-UTF-8 locale.
 
 -guess_crlf     Automatically detect MS-DOS files and set -crlf appropriately
 
 -guess_indent	Guess indent character (tab or space).
 
- -menu_explorer	Stay in menu system when a directory is selected (otherwise
+-menu_above	Position menu/list above prompt when enabled.  Otherwise position
+		below prompt.
+
+-transpose	Transpose rows with columns in all menus.
+
+-menu_explorer Stay in menu system when a directory is selected (otherwise
                 directory is added to path and menu is closed).
 
  -menu_jump	Jump into file selection menu when tab is hit (otherwise, menu
@@ -143,25 +154,32 @@
 
 -joe_state     Use ~/.joe_state file
 
- -mouse		Enable xterm mouse support.  When enabled, left-click will
-		position the cursor and left-click-drag will select blocks.
-		For normal xterm cut and paste, hold the shift key down.
+ -mouse		Enable mouse support
 
  -joexterm	If you are using Joe's modified Xterm, which makes -mouse
 		mode work better (cut & paste work transparently).
 
  -square	Rectangular block mode
 
- -bg_text color	Set background color for text, help, menus, prompts and messages.
- -bg_help color	Set background color for help.
- -bg_menu color	Set background color for menus.
- -bg_prompt color
-		Set background color for prompts.
- -bg_msg color	Set background color for messages.
+ -text_color color
+		Set color for text.
+ -status_color color
+		Set color for status bar.
+ -help_color color
+		Set color for help.
+ -menu_color color
+		Set color for menus.
+ -prompt_color color
+		Set color for prompts.
+ -msg_color color
+		Set color for messages.
 
-		For example: -bg_text bg_blue
+		For example: -text_color bg_blue+white
+		Sets the background color to blue and foreground color to white.
 
--search_prompting
+-restore	Restore previous cursor position when files are opened
+
+ -search_prompting
 		Search prompts with previous search request.
 
  Status line definition strings.  -lmsg defines the left-justified string and
@@ -201,25 +219,25 @@
   \d  Dim
   \f  Blink
 
--lmsg \i%k%T%W%I%X %n %m%y%R %M %x
+-lmsg \i%k%T%W%I%X %n %m%y%R %M
 -rmsg  %S Row %r Col %c %t  Ctrl-K H for help
 
  SECOND SECTION: File name dependant local option settings:
 
  Each line with '*' in the first column indicates the modes which should be
- set for files whose name matches the regular expression.  If more than one
- regular expression matches the file name, then the last matching one is
- chosen.
-
- A file contents regular expression may also be specified on a separate line
- with '+regex'.  If this regular expresssion is given, then both the file name
- regex and the file contents regex must match for the options to apply.
+ set for files which match the regular expression.  If more than one regular
+ expression matches the file name, then the last matching one is chosen.
 
  Here are the modes which can be set:
 
-	-encoding name		Set file coding (for example: utf-8, iso-8859-15)
+	-cpara >#!;*/%
+				Characters which can indent paragraphs.
 
-	-syntax name		Specify syntax (syntax file called
+	-encoding name
+				Set file coding (for example: utf-8, iso-8859-15)
+
+	-syntax name
+				Specify syntax (syntax file called
 				'name.jsf' will be loaded)
 
 	-hex			Hex editor mode
@@ -274,16 +292,22 @@
 
 	-rdonly			File is read-only
 
-	-keymap name		Keymap to use if not 'main'
+	-keymap name
+				Keymap to use if not 'main'
 
 	-lmsg			Status line definition strings-
 	-rmsg			see previous section for more info.
 
-	-mfirst macro		Macro to execute on first modification
-	-mnew macro		Macro to execute when new files are loaded
-	-mold macro		Macro to execute when existing files are loaded
-	-msnew macro		Macro to execute when new files are saved
-	-msold macro		Macro to execute when existing files are saved
+	-mfirst macro
+				Macro to execute on first modification
+	-mnew macro
+				Macro to execute when new files are loaded
+	-mold macro
+				Macro to execute when existing files are loaded
+	-msnew macro
+				Macro to execute when new files are saved
+	-msold macro
+				Macro to execute when existing files are saved
 
 	Macros for the above options are in the same format as in the key
 	binding section below- but without the key name strings.
@@ -316,597 +340,9 @@
 
  -mfirst if,"rdonly && joe(sys,\"p4 edit \",name,rtn)",then,mode,"o",msg,"executed \"p4 edit ",name,"\"",rtn,endif
 
- No '.' in file name?  Assume it's a text file and we want wordwrap on.
-*
--wordwrap
+ File type table is now in a separate file.  You can copy this file to ~/.joe and customize it.
 
- File name with '.'?  It's probably not a text file.
-*.*
-
- Diff
-*
-+--- 
--syntax diff
-
-*
-+*** 
--syntax diff
-
-*
-+\[1-9]\+\[0-9]\[cda]
--syntax diff
-
- TeX
-*.tex
--wordwrap
--syntax tex
-
-*.sty
--wordwrap
--syntax tex
-
- Text file.
-*.txt
--wordwrap
-
- News/mail files.
-*.article*
--wordwrap
--syntax mail
-
-*.followup
--wordwrap
--syntax mail
-
-*.letter
--wordwrap
--syntax mail
-
- NN newsreader
-*tmp/nn.*
--wordwrap
--syntax mail
-
- mail
-*tmp/Re*
--wordwrap
--syntax mail
-
- elm
-*tmp/snd.*
--wordwrap
--syntax mail
-
- dmail
-*tmp/dmt*
--wordwrap
--syntax mail
-
- pine
-*tmp/pico.*
--wordwrap
--syntax mail
-
- Assembly language
-*.asm
--wordwrap
--syntax asm
-
-*.s
--wordwrap
--syntax asm
-
-*.S
--wordwrap
--syntax asm
-
- Mason
-*.mas
--autoindent
--syntax mason
--smarthome
--smartbacks
-
- SML
-*.sml
--autoindent
--syntax sml
--smarthome
--smartbacks
--istep 2
-
- OCaml lanaguage file
-*.ml
--autoindent
--syntax ocaml
--smarthome
--smartbacks
--istep 2
-
- OCaml language interface
-*.mli
--autoindent
--syntax ocaml
--smarthome
--smartbacks
--istep 2
-
- Perl
-*
-+#!\+\[ 	]\+\[a-z/]/perl\>
--autoindent
--syntax perl
--smarthome
--smartbacks
--pound_comment
--single_quoted
-
-*.pl
--autoindent
--syntax perl
--smarthome
--smartbacks
--pound_comment
--single_quoted
-
-*.pm
--autoindent
--syntax perl
--smarthome
--smartbacks
--pound_comment
--single_quoted
-
- SQL file
-*.sql
--autoindent
--syntax sql
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--vhdl_comment
--cpp_comment
--text_delimiters BEGIN|Begin|begin=END|End|end
-
- AWK language file
-*.awk
--autoindent
--syntax awk
--smarthome
--smartbacks
--purify
--pound_comment
-
- YACC
-*.y
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
- LEX
-*.l
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
-*.lex
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
- ADA
-*.adb
--syntax ada
--autoindent
--istep 2
--smarthome
--smartbacks
--purify
--vhdl_comment
--text_delimiters declare|Declare|DECLARE|exception|Exception|EXCEPTION|if|If|IF|loop|Loop|LOOP|case|Case|CASE|package|Package|PACKAGE|procedure|Procedure|PROCEDURE|record|Record|RECORD|function|Function|FUNCTION=end|End|END
-
-*.ads
--syntax ada
--autoindent
--istep 2
--smarthome
--smartbacks
--purify
--vhdl_comment
--text_delimiters declare|Declare|DECLARE|exception|Exception|EXCEPTION|if|If|IF|loop|Loop|LOOP|case|Case|CASE|package|Package|PACKAGE|procedure|Procedure|PROCEDURE|record|Record|RECORD|function|Function|FUNCTION=end|End|END
-
- COBOL
-*.cbl
--syntax cobol
-
-*.cob
--syntax cobol
-
- sed
-*.sed
--syntax sed
-
- Postscript
-*.ps
--syntax ps
-
-*.eps
--syntax ps
-
- C language file
-*.c
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
-*.cpp
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
-*.cc
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
-*.c++
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
- C language header file
-*.h
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
-*.hpp
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
-*.h++
--autoindent
--syntax c
--smarthome
--smartbacks
--purify
--single_quoted
--c_comment
--cpp_comment
--text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
-
- Verilog file
-*.v
--autoindent
--syntax verilog
--istep 2
--smarthome
--smartbacks
--purify
--c_comment
--cpp_comment
--text_delimiters `ifdef|`ifndef=`else=`endif:begin=end:case|casex|casez=endcase:function=endfunction:module=endmodule:task=endtask:attribute=endattribute:primitive=endprimitive:table=endtable
-
- Verilog header file
-*.vh
--autoindent
--syntax verilog
--istep 2
--smarthome
--smartbacks
--purify
--c_comment
--cpp_comment
--text_delimiters `ifdef|`ifndef=`else=`endif:begin=end:case|casex|casez=endcase:function=endfunction:module=endmodule:task=endtask:attribute=endattribute:primitive=endprimitive:table=endtable
-
- VHDL file
-*.vhd
--autoindent
--syntax vhdl
--istep 2
--smarthome
--smartbacks
--purify
--vhdl_comment
--text_delimiters entity|ENTITY|if|IF|component|COMPONENT|loop|LOOP|configuration|CONFIGURATION|units|UNITS|record|RECORD|case|CASE|function|FUNCTION|package|PACKAGE|architecture|ARCHITECTURE|block|BLOCK|process|PROCESS|generate|GENERATE=end|END
-
- XML
-*.xml
--wordwrap
--autoindent
--syntax xml
-
- XML
-*.xsd
--wordwrap
--autoindent
--syntax xml
-
- HTML
-*.htm
--wordwrap
--autoindent
--syntax html
-
-*.html
--wordwrap
--autoindent
--syntax html
-
- JAVA
-*.java
--autoindent
--syntax java
--smarthome
--smartbacks
--purify
-
- Hypertext preprocessor file
-*.php
--autoindent
--syntax php
--smarthome
--smartbacks
--purify
-
- Python
-*
-+#!\+\[ 	]\+\[a-z/]/python\>
--autoindent
--syntax python
--smarthome
--smartbacks
--purify
-
-*.py
--autoindent
--syntax python
--smarthome
--smartbacks
--purify
-
- CSH
-*
-+#!\+\[ 	]\+\[a-z/]/csh\>
--autoindent
--syntax csh
--pound_comment
-
-*.csh
--autoindent
--syntax csh
--pound_comment
-
-*.login
--autoindent
--syntax csh
--pound_comment
-
-*.logout
--autoindent
--syntax csh
--pound_comment
-
- TCSH
-*
-+#!\+\[ 	]\+\[a-z/]/tcsh\>
--autoindent
--syntax csh
--pound_comment
-
-*.tcsh
--autoindent
--syntax csh
--pound_comment
-
-*.tcshrc
--autoindent
--syntax csh
--pound_comment
-
- Shell
-*
-+#!\+\[ 	]\+\[a-z/]/sh\>
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
-*.sh
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
-*profile
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
- BASH Shell
-*
-+#!\+\[ 	]\+\[a-z/]/bash\>
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
-*.bash
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
-*.bash_login
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
-*.bash_logout
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
- LISP
-*.lisp
--autoindent
--syntax lisp
--semi_comment
-
-*.lsp
--autoindent
--syntax lisp
--semi_comment
-
-*.el
--autoindent
--syntax lisp
--semi_comment
-
- KSH
-*
-+#!\+\[ 	]\+\[a-z/]/ksh\>
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
-*.ksh
--autoindent
--syntax sh
--pound_comment
--text_delimiters do=done:if=elif=else=fi:case=esac
-
- Makefile
-*akefile
--autoindent
--syntax conf
--pound_comment
-
-*AKEFILE
--autoindent
--syntax conf
--pound_comment
-
- Pascal
-*.p
--autoindent
--syntax pascal
--smarthome
--smartbacks
--purify
--text_delimiters begin|BEGIN|record|RECORD|case|CASE=end|END:repeat|REPEAT=until|UNTIL
-
-*.pas
--autoindent
--syntax pascal
--smarthome
--smartbacks
--purify
--text_delimiters begin|BEGIN|record|RECORD|case|CASE=end|END:repeat|REPEAT=until|UNTIL
-
- Fortran
-*.f
--autoindent
--syntax fortran
-
-*.for
--autoindent
--syntax fortran
-
-*.FOR
--autoindent
--syntax fortran
-
- TCL
-*.tcl
--autoindent
--syntax tcl
-
- Joe Syntax File
-*.jsf
--autoindent
--syntax conf
-
- Autoconfig file
-*.ac
--autoindent
--syntax conf
-
- M4 file
-*.m4
--autoindent
--syntax m4
-
- Automake file
-*.am
--autoindent
--syntax conf
-
- Mail file
-*tmp/mutt-*
--wordwrap
--syntax mail
+:include ftyperc
 
  THIRD SECTION: Named help screens:
 
@@ -916,53 +352,42 @@
  Use \d to turn on/off dim
  Use \f to turn on/off flash
 
- Use \| to insert a spring: all springs in a given line are set to the same
- width such that the entire line exactly fits in the width of the screen (if
- it's not an exact multiple so that there are N spaces remaining, the
- rightmost N springs each get one extra space).  Hint: if you want vertical
- alignment, each line should have the same number of springs.
-
- UTF-8 sequences can be used in the help text (local 8-bit characters can not be used).
-
 {Basic
 \i   Help Screen    \|turn off with ^KH    more help with ESC . (^[.)              \i
 \i \i\|\uCURSOR\u           \|\uGO TO\u            \|\uBLOCK\u      \|\uDELETE\u   \|\uMISC\u         \|\uEXIT\u      \|\i \i
 \i \i\|^B left ^F right \|^U  prev. screen \|^KB begin  \|^D char. \|^KJ reformat \|^KX save  \|\i \i
-\i \i\|^P up   ^N down  \|^V  next screen  \|^KK end    \|^Y line  \|^KA center   \|^C  abort \|\i \i
-\i \i\|^Z previous word \|^A  beg. of line \|^KM move   \|^W >word \|^T  options  \|^KZ shell \|\i \i
-\i \i\|^X next word     \|^E  end of line  \|^KC copy   \|^O word< \|^R  refresh  \|\uFILE\u      \|\i \i
-\i \i\|\uSEARCH\u           \|^KU top of file  \|^KW file   \|^J >line \|\uSPELL\u        \|^KE edit  \|\i \i
-\i \i\|^KF find text    \|^KV end of file  \|^KY delete \|^_ undo  \|^[N word     \|^KR insert\|\i \i
-\i \i\|^L  find next    \|^KL to line No.  \|^K/ filter \|^^ redo  \|^[L file     \|^KD save  \|\i \i
+\i \i\|^P up   ^N down  \|^V  next screen  \|^KK end    \|^Y line  \|^T  options  \|^C  abort \|\i \i
+\i \i\|^Z previous word \|^A  beg. of line \|^KM move   \|^W >word \|^R  refresh  \|          \|\i \i
+\i \i\|^X next word     \|^E  end of line  \|^KC copy   \|^O word< \|^@  insert   \|\uFILE\u      \|\i \i
+\i \i\|\uSEARCH\u           \|^KU top of file  \|^KY delete \|^J >line \|\uSPELL\u        \|^KD save  \|\i \i
+\i \i\|^KF find text    \|^KV end of file      \|       \|^_ undo  \|^[N word     \|          \|\i \i
+\i \i\|^L  find next    \|^KL to line No.      \|       \|^^ redo  \|^[L file     \|          \|\i \i
 }
 
 {Windows
 \i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
-\i \i\|^KO Split the window in half           \|^KE Load file into window             \|\i \i
+\i \i\|^KO Split the window in half           \|                                      \|\i \i
 \i \i\|^KG Make current window bigger         \|^KT Make current window smaller       \|\i \i
 \i \i\|^KN Go to the window below             \|^KP Go to the window above            \|\i \i
-\i \i\|^[V Switch to next buffer              \|^[U Switch to previous buffer         \|\i \i
 \i \i\|^C  Eliminate the current window       \|^KI Show all windows / Show one window\|\i \i
 }
 
 {Advanced
 \i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
-\i \i\|\uMACROS\u         \|\uMISC\u            \|\uSCROLL\u    \|\uSHELL\u       \|\uGOTO\u       \|\uI-SEARCH\u     \|\i \i
-\i \i\|^K[ 0-9 Record \|^K SPACE status \|^[W Up    \|^K' Window  \|^[B To ^KB \|^[R Backwards\|\i \i
-\i \i\|^K]     Stop   \|^K\\ Repeat      \|^[Z Down  \|^[! Command \|^[K To ^KK \|^[S Forwards \|\i \i
-\i \i\|^K 0-9  Play   \|\uINSERT\u          \|^K< Left  \|\uQUOTE\u       \|\uDELETE\u     \|\uBOOKMARKS\u    \|\i \i
-\i \i\|^K?     Query  \|^] split line   \|^K> Right \|`  Ctrl-    \|^[Y yank   \|^[ 0-9 Goto  \|\i \i
-\i \i\|^[D     Dump   \|^SPACE ins space\|          \|^\\ Meta-    \|^[O line<  \|^[^[   Set   \|\i \i
+\i \i\|\uMACROS\u         \|\uMISC\u            \|\uSCROLL\u  \|              \|\uGOTO\u       \|\uI-SEARCH\u     \|\i \i
+\i \i\|^K[ 0-9 Record \|^K SPACE status \|^[W Up    \|            \|^[B To ^KB \|^[R Backwards\|\i \i
+\i \i\|^K]     Stop   \|^K\\ Repeat      \|^[Z Down \|             \|^[K To ^KK \|^[S Forwards \|\i \i
+\i \i\|^K 0-9  Play   \|^[M Math        \|^K< Left  \|\uQUOTE\u       \|\uDELETE\u     \|\uBOOKMARKS\u    \|\i \i
+\i \i\|^K?     Query  \|^KA Center line \|^K> Right \|`  Ctrl-    \|^[Y yank   \|^[ 0-9 Goto  \|\i \i
+\i \i\|^[D     Dump   \|^[H Message     \|          \|^\\ Meta-    \|^[O line<  \|^[^[   Set   \|\i \i
 }
 
 {Programs
 \i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
-\i \i\|\uGOTO\u                 \|\uINDENT\u   \|\uCOMPILING\u          \uQUICK\u                       \|\i \i
-\i \i\|^G  Matching ( [ {   \|^K, less \|^[C Compile & parse ^G  find word under cursor \|\i \i
-\i \i\|^K- Previous place   \|^K. more \|^[G Grep & parse    ^[ENTER complete word      \|\i \i
-\i \i\|^K= Next place         \|       \|^[= To next error   ^[Y paste deleted text     \|\i \i
-\i \i\|^K; Tags file search   \|       \|^[- To prev. error  ^[^Y cycle through deleted \|\i \i
-\i \i\|                       \|       \|^[ SP Jump to error                            \|\i \i
+\i \i\|\uGOTO\u                 \|\uINDENT\u                                                  \|\i \i
+\i \i\|^G  Matching ( [ {   \|^K, less                                                \|\i \i
+\i \i\|^K- Previous place   \|^K. more                                                \|\i \i
+\i \i\|^K= Next place       \|                                                        \|\i \i
 }
 
 {Search
@@ -979,6 +404,20 @@
 \i \i    \\\\      replaced with \\               \\n     replaced with newline       \|\i \i
 }
 
+{SearchOptions
+\i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
+\i \iSearch options:                                                              \|\i \i
+\i \i   r Replace                                                                 \|\i \i
+\i \i   k Restrict search to highlighted block, which can be rectangular          \|\i \i
+\i \i   b Search backward instead of forward                                      \|\i \i
+\i \i   i Ignore case                                                             \|\i \i
+\i \i   a Search across all loaded files                                          \|\i \i
+\i \i   e Search across all files in Grep or Compile error list                   \|\i \i
+\i \i   w Wrap to beginning of file for this search                               \|\i \i
+\i \i   n Do not wrap to beginning of file for this search                        \|\i \i
+\i \i   nnn Perform exaclty nnn replacements                                      \|\i \i
+}
+
 {Math
 \i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
 \i \i \uCOMMANDS\u (hit ESC m for math)  \uFUNCTIONS\u                                    \|\i \i
@@ -986,24 +425,12 @@
 \i \i     dec decimal mode           sinh cosh tanh asinh acosh atanh             \|\i \i
 \i \i     ins type result into file  sqrt cbrt exp ln log                         \|\i \i
 \i \i    eval evaluate block         int floor ceil abs erg ergc                  \|\i \i
-\i \i    0xff enter number in hex    joe(..macro..) - runs an editor macro        \|\i \i
+\i \i    0xff enter number in hex                                                 \|\i \i
 \i \i    3e-4 floating point decimal \uBLOCK\u                                        \|\i \i
 \i \i    a=10 assign a variable      sum cnt  Sum, count                          \|\i \i
 \i \i 2+3:ins multiple commands      avg dev  Average, std. deviation             \|\i \i
 \i \i    e pi constants              \uOPERATORS\u                                    \|\i \i
 \i \i     ans previous result        ! ^  * / %  + -  < <= > >= == !=  &&  ||  ? :\|\i \i
-}
-
-{Names
-\i   Help Screen    \|turn off with ^KH    prev. screen ^[,    next screen ^[.     \i
-\i \i Hit TAB at file name prompts to generate menu of file names                 \|\i \i
-\i \i Or use up/down keys to access history of previously entered names           \|\i \i
-\i \i Special file names:                                                         \|\i \i
-\i \i      !command                 Pipe in/out of a shell command                \|\i \i
-\i \i      >>filename               Append to a file                              \|\i \i
-\i \i      -                        Read/Write to/from standard I/O               \|\i \i
-\i \i      filename,START,SIZE      Read/Write a part of a file/device            \|\i \i
-\i \i          Give START/SIZE in decimal (255), octal (0377) or hex (0xFF)       \|\i \i
 }
 
 {Joe
@@ -1013,6 +440,7 @@
 \i \i  default joerc file is here @JOERC@/joerc \|\i \i
 \i \i  additional documentation can be found here @JOERC@/doc \|\i \i
 }
+
 
  FOURTH SECTION: Key bindings:
 
@@ -1033,7 +461,7 @@
 
  Keys:
 
- Use ^@ through ^_ , ^# and ^? for Ctrl chars
+ Use ^@ through ^_, ^# and ^? for Ctrl chars
  Use SP for space
  Use a TO b to generate a range of characters
  Use MDOWN, MDRAG, MUP, M2DOWN, M2DRAG, M2UP, M3DOWN, M3DRAG, M3UP for mouse
@@ -1060,20 +488,13 @@
  Simple macros can be made by comma seperating 2 or more command names.  For
  example:
 
- eof,bol	^T Z		Goto beginning of last line
+ bof,bol	^T Z		Goto beginning of last line
 
  Also quoted matter is typed in literally:
 
  bol,">",dnarw	.k1		Quote news article line
 
  Macros may cross lines if they end with ,
-
- Commands or named macros may be created with :def.  For example, you can
- use:
-
- :def foo eof,bol
-
- To define a command foo which will goto the beginning of the last line.
 
 :windows		Bindings common to all windows
 type		^@ TO ÿ		Type a character
@@ -1092,7 +513,7 @@ hnext		^[ .		Next help window
 hprev		^[ ,		Previous help window
 math		^[ m		Calculator
 math		^[ M		Calculator
- math		^[ ^M		Calculator
+math		^[ ^M		Calculator
 msg		^[ h		Display a message
 msg		^[ H		Display a message
 msg		^[ ^H		Display a message
@@ -1102,11 +523,11 @@ nextw		^K n
 pgdn		.kN		Screen down
 pgdn		^V
 pgdn		^[ [ 6 ~
-pgdn      ^# S
+ pgdn		^# S
 pgup		.kP		Screen up
 pgup		^U
 pgup		^[ [ 5 ~
-pgup      ^# T
+ pgup		^# T
 play		^K 0 TO 9	Execute macro
 prevw		^K P		Goto previous window
 prevw		^K ^P
@@ -1115,10 +536,11 @@ query		^K ?		Macro query insert
 record		^K [		Record a macro
 retype		^R		Refresh screen
 rtn		^M		Return
-shell		^K Z		Shell escape
-shell		^K ^Z
-shell		^K z
+ shell		^K Z		Shell escape
+ shell		^K ^Z
+ shell		^K z
 stop		^K ]		Stop recording
+
  Mouse handling
 defmdown	MDOWN		Move the cursor to the mouse location
 defmup		MUP
@@ -1131,8 +553,6 @@ defm3up		M3UP
 defm3drag	M3DRAG		Select a region of lines
 
 xtmouse		^[ [ M		Introduces an xterm mouse event
-
-if,"char==65",then,"it's an A",else,"it's not an a",endif	^[ q
 
 :main			Text editing window
 :inherit windows
@@ -1150,21 +570,7 @@ if,"char==65",then,"it's an A",else,"it's not an a",endif	^[ q
 @SPELL@file	^[ l
 @SPELL@word	^[ n
 
- Compile
-
- :def compile switch,"*Build-Log*",rtn,markb,eof," ",markk,blkdel,filt,query,parserr
-
-:def compile querysave,query,scratch,"* Build Log *",rtn,bof,markb,eof," ",markk,blkdel,build
-
- Grep
-
-:def grep_find scratch,"*Grep-Log*",rtn,bof,markb,eof," ",markk,blkdel,grep
-
- Here we guess some common key sequences which either do not have termcap
- sequences or which are frequently wrong.  Note that if the termcap entry is
- correct, it will override these later on.
-
-paste			^[ [ 2 0 2 ~		Bracketed paste
+paste			^[ ] 5 2 ;		Bracketed paste
 
 insc			^[ [ 2 ~
 insc			^[ [ L			SCO
@@ -1179,40 +585,13 @@ home			^[ [ 1 ~		Putty, Linux, Cygwin
 home			^[ [ H			Xterm, Konsole, SCO
 home			^[ O H			gnome-terminal
 home			^[ [ 7 ~		RxVT
-home			^# SP A		Amiga
+ home			^# SP A			Amiga
 
 eol			^[ [ 4 ~		Putty, Linux, Cygwin, ssh
 eol			^[ [ F			Xterm, Konsole, SCO
 eol			^[ O F			gnome-terminal
 eol			^[ [ 8 ~		RxVT
-eol			^# SP @		Amiga
-
-rtarw,ltarw,begin_marking,rtarw,toggle_marking	^[ [ 1 ; 5 C    Mark right Xterm
-rtarw,ltarw,begin_marking,rtarw,toggle_marking	^[ [ 5 C        Mark right Gnome-terminal
- (Almost all termcap entries have ^[ O C as an arrow key).
- rtarw,ltarw,begin_marking,rtarw,toggle_marking	^[ O C		Mark right Putty Ctrl-rtarw
-rtarw,ltarw,begin_marking,rtarw,toggle_marking	^[ O c		Mark right RxVT Ctrl-rtarw
-
-ltarw,rtarw,begin_marking,ltarw,toggle_marking	^[ [ 1 ; 5 D    Mark left
-ltarw,rtarw,begin_marking,ltarw,toggle_marking	^[ [ 5 D        Mark left
- ltarw,rtarw,begin_marking,ltarw,toggle_marking	^[ O D		Mark left Putty Ctrl-ltarw
-ltarw,rtarw,begin_marking,ltarw,toggle_marking	^[ O d		Mark left RxVT Ctrl-ltarw
-
-uparw,dnarw,begin_marking,uparw,toggle_marking	^[ [ 1 ; 5 A    Mark up
-uparw,dnarw,begin_marking,uparw,toggle_marking	^[ [ 5 A        Mark up
- uparw,dnarw,begin_marking,uparw,toggle_marking	^[ O A		Mark up Putty Ctrl-uparw
-uparw,dnarw,begin_marking,uparw,toggle_marking	^[ O a		Mark up RxVT Ctrl-uparw
-
-dnarw,uparw,begin_marking,dnarw,toggle_marking	^[ [ 1 ; 5 B    Mark down
-dnarw,uparw,begin_marking,dnarw,toggle_marking	^[ [ 5 B        Mark down
- dnarw,uparw,begin_marking,dnarw,toggle_marking	^[ O B		Mark down Putty Ctrl-dnarw
-dnarw,uparw,begin_marking,dnarw,toggle_marking	^[ O b		Mark down RxVT Ctrl-dnarw
-
-blkdel,nmark   ^[ [ 3 ; 5 -	Gnome-terminal Ctrl-Del
-blkdel,nmark   ^[ [ 3 ; 5 ~	Xterm Ctrl-Del
-
-yank		^[ [ 2 ; 5 -	Gnome-terminal Ctrl-Ins
-yank		^[ [ 2 ; 5 ~    Xterm Ctrl-Ins
+ eol			^# SP @			Amiga
 
  Extra functions not really part of JOE user interface:
 
@@ -1222,61 +601,52 @@ dnslide		^[ z		Scroll down one line
 dnslide		^[ Z		Scroll down one line
 dnslide		^[ ^Z		Scroll down one line
 dnslide,dnslide,dnslide,dnslide		MWDOWN
-compile		^[ c		Compile
-compile		^[ C
-compile		^[ ^C		Compile
-grep_find	^[ g		Grep
-grep_find	^[ G		Grep
-grep_find	^[ ^G		Grep
-execmd		^[ x		Prompt for command to execute
-execmd		^[ X		Prompt for command to execute
-execmd		^[ ^X		Prompt for command to execute
-finish		^[ ^I		Complete word in document
-finish		^[ ^M		Complete word: used to be math
-jump		^[ SP
+ switch,rtn,filt,
+ query,parserr	^[ c		Compile
+ switch,rtn,filt,
+ query,parserr	^[ C		Compile
+ switch,rtn,filt,
+ query,parserr	^[ ^C		Compile
+ execmd		^[ x		Prompt for command to execute
+ execmd		^[ X		Prompt for command to execute
+ execmd		^[ ^X		Prompt for command to execute
 isrch		^[ s		Forward incremental search
 isrch		^[ S		Forward incremental search
 isrch		^[ ^S		Forward incremental search
 notmod		^[ ~		Not modified
-nxterr		^[ =		To next error
+ nxterr		^[ =		To next error
 parserr		^[ e		Parse errors in current buffer
 parserr		^[ E		Parse errors in current buffer
 parserr		^[ ^E		Parse errors in current buffer
-prverr		^[ -		To previous error
+ prverr		^[ -		To previous error
 rsrch		^[ r		Backward incremental search
 rsrch		^[ R		Backward incremental search
 rsrch		^[ ^R		Backward incremental search
-run		^[ !		Run a program in a window
+ run		^[ !		Run a program in a window
 tomarkb		^[ b		Go to beginning of marked block
 tomarkb		^[ ^B		Go to beginning of marked block
 tomarkk		^[ k		Go to end of marked block
 tomarkk		^[ ^K		Go to end of marked block
 tomarkk		^[ K		Go to end of marked block
 txt		^[ i		Prompt for text and insert it
+txt		^[ ^I		Prompt for text and insert it
 txt		^[ I		Prompt for text and insert it
 upslide		^[ w		Scroll up one line
 upslide		^[ ^W		Scroll up one line
 upslide		^[ W		Scroll up one line
 upslide,upslide,upslide,upslide		MWUP
-yank		^[ y		Undelete text
+yankpop		^[ y		Undelete text
 yankpop		^[ ^Y		Undelete text
-yank		^[ Y		Undelete text
-
- toggle_marking	^@		Ctrl-space block selection method
-insc		^@		Ctrl-space used to insert a space
+yankpop		^[ Y		Undelete text
 
  bufed		^[ d		Menu of buffers
-nbuf		^[ v		Next buffer
-nbuf		^[ V		Next buffer
-nbuf		^[ ^V		Next buffer
-pbuf		^[ u		Prev buffer
-pbuf		^[ U		Prev buffer
-pbuf		^[ ^U		Prev buffer
+ pbuf		^[ .		Next buffer
+ nbuf		^[ ,		Prev buffer
  query		^[ q		Quoted insert
  byte		^[ n		Goto byte
  col		^[ c		Goto column
  abortbuf	^[ k		Kill current buffer- don't mess with windows
- ask		^[ a		Ask to save current buffer
+  ask		^[ a		Ask to save current buffer
  bop		^[ p		Backwards paragraph
  bos		^[ x		Bottom of screen
  copy		^[ ^W		Copy block into yank
@@ -1304,7 +674,7 @@ quote		`		Enter Ctrl chars
 backs		^?		Backspace
 backs		^H
 backw		^O		Backspace word
-bknd		^K '		Shell window
+ bknd		^K '		Shell window
 blkcpy		^K C		Copy marked block
 blkcpy		^K ^C
 blkcpy		^K c
@@ -1314,17 +684,17 @@ blkdel		^K y
 blkmove		^K M		Move marked block
 blkmove		^K ^M
 blkmove		^K m
-blksave		^K W		Save marked block
-blksave		^K ^W
-blksave		^K w
+ blksave		^K W		Save marked block
+ blksave		^K ^W
+ blksave		^K w
 bof		^K U		Goto beginning of file
 bof		^K ^U
 bof		^K u
- bol		.kh		Goto beginning of line
- bol		^A
- bol      ^# SP A
-home		.kh
-home		^A
+bol		.kh		Goto beginning of line
+bol		^A
+bol		^[ [ H
+bol		^[ [ 1 ~
+ bol		^# SP A
 center		^K A		Center line
 center		^K ^A
 center		^K a
@@ -1339,24 +709,24 @@ dnarw		.kd		Go down
 dnarw		^N
 dnarw		^[ O B
 dnarw		^[ [ B
-dnarw		^# B
-edit		^K E		Edit a file
-edit		^K ^E
-edit		^K e
+ dnarw		^# B
+ edit		^K E		Edit a file
+ edit		^K ^E
+ edit		^K e
 eof		^K V		Go to end of file
 eof		^K ^V
 eof		^K v
 eol		.kH		Go to end of line
-eol		.@7
 eol		^E
+eol		^[ [ F
+eol		^[ [ 4 ~
 exsave		^K X		Save and exit
 exsave		^K ^X
 exsave		^K x
 ffirst		^K F		Find first
 ffirst		^K ^F
 ffirst		^K f
-filt		^K /		Filter block
- finish		^K ^M		Complete text under cursor
+ filt		^K /		Filter block
 fnext		^L		Find next
 fmtblk		^K J		Format paragraphs in block
 fmtblk		^K ^J
@@ -1367,9 +737,9 @@ groww		^K ^G
 groww		^K g
 insc		.kI		Insert a space
  insc		^@
-insf		^K R		Insert a file
-insf		^K ^R
-insf		^K r
+ insf		^K R		Insert a file
+ insf		^K ^R
+ insf		^K r
 lindent		^K ,		Indent to left
 line		^K L		Goto line no.
 line		^K ^L
@@ -1378,7 +748,7 @@ ltarw		.kl		Go left
 ltarw		^B
 ltarw		^[ O D
 ltarw		^[ [ D
-ltarw          ^# D
+ ltarw		^# D
 macros		^[ d		Dump keyboard macros
 macros		^[ ^D
 markb		^K B		Set beginning of marked block
@@ -1399,14 +769,19 @@ rtarw		.kr		Go right
 rtarw		^F
 rtarw		^[ O C
 rtarw		^[ [ C
-rtarw          ^# C
-run		^K !		Run a shell command
-save		^K D		Save file
-save		^K S
-save		^K ^D
-save		^K ^S
-save		^K d
-save		^K s
+ rtarw		^# C
+ask		^K D		Save file- no prompt
+ask		^K S
+ask		^K ^D
+ask		^K ^S
+ask		^K d
+ask		^K s
+ save		^K D		Save file
+ save		^K S
+ save		^K ^D
+ save		^K ^S
+ save		^K d
+ save		^K s
 setmark		^[ ^[		Set bookmark
 shrinkw		^K T		Shrink window
 shrinkw		^K ^T
@@ -1415,26 +790,25 @@ splitw		^K O		Split window
 splitw		^K ^O
 splitw		^K o
 stat		^K SP		Show status
-tag		^K ;		Tags file search
+ tag		^K ;		Tags file search
 tomatch		^G		Goto matching parenthasis
 undo		^_		Undo changes
 uparw		.ku		Go up
-uparw		^# A
 uparw		^P
 uparw		^[ O A
 uparw		^[ [ A
+ uparw		^# A
 
 :prompt			Prompt windows
 :inherit main
-if,"byte>size",then,complete,complete,else,delch,endif	^D
 complete	^I
 dnarw,eol	.kd		Go down
 dnarw,eol	^N
 dnarw,eol	^[ O B
 dnarw,eol	^[ [ B
-dnarw,eol	^# B
+ dnarw,eol	^# B
 uparw,eol	.ku		Go up
-uparw,eol	^# A
+ uparw,eol	^# A
 uparw,eol	^P
 uparw,eol	^[ O A
 uparw,eol	^[ [ A
@@ -1450,15 +824,15 @@ bolmenu			^[ [ 1 ~		Putty, Linux, Cygwin
 bolmenu			^[ [ H			Xterm, Konsole
 bolmenu			^[ O H			gnome-terminal
 bolmenu			^[ [ 7 ~		RxVT
-bolmenu			^# SP A		Amiga
+ bolmenu			^# SP A			Amiga
 
 eolmenu			^[ [ 4 ~		Putty, Linux, Cygwin, ssh
 eolmenu			^[ [ F			Xterm, Konsole
 eolmenu			^[ O F			gnome-terminal
 eolmenu			^[ [ 8 ~		RxVT
-eolmenu			^# SP @		Amiga
+ eolmenu			^# SP @			Amiga
 
-abort		^[ ^[	Why?
+abort		^[ ^[
 backsmenu	^?
 backsmenu	^H
 bofmenu		^K U
@@ -1469,9 +843,8 @@ bolmenu		^A
 dnarwmenu	.kd
 dnarwmenu	^N
 dnarwmenu	^[ [ B
+ dnarwmenu	^# B
 dnarwmenu	^[ O B
-dnarwmenu ^# B
-dnarwmenu	MWDOWN
 eofmenu		^K V
 eofmenu		^K ^V
 eofmenu		^K v
@@ -1480,20 +853,20 @@ eolmenu		^E
 ltarwmenu	.kl
 ltarwmenu	^B
 ltarwmenu	^[ [ D
+ ltarwmenu	^# D
 ltarwmenu	^[ O D
-ltarwmenu ^# D
 pgdnmenu	.kN		Screen down
 pgdnmenu	^V
 pgdnmenu	^[ [ 6 ~
-pgdnmenu  ^# S
+ pgdnmenu	^# S
 pgupmenu	.kP		Screen up
 pgupmenu	^U
 pgupmenu	^[ [ 5 ~
-pgupmenu  ^# T
+ pgupmenu	^# T
 rtarwmenu	.kr
 rtarwmenu	^F
 rtarwmenu	^[ [ C
-rtarwmenu ^# C
+ rtarwmenu	^# C
 rtarwmenu	^[ O C
 rtn		SP
 rtn		^I
@@ -1504,9 +877,8 @@ tabmenu		^I
 uparwmenu	.ku
 uparwmenu	^P
 uparwmenu	^[ [ A
+ uparwmenu	^# A
 uparwmenu	^[ O A
-uparwmenu ^# A
-uparwmenu	MWUP
 defm2down	M2DOWN		Hits return key
 
 :query			Single-key query window

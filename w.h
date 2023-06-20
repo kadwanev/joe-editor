@@ -8,8 +8,87 @@
 #ifndef _JOE_W_H
 #define _JOE_W_H 1
 
-#include "config.h"
-#include "types.h"
+struct watom {
+	unsigned char	*context;	/* Context name */
+	void	(*disp) ();	/* Display window */
+	void	(*follow) ();	/* Called to have window follow cursor */
+	int	(*abort) ();	/* Common user functions */
+	int	(*rtn) ();
+	int	(*type) ();
+	void	(*resize) ();	/* Called when window changed size */
+	void	(*move) ();	/* Called when window moved */
+	void	(*ins) ();	/* Called on line insertions */
+	void	(*del) ();	/* Called on line deletions */
+	int	what;		/* Type of this thing */
+};
+
+/* A screen with windows */
+
+struct screen {
+	SCRN	*t;		/* Screen data on this screen is output to */
+
+	int	wind;		/* Number of help lines on this screen */
+
+	W	*topwin;	/* Top-most window showing on screen */
+	W	*curwin;	/* Window cursor is in */
+
+	int	w, h;		/* Width and height of this screen */
+};
+
+/* A window (base class) */
+
+struct window {
+	LINK(W)	link;		/* Linked list of windows in order they
+				   appear on the screen */
+
+	Screen	*t;		/* Screen this thing is on */
+
+	int	x, y, w, h;	/* Position and size of window */
+				/* Currently, x = 0, w = width of screen. */
+				/* y == -1 if window is not on screen */
+
+	int	ny, nh;		/* Temporary values for wfit */
+
+	int	reqh;		/* Requested new height or 0 for same */
+				/* This is an argument for wfit */
+
+	int	fixed;		/* If this is zero, use 'hh'.  If not, this
+				   is a fixed size window and this variable
+				   gives its height */
+
+	int	hh;		/* Height window would be on a screen with
+				   1000 lines.  When the screen size changes
+				   this is used to calculate the window's
+				   real height */
+
+	W	*win;		/* Window this one operates on */
+	W	*main;		/* Main window of this family */
+	W	*orgwin;	/* Window where space from this window came */
+	int	curx, cury;	/* Cursor position within window */
+	KBD	*kbd;		/* Keyboard handler for this window */
+	WATOM	*watom;		/* The type of this window */
+	void	*object;	/* Object which inherits this */
+#if 0
+	union {			/* FIXME: instead of void *object we should */
+		BW	*bw;	/* use this union to get strict type checking */
+		PW	*pw;	/* from C compiler (need to check and change */
+		QW	*qw;	/* all of the occurrencies of ->object) */
+		TW	*tw;
+		MENU	*menu;
+		BASE	*base;
+	} object;
+#endif
+
+	unsigned char	*msgt;		/* Message at top of window */
+	unsigned char	*msgb;		/* Message at bottom of window */
+	unsigned char	*huh;		/* Name of window for context sensitive hlp */
+	int	*notify;	/* Address of kill notification flag */
+};
+
+/* Anything which goes in window.object must start like this: */
+struct base {
+	W	*parent;
+};
 
 /***************/
 /* Subroutines */
@@ -32,47 +111,47 @@ W *findbotw PARAMS((W *w));
 
 int demotegroup PARAMS((W *w));
 
-/* W *lastw(SCREEN *t);
+/* W *lastw(Screen *t);
  * Find last window on screen
  */
-W *lastw PARAMS((SCREEN *t));
+W *lastw PARAMS((Screen *t));
 
 /* Determine number of main windows
  */
-int countmain PARAMS((SCREEN *t));
+int countmain PARAMS((Screen *t));
 
-/* void wfit(SCREEN *t);
+/* void wfit(Screen *t);
  *
  * Fit all of the windows onto the screen
  */
-void wfit PARAMS((SCREEN *t));
+void wfit PARAMS((Screen *t));
 
-/* W *watpos(SCREEN *t, int x, int y);
+/* W *watpos(Screen *t, int x, int y);
  * Return the window at the given location, or NULL if there is none
  */
-W *watpos PARAMS((SCREEN *t, int x, int y));
+W *watpos PARAMS((Screen *t, int x, int y));
 
 /*****************/
 /* Main routines */
 /*****************/
 
-/* SCREEN *screate(SCRN *);
+/* Screen *screate(SCRN *);
  *
  * Create a screen
  */
-SCREEN *screate PARAMS((SCRN *scrn));
+Screen *screate PARAMS((SCRN *scrn));
 
-/* void sresize(SCREEN *t);
+/* void sresize(Screen *t);
  * Screen size changed
  */
-void sresize PARAMS((SCREEN *t));
+void sresize PARAMS((Screen *t));
 
-/* void chsize(SCREEN *t,int mul,int div)
+/* void chsize(Screen *t,int mul,int div)
  * Resize windows: each window is multiplied by the fraction mul/div
  */
 void chsize PARAMS(());
 
-/* W *wcreate(SCREEN *t,WATOM *watom,W *where,W *target,W *original,int height);
+/* W *wcreate(Screen *t,WATOM *watom,W *where,W *target,W *original,int height);
  *
  * Try to create a window
  *
@@ -92,7 +171,7 @@ void chsize PARAMS(());
  * Returns the new window or returns 0 if there was not enough space to
  * create the window and maintain family integrity.
  */
-W *wcreate PARAMS((SCREEN *t, WATOM *watom, W *where, W *target, W *original, int height, unsigned char *huh, int *notify));
+W *wcreate PARAMS((Screen *t, WATOM *watom, W *where, W *target, W *original, int height, unsigned char *huh, int *notify));
 
 /* int wabort(W *w);
  *
@@ -100,17 +179,17 @@ W *wcreate PARAMS((SCREEN *t, WATOM *watom, W *where, W *target, W *original, in
  */
 int wabort PARAMS((W *w));
 
-/* int wnext(SCREEN *);
+/* int wnext(Screen *);
  *
  * Switch to next window
  */
-int wnext PARAMS((SCREEN *t));
+int wnext PARAMS((Screen *t));
 
-/* int wprev(SCREEN *);
+/* int wprev(Screen *);
  *
  * Switch to previous window
  */
-int wprev PARAMS((SCREEN *t));
+int wprev PARAMS((Screen *t));
 
 /* int wgrow(W *);
  *
@@ -133,11 +212,11 @@ int wgrowdown PARAMS((W *w));
  */
 void wshowone PARAMS((W *w));
 
-/* void wshowall(SCREEN *);
+/* void wshowall(Screen *);
  *
  * Show all windows on the screen, including the given one
  */
-void wshowall PARAMS((SCREEN *t));
+void wshowall PARAMS((Screen *t));
 
 /* void wredraw(W *);
  *
@@ -174,8 +253,12 @@ int uexpld PARAMS((BASE *bw));			/* Explode current window or show all windows *
 int ushrnk PARAMS((BASE *bw));			/* Shrink current window */
 int unextw PARAMS((BASE *bw));			/* Goto next window */
 int uprevw PARAMS((BASE *bw));			/* Goto previous window */
+int umwind PARAMS((BW *bw));			/* Go to message window */
+int umfit PARAMS((BW *bw));			/* Fit two windows on screen */
 
 void scrdel PARAMS((B *b, long int l, long int n, int flg));
 void scrins PARAMS((B *b, long int l, long int n, int flg));
+
+extern int bg_msg; /* Background color for messages */
 
 #endif

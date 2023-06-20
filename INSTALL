@@ -61,6 +61,17 @@ Installation procedure
 
 	joe
 
+  Note: please install xterm version 212 or higher, and use these
+  xterm 'configure' options:
+
+	--enable-256-color
+
+	--enable-paste64
+
+  '--enable-paste64' allows you to use JOE's '-joexterm' option (see JOERC
+  file), which allows mouse left and middle button cut & paste to work with
+  properly with JOE.
+
 =-=-=-=-=-=-=-=-=-=-=-=-=-
 Common ./configure options
 =-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -84,6 +95,9 @@ Common ./configure options
   will assume that the terminal is "ANSI" (but you need to compile it this
   way for it to be able to use the builtin ANSI termcap entry- if it's
   compiled for terminfo, it can not use its built-in termcap entry).
+
+  Note for MIPS/SGI: to get a 64-bit JOE, do this:
+    CC=cc CFLAGS=-64 ./configure ...
 
 =-=-=-=-=-=-=-=-=-=-=-=
 Verify the installation

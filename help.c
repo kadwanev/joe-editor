@@ -6,18 +6,15 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
-#include <stdio.h>
-
-#include "blocks.h"
-#include "scrn.h"
-#include "charmap.h"
-#include "utils.h"
-#include "vs.h"
-#include "utf8.h"
-#include "w.h"
+struct help {
+	unsigned char	*text;		/* help text with attributes */
+	unsigned int	lines;		/* number of lines */
+	struct help	*prev;		/* previous help screen */
+	struct help	*next;		/* nex help screen */
+	unsigned char	*name;		/* context name for context sensitive help */
+};
 
 #define NOT_ENOUGH_MEMORY -11
 
@@ -47,7 +44,7 @@ int help_init(FILE *fd,unsigned char *bf,int line)
 		tmp->lines = 0;
 		hlpsiz = 0;
 		hlpbsz = 0;
-		tmp->name = vsncpy(NULL, 0, sz(bf + 1) - 1);
+		tmp->name = vsncpy(NULL, 0, sz(bf + 1) - 1); /* -1 kill the \n */
 
 		while ((fgets((char *)buf, sizeof(buf), fd)) && (buf[0] != '}')) {
 			++line;
@@ -77,7 +74,7 @@ int help_init(FILE *fd,unsigned char *bf,int line)
 		if (buf[0] == '}') {		/* set new help screen as actual one */
 			++line;
 		} else {
-			fprintf(stderr, "\n%d: EOF before end of help text\n",line);
+			fprintf(stderr, (char *)joe_gettext(_("\n%d: EOF before end of help text\n")),line);
 		}
 	}
 	return line;
@@ -100,10 +97,12 @@ struct help *find_context_help(unsigned char *name)
 	return tmp;
 }
 
+int help_is_utf8;
+
 /*
  * Display help text
  */
-void help_display(SCREEN *t)
+void help_display(Screen *t)
 {
 	unsigned char *str;
 	int y, x, c, z;
@@ -156,9 +155,13 @@ void help_display(SCREEN *t)
 					}
 				} else {
 					len = eol - str;
-					c = utf8_decode_fwrd(&str, &len);
-					width += joe_wcwidth(!!locale_map->type,
-							     c);
+					if (help_is_utf8)
+						c = utf8_decode_fwrd(&str, &len);
+					else {
+						c = *str++;
+						--len;
+					}
+					width += joe_wcwidth(!!locale_map->type, c);
 				}
 			}
 			str = start;
@@ -227,7 +230,12 @@ void help_display(SCREEN *t)
 						}
 					}
 					len = eol - str;
-					c = utf8_decode_fwrd(&str, &len);
+					if (help_is_utf8)
+						c = utf8_decode_fwrd(&str, &len);
+					else {
+						c = *str++;
+						--len;
+					}
 
 					outatr(locale_map,
 					       t->t, t->t->scrn + x + y * t->w, 
@@ -250,7 +258,7 @@ void help_display(SCREEN *t)
 /*
  * Show help screen 
  */
-int help_on(SCREEN *t)
+int help_on(Screen *t)
 {
 	if (help_actual) {
 		t->wind = help_actual->lines + skiptop;
@@ -272,7 +280,7 @@ int help_on(SCREEN *t)
 /*
  * Hide help screen
  */
-static void help_off(SCREEN *t)
+static void help_off(Screen *t)
 {
 	t->wind = skiptop;
 	wfit(t);

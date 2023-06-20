@@ -5,27 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#include <fcntl.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#include <unistd.h>
-
-#include "blocks.h"
-#include "queue.h"
-#include "path.h"
-#include "utils.h"
-#include "vfile.h"
-#include "vs.h"
 
 static VFILE vfiles = { {&vfiles, &vfiles} };	/* Known vfiles */
 static VPAGE *freepages = NULL;	/* Linked list of free pages */
@@ -191,7 +171,7 @@ unsigned char *vlock(VFILE *vfile, unsigned long addr)
 				pp->next = vp->next;
 				goto gotit;
 			}
-	write(2, "vfile: out of memory\n", 21);
+	write(2, (char *)sz(joe_gettext(_("vfile: out of memory\n"))));
 	exit(1);
 
       gotit:
@@ -246,7 +226,7 @@ unsigned char *name;
 	new->name = vsncpy(NULL, 0, sz(name));
 	new->fd = open(name, O_RDWR);
 	if (!new->fd) {
-		fprintf(stderr, "Couldn\'t open file \'%s\'\n", name);
+		fprintf(stderr, (char *)joe_gettext(_("Couldn\'t open file \'%s\'\n")), name);
 		joe_free(new);
 		return NULL;
 	}

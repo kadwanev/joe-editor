@@ -5,21 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <stdio.h>
-
-#include "b.h"
-#include "bw.h"
-#include "main.h"
-#include "queue.h"
-#include "tw.h"
-#include "ufile.h"
-#include "utils.h"
-#include "vs.h"
-#include "charmap.h"
-#include "w.h"
 
 /* Error database */
 
@@ -29,19 +15,55 @@ struct error {
 	LINK(ERROR) link;	/* Linked list of errors */
 	long line;		/* Target line number */
 	long org;		/* Original target line number */
-	unsigned char *file;		/* Target file name */
+	unsigned char *file;	/* Target file name */
 	long src;		/* Error-file line number */
-	unsigned char *msg;		/* The message */
+	unsigned char *msg;	/* The message */
 } errors = { { &errors, &errors} };
 ERROR *errptr = &errors;	/* Current error row */
 
 B *errbuf = NULL;		/* Buffer with error messages */
+
+/* Function which allows stepping through all error buffers,
+   for multi-file search and replace.  Give it a buffer.  It finds next
+   buffer in error list.  Look at 'berror' for error information. */
+
+/* This is made to work like bafter: it does not increment refcount of buffer */
+
+B *beafter(B *b)
+{
+	struct error *e;
+	int er;
+	for (e = errors.link.next; e != &errors; e = e->link.next)
+		if (!zcmp(b->name, e->file))
+			break;
+	if (e == &errors) {
+		/* Given buffer is not in list?  Return first buffer in list. */
+		e = errors.link.next;
+	}
+	while (e != &errors && !zcmp(b->name, e->file))
+		e = e->link.next;
+	berror = 0;
+	if (e != &errors) {
+		B *b = bfind(e->file);
+		/* bfind bumps refcount, so we have to unbump it */
+		if (b->count == 1)
+			b->orphan = 1; /* Oops */
+		else
+			--b->count;
+		er = berror;
+		return b;
+	}
+	return 0;
+}
 
 /* Insert and delete notices */
 
 void inserr(unsigned char *name, long int where, long int n, int bol)
 {
 	ERROR *e;
+
+	if (!n)
+		return;
 
 	if (name) {
 		for (e = errors.link.next; e != &errors; e = e->link.next) {
@@ -58,6 +80,9 @@ void inserr(unsigned char *name, long int where, long int n, int bol)
 void delerr(unsigned char *name, long int where, long int n)
 {
 	ERROR *e;
+
+	if (!n)
+		return;
 
 	if (name) {
 		for (e = errors.link.next; e != &errors; e = e->link.next) {
@@ -161,6 +186,10 @@ static void parseone(struct charmap *map,unsigned char *s,unsigned char **rtn_na
 	/* Look for ':' */
 	flg = 0;
 	while (s[y]) {
+	/* Allow : anywhere on line: works for MIPS C compiler */
+/*
+	for (y = 0; s[y];)
+*/
 		if (s[y]==':') {
 			flg = 1;
 			break;
@@ -175,7 +204,44 @@ static void parseone(struct charmap *map,unsigned char *s,unsigned char **rtn_na
 	*rtn_line = line;
 }
 
-static int parseit(struct charmap *map,unsigned char *s, long int row)
+/* Parser for file name lists from grep, find and ls.
+ *
+ * filename
+ * filename:*
+ * filename:line-number:*
+ */
+
+void parseone_grep(struct charmap *map,unsigned char *s,unsigned char **rtn_name,long *rtn_line)
+{
+	int y;
+	unsigned char *name = NULL;
+	long line = -1;
+
+	/* Skip to first : or end of line */
+	for (y = 0;s[y] && s[y] != ':';++y);
+	if (y) {
+		/* This should be the file name */
+		name = vsncpy(NULL,0,s,y);
+		line = 0;
+		if (s[y] == ':') {
+			/* Maybe there's a line number */
+			++y;
+			while (s[y] >= '0' && s[y] <= '9')
+				line = line * 10 + (s[y++] - '0');
+			--line;
+			if (line < 0 || s[y] != ':') {
+				/* Line number is only valid if there's a second : */
+				line = 0;
+			}
+		}
+	}
+
+	*rtn_name = name;
+	*rtn_line = line;
+}
+
+static int parseit(struct charmap *map,unsigned char *s, long int row,
+  void (*parseone)(struct charmap *map, unsigned char *s, unsigned char **rtn_name, long *rtn_line))
 {
 	unsigned char *name = NULL;
 	long line = -1;
@@ -204,8 +270,8 @@ static int parseit(struct charmap *map,unsigned char *s, long int row)
 
 static long parserr(B *b)
 {
-	P *p = pdup(b->bof);
-	P *q = pdup(p);
+	P *p = pdup(b->bof, US "parserr");
+	P *q = pdup(p, US "parserr");
 	long nerrs = 0;
 
 	freeall();
@@ -216,7 +282,7 @@ static long parserr(B *b)
 		p_goto_eol(p);
 		s = brvs(q, (int) (p->byte - q->byte));
 		if (s) {
-			nerrs += parseit(b->o.charmap, s, q->line);
+			nerrs += parseit(b->o.charmap, s, q->line, (b->parseone ? b->parseone : parseone));
 			vsrm(s);
 		}
 	} while (pgetc(p) != NO_MORE_DATA);
@@ -259,9 +325,9 @@ int parserrb(B *b)
 	n = parserr(b);
 	bw = find_a_good_bw(b);
 	if (n)
-		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "%ld messages found", n);
+		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("%d messages found")), n);
 	else
-		joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "No messages found");
+		joe_snprintf_0(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("No messages found")));
 	msgnw(bw->parent, msgbuf);
 	return 0;
 }
@@ -273,9 +339,9 @@ int uparserr(BW *bw)
 	freeall();
 	n = parserr(bw->b);
 	if (n)
-		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "%ld messages found", n);
+		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("%d messages found")), n);
 	else
-		joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "No messages found");
+		joe_snprintf_0(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("No messages found")));
 	msgnw(bw->parent, msgbuf);
 	return 0;
 }
@@ -298,16 +364,29 @@ int jump_to_file_line(BW *bw,unsigned char *file,int line,unsigned char *msg)
 	return 0;
 }
 
+/* Show current message */
+
+int ucurrent_msg(BW *bw)
+{
+	if (errptr != &errors) {
+		msgnw(bw->parent, errptr->msg);
+		return 0;
+	} else {
+		msgnw(bw->parent, joe_gettext(_("No messages")));
+		return -1;
+	}
+}
+
 /* Find line in error database: return pointer to message */
 
-unsigned char *srcherr(BW *bw,unsigned char *file,long line)
+ERROR *srcherr(BW *bw,unsigned char *file,long line)
 {
 	ERROR *p;
 	for (p = errors.link.next; p != &errors; p=p->link.next)
-		if (!zcmp(p->file,file) && p->org==line) {
+		if (!zcmp(p->file,file) && p->org == line) {
 			errptr = p;
 			setline(errbuf, errptr->src);
-			return errptr->msg;
+			return errptr;
 			}
 	return 0;
 }
@@ -315,8 +394,8 @@ unsigned char *srcherr(BW *bw,unsigned char *file,long line)
 int ujump(BW *bw)
 {
 	int rtn = -1;
-	P *p = pdup(bw->cursor);
-	P *q = pdup(p);
+	P *p = pdup(bw->cursor, US "ujump");
+	P *q = pdup(p, US "ujump");
 	unsigned char *s;
 	p_goto_bol(p);
 	p_goto_eol(q);
@@ -326,12 +405,18 @@ int ujump(BW *bw)
 	if (s) {
 		unsigned char *name = NULL;
 		long line = -1;
-		parseone(bw->b->o.charmap,s,&name,&line);
+		if (bw->b->parseone)
+			bw->b->parseone(bw->b->o.charmap,s,&name,&line);
+		else
+			parseone(bw->b->o.charmap,s,&name,&line);
 		if (name && line != -1) {
-			unsigned char *msg = srcherr(bw, name, line);
-			unextw((BASE *)bw);
+			ERROR *p = srcherr(bw, name, line);
+			uprevw((BASE *)bw);
 			/* Check that we made it to a tw */
-			rtn = jump_to_file_line(maint->curwin->object,name,line,msg);
+			if (p)
+				rtn = jump_to_file_line(maint->curwin->object,name,p->line,NULL /* p->msg */);
+			else
+				rtn = jump_to_file_line(maint->curwin->object,name,line,NULL);
 			vsrm(name);
 		}
 		vsrm(s);
@@ -342,21 +427,21 @@ int ujump(BW *bw)
 int unxterr(BW *bw)
 {
 	if (errptr->link.next == &errors) {
-		msgnw(bw->parent, US "No more errors");
+		msgnw(bw->parent, joe_gettext(_("No more errors")));
 		return -1;
 	}
 	errptr = errptr->link.next;
 	setline(errbuf, errptr->src);
-	return jump_to_file_line(bw,errptr->file,errptr->line,errptr->msg);
+	return jump_to_file_line(bw,errptr->file,errptr->line,NULL /* errptr->msg */);
 }
 
 int uprverr(BW *bw)
 {
 	if (errptr->link.prev == &errors) {
-		msgnw(bw->parent, US "No more errors");
+		msgnw(bw->parent, joe_gettext(_("No more errors")));
 		return -1;
 	}
 	errptr = errptr->link.prev;
 	setline(errbuf, errptr->src);
-	return jump_to_file_line(bw,errptr->file,errptr->line,errptr->msg);
+	return jump_to_file_line(bw,errptr->file,errptr->line,NULL /* errptr->msg */);
 }

@@ -5,32 +5,17 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
-#include <string.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-#include "b.h"
-#include "blocks.h"
-#include "queue.h"
-#include "ublock.h"
-#include "utils.h"
-#include "w.h"
-
-extern int lightoff;
-
 #define SMALL 1024
+
+#define MAX_YANK 100
 
 static UNDO undos = { {&undos, &undos} };
 static UNDO frdos = { {&frdos, &frdos} };
 
 int inundo = 0;
 int inredo = 0;
-
-extern int dostaupd;
 
 UNDOREC yanked = { {&yanked, &yanked} };
 int nyanked = 0;
@@ -104,7 +89,7 @@ static void doundo(BW *bw, UNDOREC *ptr)
 			boffline(b);
 		}
 	} else {
-		P *q = pdup(bw->cursor);
+		P *q = pdup(bw->cursor, US "doundo");
 
 		pfwrd(q, ptr->len);
 		bdel(bw->cursor, q);
@@ -304,7 +289,7 @@ static void yankdel(long where, B *b)
 			rec->len += size;
 			rec->where = where;
 		} else {
-			if (++nyanked == 100) {
+			if (++nyanked == MAX_YANK) {
 				frrec(deque_f(UNDOREC, link, yanked.link.next));
 				--nyanked;
 			}
@@ -433,7 +418,7 @@ int uyankpop(BW *bw)
 
 		deque(UNDOREC, link, &yanked);
 		enqueb(UNDOREC, link, ptr, &yanked);
-		q = pdup(bw->cursor);
+		q = pdup(bw->cursor, US "uyankpop");
 		pbkwd(q, ptr->len);
 		inyank = 1;
 		bdel(q, bw->cursor);
@@ -450,7 +435,7 @@ int unotmod(BW *bw)
 {
 	bw_unlock(bw);
 	bw->b->changed = 0;
-	msgnw(bw->parent, US "Modified flag cleared");
+	msgnw(bw->parent, joe_gettext(_("Modified flag cleared")));
 	return 0;
 }
 
@@ -467,7 +452,7 @@ int ucopy(BW *bw)
 			unmark(bw);
 		return 0;
 	} else {
-		msgnw(bw->parent, US "No block");
+		msgnw(bw->parent, joe_gettext(_("No block")));
 		return -1;
 	}
 }
@@ -480,7 +465,7 @@ void save_yank(FILE *f)
 	for (rec = yanked.link.next; rec != &yanked; rec = rec->link.next) {
 		if (rec->len < SMALL) {
 			fprintf(f,"	");
-			emit_hdlc(f,rec->small,rec->len);
+			emit_string(f,rec->small,rec->len);
 			fprintf(f,"\n");
 		}
 	}
@@ -498,8 +483,12 @@ void load_yank(FILE *f)
 		unsigned char *p = buf;
 		int len;
 		parse_ws(&p,'#');
-		len = parse_hdlc(&p,bf,sizeof(bf)-1);
+		len = parse_string(&p,bf,sizeof(bf));
 		if (len>0 && len<=SMALL) {
+			if (++nyanked == MAX_YANK) {
+				frrec(deque_f(UNDOREC, link, yanked.link.next));
+				--nyanked;
+			}
 			rec = alrec();
 			rec->small = (unsigned char *) joe_malloc(len);
 			memcpy(rec->small,bf,len);

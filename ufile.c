@@ -5,23 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <stdio.h>
-#include <unistd.h>
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
 
 #ifdef UTIME
 #include <utime.h>
@@ -37,30 +21,7 @@
 int copy_security_context(const char *from_file, const char *to_file);
 #endif
 
-#include "b.h"
-#include "bw.h"
-#include "macro.h"
-#include "main.h"
-#include "menu.h"
-#include "path.h"
-#include "pw.h"
-#include "qw.h"
-#include "scrn.h"
-#include "tab.h"
-#include "tty.h"
-#include "tw.h"
-#include "ublock.h"
-#include "uerror.h"
-#include "ufile.h"
-#include "ushell.h"
-#include "utils.h"
-#include "va.h"
-#include "vs.h"
-#include "utf8.h"
-#include "charmap.h"
-#include "w.h"
-
-extern int orphan;
+int orphan;
 unsigned char *backpath = NULL;		/* Place to store backup files */
 B *filehist = NULL;	/* History of file names */
 int nobackups = 0;
@@ -75,40 +36,27 @@ void genexmsg(BW *bw, int saved, unsigned char *name)
 	if (bw->b->name && bw->b->name[0]) {
 		s = bw->b->name;
 	} else {
-		s = US "(Unnamed)";
+		s = joe_gettext(_("(Unnamed)"));
 	}
 
 	if (name) {
 		if (saved) {
-			joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "File %s saved", name);
+			joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("File %s saved")), name);
 		} else {
-			joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "File %s not saved", name);
+			joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("File %s not saved")), name);
 		}
 	} else if (bw->b->changed && bw->b->count == 1) {
-		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "File %s not saved", s);
+		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("File %s not saved")), s);
 	} else if (saved) {
-		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "File %s saved", s);
+		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("File %s saved")), s);
 	} else {
-		joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "File %s not changed so no update needed", s);
+		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("File %s not changed so no update needed")), s);
 	}
-	msgnw(bw->parent, msgbuf);
-
 	if (exmsg)
 		vsrm(exmsg);
 
-	if (bw->b->changed && bw->b->count == 1) {
-		exmsg = vsncpy(NULL, 0, sc("File "));
-		exmsg = vsncpy(sv(exmsg), sz(s));
-		exmsg = vsncpy(sv(exmsg), sc(" not saved."));
-	} else if (saved) {
-		exmsg = vsncpy(NULL, 0, sc("File "));
-		exmsg = vsncpy(sv(exmsg), sz(s));
-		exmsg = vsncpy(sv(exmsg), sc(" saved."));
-	} else {
-		exmsg = vsncpy(NULL, 0, sc("File "));
-		exmsg = vsncpy(sv(exmsg), sz(s));
-		exmsg = vsncpy(sv(exmsg), sc(" not changed so no update needed."));
-	}
+	exmsg = vsncpy(NULL,0,sz(msgbuf));
+	msgnw(bw->parent, msgbuf);
 }
 
 /* For ^X ^C */
@@ -116,11 +64,11 @@ void genexmsgmulti(BW *bw, int saved, int skipped)
 {
 	if (saved)
 		if (skipped)
-			joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "Some files have not been saved.");
+			joe_snprintf_0(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("Some files have not been saved.")));
 		else
-			joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "All modified files have been saved.");
+			joe_snprintf_0(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("All modified files have been saved.")));
 	else
-		joe_snprintf_0((char *)msgbuf, JOE_MSGBUFSIZE, "No modified files, so no updates needed.");
+		joe_snprintf_0(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("No modified files, so no updates needed.")));
 
 	msgnw(bw->parent, msgbuf);
 
@@ -156,7 +104,7 @@ static int dosys(BW *bw, unsigned char *s, void *object, int *notify)
 
 int usys(BW *bw)
 {
-	if (wmkpw(bw->parent, US "System (^C to abort): ", NULL, dosys, NULL, NULL, NULL, NULL, NULL, bw->b->o.charmap, 1))
+	if (wmkpw(bw->parent, joe_gettext(_("System (^C to abort): ")), NULL, dosys, NULL, NULL, NULL, NULL, NULL, bw->b->o.charmap, 1))
 		return 0;
 	else
 		return -1;
@@ -261,10 +209,10 @@ static int backup(BW *bw)
 		if (backpath) {
 			unsigned char *t = vsncpy(NULL, 0, sz(backpath));
 			t = canonical(t);
-			joe_snprintf_3((char *)name, sizeof(name), "%s/%s%s", t, namepart(tmp, bw->b->name), simple_backup_suffix);
+			joe_snprintf_3(name, sizeof(name), "%s/%s%s", t, namepart(tmp, bw->b->name), simple_backup_suffix);
 			vsrm(t);
 		} else {
-			joe_snprintf_2((char *)name, sizeof(name), "%s%s", bw->b->name, simple_backup_suffix);
+			joe_snprintf_2(name, sizeof(name), "%s%s", bw->b->name, simple_backup_suffix);
 		}
 		
 		/* Attempt to delete backup file first */
@@ -320,7 +268,7 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 {
 	int fl;
 	if (c == 'n' || c == 'N') {
-		msgnw(bw->parent, US "Couldn't make backup file... file not saved");
+		msgnw(bw->parent, joe_gettext(_("Couldn't make backup file... file not saved")));
 		if (req->callback) {
 			return req->callback(bw, req, -1, notify);
 		} else {
@@ -332,7 +280,7 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 		}
 	}
 	if (c != 'y' && c != 'Y') {
-		if (mkqw(bw->parent, sc("Could not make backup file.  Save anyway (y,n,^C)? "), saver, NULL, req, notify)) {
+		if (mkqw(bw->parent, sz(joe_gettext(_("Could not make backup file.  Save anyway (y,n,^C)? "))), saver, NULL, req, notify)) {
 			return 0;
 		} else {
 			rmsavereq(req);
@@ -349,7 +297,7 @@ static int saver(BW *bw, int c, struct savereq *req, int *notify)
 		exmacro(bw->o.msold,1);
 	}
 	if ((fl = bsave(bw->b->bof, req->name, bw->b->eof->byte, 1)) != 0) {
-		msgnw(bw->parent, msgs[-fl]);
+		msgnw(bw->parent, joe_gettext(msgs[-fl]));
 		if (req->callback) {
 			return req->callback(bw, req, -1, notify);
 		} else {
@@ -415,12 +363,12 @@ static int dosave(BW *bw, struct savereq *req, int *notify)
 						  markk->xcol);
 						  
 				if ((fl = bsave(tmp->bof, req->name, tmp->eof->byte, 0)) != 0) {
-					msgnw(bw->parent, msgs[-fl]);
+					msgnw(bw->parent, joe_gettext(msgs[-fl]));
 					ret = -1;
 				}
 				brm(tmp);
 				if (!ret) {
-					joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "Block written to file %s", req->name);
+					joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("Block written to file %s")), req->name);
 					msgnw(bw->parent, msgbuf);
 				}
 				if (lightoff)
@@ -432,11 +380,11 @@ static int dosave(BW *bw, struct savereq *req, int *notify)
 				int ret = 0;
 
 				if ((fl = bsave(markb, req->name, markk->byte - markb->byte, 0)) != 0) {
-					msgnw(bw->parent, msgs[-fl]);
+					msgnw(bw->parent, joe_gettext(msgs[-fl]));
 					ret = -1;
 				}
 				if (!ret) {
-					joe_snprintf_1((char *)msgbuf, JOE_MSGBUFSIZE, "Block written to file %s", req->name);
+					joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("Block written to file %s")), req->name);
 					msgnw(bw->parent, msgbuf);
 				}
 				if (lightoff)
@@ -446,7 +394,7 @@ static int dosave(BW *bw, struct savereq *req, int *notify)
 			}
 		} else {
 			vsrm(req->name);
-			msgnw(bw->parent, US "No block");
+			msgnw(bw->parent, joe_gettext(_("No block")));
 			return -1;
 		}
 	}
@@ -499,14 +447,14 @@ static int dosave1(BW *bw, unsigned char *s, struct savereq *req, int *notify)
 				close(f);
 				/* char *msg = "File exists. Overwrite (y,n,^C)? ";
 				   req->message = msg; */
-				req->message = US "File exists. Overwrite (y,n,^C)? ";
+				req->message = joe_gettext(_("File exists. Overwrite (y,n,^C)? "));
 				return dosave2(bw, 0, req, notify);
 			}
 		}
 		else {
 			/* We're saving a newer version of the same file */
 			if (check_mod(bw->b)) {
-				req->message = US "File on disk is newer. Overwrite (y,n,^C)? ";
+				req->message = joe_gettext(_("File on disk is newer. Overwrite (y,n,^C)? "));
 				return dosave2(bw, 0, req, notify);
 			}
 		}
@@ -521,7 +469,7 @@ int usave(BW *bw)
 {
 	BW *pbw;
 	
-	pbw = wmkpw(bw->parent, US "Name of file to save (^C to abort): ", &filehist, dosave1, US "Names", NULL, cmplt,
+	pbw = wmkpw(bw->parent, joe_gettext(_("Name of file to save (^C to abort): ")), &filehist, dosave1, US "Names", NULL, cmplt,
 	            mksavereq(NULL,NULL,NULL,0, 0), NULL, locale_map, bw->b->name ? 1 : 7);
 
 	if (pbw && bw->b->name) {
@@ -538,8 +486,6 @@ int usave(BW *bw)
 
 int usavenow(BW *bw)
 {
-	BW *pbw;
-
 	if (bw->b->name) {
 		return dosave1(bw,vsncpy(NULL,0,sz(bw->b->name)),mksavereq(NULL,NULL,NULL,0,0),NULL);
 	} else
@@ -551,7 +497,7 @@ int usavenow(BW *bw)
 int ublksave(BW *bw)
 {
 	if (markb && markk && markb->b == markk->b && (markk->byte - markb->byte) > 0 && (!square || piscol(markk) > piscol(markb))) {
-		if (wmkpw(bw->parent, US "Name of file to write (^C to abort): ", &filehist, dosave1, US "Names", NULL, cmplt, mksavereq(NULL, NULL, NULL, 0, 1), NULL, locale_map, 3)) {
+		if (wmkpw(bw->parent, joe_gettext(_("Name of file to write (^C to abort): ")), &filehist, dosave1, US "Names", NULL, cmplt, mksavereq(NULL, NULL, NULL, 0, 1), NULL, locale_map, 3)) {
 			return 0;
 		} else {
 			return -1;
@@ -566,6 +512,7 @@ int ublksave(BW *bw)
 
 int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 {
+	int omid;
 	int ret = 0;
 	int er;
 	void *object;
@@ -579,7 +526,7 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 		}
 
 		b = bfind_reload(s);
-		er = error;
+		er = berror;
 		if (bw->b->count == 1 && (bw->b->changed || bw->b->name)) {
 			if (orphan) {
 				orphit(bw);
@@ -592,7 +539,7 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 			}
 		}
 		if (er) {
-			msgnwt(bw->parent, msgs[-er]);
+			msgnwt(bw->parent, joe_gettext(msgs[-er]));
 			if (er != -1) {
 				ret = -1;
 			}
@@ -610,6 +557,13 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 		if (er == 0 && bw->o.mold) {
 			exmacro(bw->o.mold,1);
 		}
+		/* Restore cursor line */
+		pline(bw->cursor, get_file_pos(bw->b->name));
+		omid = mid;
+		mid = 1;
+		dofollows();
+		mid = omid;
+		
 		return ret;
 	} else if(c=='n' || c=='N') {
 		/* Edit already loaded buffer */
@@ -619,7 +573,7 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 		}
 
 		b = bfind(s);
-		er = error;
+		er = berror;
 		if (bw->b->count == 1 && (bw->b->changed || bw->b->name)) {
 			if (orphan) {
 				orphit(bw);
@@ -632,7 +586,7 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 			}
 		}
 		if (er) {
-			msgnwt(bw->parent, msgs[-er]);
+			msgnwt(bw->parent, joe_gettext(msgs[-er]));
 			if (er != -1) {
 				ret = -1;
 			}
@@ -650,10 +604,16 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 		if (er == 0 && bw->o.mold) {
 			exmacro(bw->o.mold,1);
 		}
+		/* Restore cursor line */
+		pline(bw->cursor, get_file_pos(bw->b->name));
+		omid = mid;
+		mid = 1;
+		dofollows();
+		mid = omid;
 		return ret;
 	} else {
 		/* FIXME: need abort handler to prevent leak */
-		if (mkqw(bw->parent, sc("Load original file from disk (y,n,^C)? "), doedit1, NULL, s, notify))
+		if (mkqw(bw->parent, sz(joe_gettext(_("Load original file from disk (y,n,^C)? "))), doedit1, NULL, s, notify))
 			return 0;
 		else {
 			vsrm(s);
@@ -664,16 +624,12 @@ int doedit1(BW *bw,int c,unsigned char *s,int *notify)
 
 int doedit(BW *bw, unsigned char *s, void *obj, int *notify)
 {
-	int ret = 0;
-	int er;
-	void *object;
-	W *w;
 	B *b;
 
 	b = bcheck_loaded(s);
 
 	if (b) {
-		if (b->changed)
+		if (b->changed && !b->scratch)
 			/* Modified buffer exists, so ask */
 			return doedit1(bw, 0, s, notify);
 		else
@@ -687,7 +643,7 @@ int doedit(BW *bw, unsigned char *s, void *obj, int *notify)
 int okrepl(BW *bw)
 {
 	if (bw->b->count == 1 && bw->b->changed) {
-		msgnw(bw->parent, US "Can't replace modified file");
+		msgnw(bw->parent, joe_gettext(_("Can't replace modified file")));
 		return -1;
 	} else {
 		return 0;
@@ -696,7 +652,7 @@ int okrepl(BW *bw)
 
 int uedit(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Name of file to edit (^C to abort): ", &filehist, doedit, US "Names", NULL, cmplt, NULL, NULL, locale_map,7)) {
+	if (wmkpw(bw->parent, joe_gettext(_("Name of file to edit (^C to abort): ")), &filehist, doedit, US "Names", NULL, cmplt, NULL, NULL, locale_map,7)) {
 		return 0;
 	} else {
 		return -1;
@@ -705,19 +661,13 @@ int uedit(BW *bw)
 
 int doswitch(BW *bw, unsigned char *s, void *obj, int *notify)
 {
-	int ret = 0;
-	int er;
-	void *object;
-	W *w;
-	B *b;
-
 	/* Try buffer, then file */
 	return doedit1(bw, 'n', s, notify);
 }
 
 int uswitch(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Name of buffer to edit (^C to abort): ", &filehist, doswitch, US "Names", NULL, cmplt, NULL, NULL, locale_map,1)) {
+	if (wmkpw(bw->parent, joe_gettext(_("Name of buffer to edit (^C to abort): ")), &filehist, doswitch, US "Names", NULL, cmplt, NULL, NULL, locale_map,1)) {
 		return 0;
 	} else {
 		return -1;
@@ -737,7 +687,7 @@ int doscratch(BW *bw, unsigned char *s, void *obj, int *notify)
 	}
 
 	b = bfind_scratch(s);
-	er = error;
+	er = berror;
 	if (bw->b->count == 1 && (bw->b->changed || bw->b->name)) {
 		if (orphan) {
 			orphit(bw);
@@ -750,7 +700,7 @@ int doscratch(BW *bw, unsigned char *s, void *obj, int *notify)
 		}
 	}
 	if (er) {
-		msgnwt(bw->parent, msgs[-er]);
+		msgnwt(bw->parent, joe_gettext(msgs[-er]));
 		if (er != -1) {
 			ret = -1;
 		}
@@ -773,7 +723,7 @@ int doscratch(BW *bw, unsigned char *s, void *obj, int *notify)
 
 int uscratch(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Name of scratch buffer to edit (^C to abort): ", &filehist, doscratch, US "Names", NULL, cmplt, NULL, NULL, locale_map, 1)) {
+	if (wmkpw(bw->parent, joe_gettext(_("Name of scratch buffer to edit (^C to abort): ")), &filehist, doscratch, US "Names", NULL, cmplt, NULL, NULL, locale_map, 1)) {
 		return 0;
 	} else {
 		return -1;
@@ -785,6 +735,7 @@ int uscratch(BW *bw)
 static int dorepl(BW *bw, unsigned char *s, void *obj, int *notify)
 {
 	void *object = bw->object;
+	int omid;
 	int ret = 0;
 	int er;
 	W *w = bw->parent;
@@ -794,10 +745,10 @@ static int dorepl(BW *bw, unsigned char *s, void *obj, int *notify)
 		*notify = 1;
 	}
 	b = bfind(s);
-	er = error;
-	if (error) {
-		msgnwt(bw->parent, msgs[-error]);
-		if (error != -1) {
+	er = berror;
+	if (berror) {
+		msgnwt(bw->parent, joe_gettext(msgs[-berror]));
+		if (berror != -1) {
 			ret = -1;
 		}
 	}
@@ -815,20 +766,21 @@ static int dorepl(BW *bw, unsigned char *s, void *obj, int *notify)
 	if (er == 0 && bw->o.mold) {
 		exmacro(bw->o.mold,1);
 	}
+	/* Restore cursor line */
+	pline(bw->cursor, get_file_pos(bw->b->name));
+	omid = mid;
+	mid = 1;
+	dofollows();
+	mid = omid;
 	return ret;
 }
 
-/* Switch to next buffer in window */
+/* Switch to a particular buffer */
 
-int unbuf(BW *bw)
+int get_buffer_in_window(BW *bw, B *b)
 {
 	void *object = bw->object;
 	W *w = bw->parent;
-	B *b;
-	b = bnext();
-	if (b == bw->b) {
-		b = bnext();
-	}
 	if (b == bw->b) {
 		return 0;
 		/* return -1; this helps with querysave (no error when only one buffer) */
@@ -848,37 +800,31 @@ int unbuf(BW *bw)
 	return 0;
 }
 
+/* Switch to next buffer in window */
+
+int unbuf(BW *bw)
+{
+	B *b;
+	b = bnext();
+	if (b == bw->b) {
+		b = bnext();
+	}
+	return get_buffer_in_window(bw,b);
+}
+
 int upbuf(BW *bw)
 {
-	void *object = bw->object;
-	W *w = bw->parent;
 	B *b;
 	b = bprev();
 	if (b == bw->b) {
 		b = bprev();
 	}
-	if (b == bw->b) {
-		return 0;
-		/* return -1; */
-	}
-	if (!b->orphan) {
-		++b->count;
-	} else {
-		b->orphan = 0;
-	}
-	if (bw->b->count == 1) {
-		orphit(bw);
-	}
-	bwrm(bw);
-	w->object = (void *) (bw = bwmk(w, b, 0));
-	wredraw(bw->parent);
-	bw->object = object;
-	return 0;
+	return get_buffer_in_window(bw, b);
 }
 
 int uinsf(BW *bw)
 {
-	if (wmkpw(bw->parent, US "Name of file to insert (^C to abort): ", &filehist, doinsf, US "Names", NULL, cmplt, NULL, NULL, locale_map, 3)) {
+	if (wmkpw(bw->parent, joe_gettext(_("Name of file to insert (^C to abort): ")), &filehist, doinsf, US "Names", NULL, cmplt, NULL, NULL, locale_map, 3)) {
 		return 0;
 	} else {
 		return -1;
@@ -912,7 +858,7 @@ int uexsve(BW *bw)
 		/* It changed, it's not a scratch buffer and it's named */
 		return dosave1(bw, vsncpy(NULL, 0, sz(bw->b->name)), mksavereq(exdone,NULL,NULL,0,0), NULL);
 	} else {
-		BW *pbw = wmkpw(bw->parent, US "Name of file to save (^C to abort): ", &filehist,
+		BW *pbw = wmkpw(bw->parent, joe_gettext(_("Name of file to save (^C to abort): ")), &filehist,
 		                dosave1, US "Names", NULL, cmplt,
 		                mksavereq(exdone,NULL,NULL,1,0), NULL, locale_map, 1);
 
@@ -946,7 +892,7 @@ static int nask(BW *bw, int c, void *object, int *notify)
 		abortit(bw);
 		return -1;
 	} else if (bw->b->count == 1 && bw->b->changed && !bw->b->scratch) {
-		if (mkqw(bw->parent, sc("Save changes to this file (y,n,^C)? "), nask, NULL, object, notify)) {
+		if (mkqw(bw->parent, sz(joe_gettext(_("Save changes to this file (y,n,^C)? "))), nask, NULL, object, notify)) {
 			return 0;
 		} else {
 			return -1;
@@ -1023,7 +969,7 @@ int ulose(BW *bw)
 		return ukillpid(bw);
 	}
 	if (bw->b->changed && !bw->b->scratch) {
-		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), dolose, NULL, NULL, NULL)) {
+		if (mkqw(bw->parent, sz(joe_gettext(_("Lose changes to this file (y,n,^C)? "))), dolose, NULL, NULL, NULL)) {
 			return 0;
 		} else {
 			return -1;
@@ -1034,6 +980,8 @@ int ulose(BW *bw)
 }
 
 /* Buffer list */
+
+#ifdef junk
 
 static int dobuf(MENU *m, int x, unsigned char **s)
 {
@@ -1058,13 +1006,51 @@ int ubufed(BW *bw)
 	unsigned char **s = getbufs();
 
 	vasort(av(s));
-	if (mkmenu(bw->parent, s, dobuf, abrtb, NULL, 0, s, NULL))
+	if (mkmenu(bw->parent, bw->parent, s, dobuf, abrtb, NULL, 0, s, NULL))
 		return 0;
 	else {
 		varm(s);
 		return -1;
 	}
 }
+
+#endif
+
+unsigned char **sbufs = NULL;	/* Array of command names */
+
+static int bufedcmplt(BW *bw)
+{
+	if (sbufs) {
+		varm(sbufs);
+		sbufs = 0;
+	}
+	if (!sbufs)
+		sbufs = getbufs();
+	return simple_cmplt(bw,sbufs);
+}
+
+static int dobufed(BW *bw, unsigned char *s, void *object, int *notify)
+{
+/* not understanding this...
+	int *notify = bw->parent->notify;
+
+	bw->parent->notify = 0;
+	wabort(bw->parent);
+*/
+	return dorepl(bw, s, NULL, notify);
+}
+
+B *bufhist = NULL;
+
+int ubufed(BW *bw)
+{
+	if (wmkpw(bw->parent, joe_gettext(_("Name of buffer to edit (^C to abort): ")), &bufhist, dobufed, US "bufed", NULL, bufedcmplt, NULL, NULL, locale_map, 0)) {
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
 
 /* Query save loop */
 
@@ -1076,7 +1062,7 @@ static int doquerysave(BW *bw,int c,struct savereq *req,int *notify)
 			return dosave1(bw, vsncpy(NULL,0,sz(bw->b->name)), req, notify);
 		else {
 			BW *pbw;
-			pbw = wmkpw(bw->parent, US "Name of file to save (^C to abort): ", &filehist, dosave1, US "Names", NULL, cmplt, req, notify, locale_map, 7);
+			pbw = wmkpw(bw->parent, joe_gettext(_("Name of file to save (^C to abort): ")), &filehist, dosave1, US "Names", NULL, cmplt, req, notify, locale_map, 7);
 
 			if (pbw) {
 				return 0;
@@ -1110,7 +1096,7 @@ static int doquerysave(BW *bw,int c,struct savereq *req,int *notify)
 		return doquerysave(bw,0,req,notify);
 	} else {
 		unsigned char buf[1024];
-		joe_snprintf_1((char *)buf,1024,"File %s has been modified.  Save it (y,n,^C)? ",bw->b->name ? bw->b->name : US "(Unnamed)" );
+		joe_snprintf_1(buf,1024,joe_gettext(_("File %s has been modified.  Save it (y,n,^C)? ")),bw->b->name ? bw->b->name : US "(Unnamed)" );
 		if (mkqw(bw->parent, sz(buf), doquerysave, NULL, req, notify)) {
 			return 0;
 			} else {
@@ -1135,7 +1121,11 @@ static int query_next(BW *bw, struct savereq *req,int flg,int *notify)
 int uquerysave(BW *bw)
 {
 	W *w = bw->parent;
-	B *first = bw->b;
+	B *first;
+
+	/* Get synchronized with buffer ring */
+	unbuf(bw);
+	first = bw->b;
 
 	/* Find a modified buffer */
 	do {
@@ -1153,6 +1143,9 @@ int uquerysave(BW *bw)
 
 int ukilljoe(BW *bw)
 {
+	/* Save file positions */
+	set_file_pos_all(bw->parent->t);
+	/* FIXME: emacs checks for unsaved modified buffers at this point */
 	leave = 1;
 	return 0;
 }

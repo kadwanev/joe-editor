@@ -5,30 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <stdio.h>
-
-#include "b.h"
-#include "bw.h"
-#include "main.h"
-#include "pw.h"
-#include "queue.h"
-#include "qw.h"
-#include "regex.h"
-#include "ublock.h"
-#include "uedit.h"
-#include "undo.h"
-#include "usearch.h"
-#include "utils.h"
-#include "vs.h"
-#include "charmap.h"
-#include "w.h"
-#include "va.h"
-#include "tty.h"
-#include "menu.h"
-#include "hash.h"
 
 int wrap = 0;			/* Allow wrap */
 int smode = 0;			/* Decremented to zero by execmd */
@@ -58,11 +35,11 @@ unsigned char **get_word_list(B *b,int ignore)
 	P *p;
 	int c;
 	int idx;
-	int start;
+	int start = 0;
 
 	h = htmk(1024);
 
-	p = pdup(b->bof);
+	p = pdup(b->bof, US "get_word_list");
 	idx = 0;
 	while ((c=pgetc(p))!=NO_MORE_DATA)
 		if (idx) {
@@ -99,7 +76,7 @@ unsigned char **get_word_list(B *b,int ignore)
 
 void fcmplt_ins(BW *bw, unsigned char *line)
 {
-	P *p = pdup(bw->cursor);
+	P *p = pdup(bw->cursor, US "fcmplt_ins");
 	int c;
 
 	if (!piseol(bw->cursor)) {
@@ -110,7 +87,7 @@ void fcmplt_ins(BW *bw, unsigned char *line)
 
 	/* Move p to beginning of word */
 
-	p = pdup(bw->cursor);
+	p = pdup(bw->cursor, US "fcmplt_ins");
 	do
 		c = prgetc(p);
 		while (joe_isalnum_(bw->b->o.charmap,c));
@@ -166,7 +143,7 @@ int ufinish(BW *bw)
 
 	/* Move p to beginning of word */
 
-	p = pdup(bw->cursor);
+	p = pdup(bw->cursor, US "ufinish");
 	do
 		c = prgetc(p);
 		while (joe_isalnum_(bw->b->o.charmap,c));
@@ -201,7 +178,7 @@ int ufinish(BW *bw)
 			return -1;
 		}
 
-		m = mkmenu(bw->parent, lst, fcmplt_rtn, fcmplt_abrt, NULL, 0, line, NULL);
+		m = mkmenu(bw->parent, bw->parent, lst, fcmplt_rtn, fcmplt_abrt, NULL, 0, line, NULL);
 		if (!m) {
 			varm(lst);
 			vsrm(line);
@@ -259,13 +236,16 @@ static int srch_cmplt(BW *bw)
 
 static P *searchf(BW *bw,SRCH *srch, P *p)
 {
-	unsigned char *pattern = srch->pattern;
+	unsigned char *pattern;
 	P *start;
 	P *end;
 	int x;
 
-	start = pdup(p);
-	end = pdup(p);
+	pattern = srch->pattern;
+	start = pdup(p, US "searchf");
+	end = pdup(p, US "searchf");
+
+	try_again:
 
 	for (x = 0; x != sLEN(pattern) && pattern[x] != '\\' && (pattern[x]<128 || !p->b->o.charmap->type); ++x)
 		if (srch->ignore)
@@ -277,18 +257,28 @@ static P *searchf(BW *bw,SRCH *srch, P *p)
 		if (srch->wrap_flag && start->byte>=srch->wrap_p->byte)
 			break;
 		if (pmatch(srch->pieces, pattern + x, sLEN(pattern) - x, end, 0, srch->ignore)) {
-			srch->entire = vstrunc(srch->entire, (int) (end->byte - start->byte));
-			brmem(start, srch->entire, (int) (end->byte - start->byte));
-			pset(p, end);
-			prm(start);
-			prm(end);
-			return p;
+			if (end->byte == srch->last_repl) {
+				/* Stuck? */
+				pattern = srch->pattern;
+				pset(start, p);
+				if (pgetc(start) == NO_MORE_DATA)
+					break;
+				pset(end, start);
+				goto try_again;
+			} else {
+				srch->entire = vstrunc(srch->entire, (int) (end->byte - start->byte));
+				brmem(start, srch->entire, (int) (end->byte - start->byte));
+				pset(p, end);
+				prm(start);
+				prm(end);
+				return p;
+			}
 		}
 		if (pgetc(start) == NO_MORE_DATA)
 			break;
 	}
 	if (srch->allow_wrap && !srch->wrap_flag && srch->wrap_p) {
-		msgnw(bw->parent, US "Wrapped");
+		msgnw(bw->parent, joe_gettext(_("Wrapped")));
 		srch->wrap_flag = 1;
 		p_goto_bof(start);
 		goto wrapped;
@@ -320,8 +310,10 @@ static P *searchb(BW *bw,SRCH *srch, P *p)
 	P *end;
 	int x;
 
-	start = pdup(p);
-	end = pdup(p);
+	start = pdup(p, US "searchb");
+	end = pdup(p, US "searchb");
+
+	try_again:
 
 	for (x = 0; x != sLEN(pattern) && pattern[x] != '\\' && (pattern[x]<128 || !p->b->o.charmap->type); ++x)
 		if (srch->ignore)
@@ -335,17 +327,27 @@ static P *searchb(BW *bw,SRCH *srch, P *p)
 		if (srch->wrap_flag && start->byte<srch->wrap_p->byte)
 			break;
 		if (pmatch(srch->pieces, pattern + x, sLEN(pattern) - x, end, 0, srch->ignore)) {
-			srch->entire = vstrunc(srch->entire, (int) (end->byte - start->byte));
-			brmem(start, srch->entire, (int) (end->byte - start->byte));
-			pset(p, start);
-			prm(start);
-			prm(end);
-			return p;
+			if (start->byte == srch->last_repl) {
+				/* Stuck? */
+				pattern = srch->pattern;
+				pset(start, p);
+				if (prgetc(start) == NO_MORE_DATA)
+					break;
+				pset(end, start);
+				goto try_again;
+			} else {
+				srch->entire = vstrunc(srch->entire, (int) (end->byte - start->byte));
+				brmem(start, srch->entire, (int) (end->byte - start->byte));
+				pset(p, start);
+				prm(start);
+				prm(end);
+				return p;
+			}
 		}
 	}
 
 	if (srch->allow_wrap && !srch->wrap_flag && srch->wrap_p) {
-		msgnw(bw->parent, US "Wrapped");
+		msgnw(bw->parent, joe_gettext(_("Wrapped")));
 		srch->wrap_flag = 1;
 		p_goto_eof(start);
 		goto wrapped;
@@ -376,11 +378,14 @@ static SRCH *setmark(SRCH *srch)
 	return srch;
 }
 
-SRCH *mksrch(unsigned char *pattern, unsigned char *replacement, int ignore, int backwards, int repeat, int replace, int rest)
+SRCH *mksrch(unsigned char *pattern, unsigned char *replacement, int ignore, int backwards, int repeat, int replace, int rest, int all)
 {
 	SRCH *srch = (SRCH *) joe_malloc(sizeof(SRCH));
 	int x;
 
+	srch->first = NULL;
+	srch->current = NULL;
+	srch->all = all;
 	srch->pattern = pattern;
 	srch->replacement = replacement;
 	srch->ignore = ignore;
@@ -391,6 +396,7 @@ SRCH *mksrch(unsigned char *pattern, unsigned char *replacement, int ignore, int
 	srch->entire = NULL;
 	srch->flg = 0;
 	srch->addr = -1;
+	srch->last_repl = -1;
 	srch->markb = NULL;
 	srch->markk = NULL;
 	srch->wrap_p = NULL;
@@ -440,6 +446,7 @@ void rmsrch(SRCH *srch)
 static P *insert(SRCH *srch, P *p, unsigned char *s, int len)
 {
 	int x;
+	long starting = p->byte;
 
 	while (len) {
 		for (x = 0; x != len && s[x] != '\\'; ++x) ;
@@ -476,6 +483,10 @@ static P *insert(SRCH *srch, P *p, unsigned char *s, int len)
 		} else
 			len = 0;
 	}
+
+	if (srch->backwards)
+		pbkwd (p, p->byte - starting);
+
 	return p;
 }
 
@@ -485,6 +496,7 @@ static P *insert(SRCH *srch, P *p, unsigned char *s, int len)
  * and execute first search */
 
 unsigned char srchstr[] = "Search";	/* Context sensitive help identifier */
+unsigned char srchopt[] = "SearchOptions";
 
 static int pfabort(BW *bw, SRCH *srch)
 {
@@ -528,8 +540,10 @@ static int set_replace(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 	if (s[0] || !globalsrch || !pico)
 		srch->replacement = s;
 	else {
-		vsrm(s);
-		srch->replacement = vsdup(globalsrch->replacement);
+		/* Use previous string: this prevents replace with empty string */
+		/* vsrm(s);
+		srch->replacement = vsdup(globalsrch->replacement); */
+		srch->replacement = s;
 	}
 	return dopfnext(bw, setmark(srch), notify);
 }
@@ -537,13 +551,20 @@ static int set_replace(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 {
 	int x;
-	unsigned char bf1[80];
 	unsigned char buf[80];
 
 	srch->ignore = icase;
 
 	for (x = 0; s[x]; ++x) {
 		switch (s[x]) {
+		case 'a':
+		case 'A':
+			srch->all = 1;
+			break;
+		case 'e':
+		case 'E':
+			srch->all = 2;
+			break;
 		case 'r':
 		case 'R':
 			srch->replace = 1;
@@ -590,13 +611,13 @@ static int set_options(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 	}
 	vsrm(s);
 	if (srch->replace) {
-		if (pico && globalsrch && globalsrch->replacement) {
-			joe_snprintf_1((char *)bf1,30,"%s",globalsrch->replacement);
+		/* if (pico && globalsrch && globalsrch->replacement) {
+			joe_snprintf_1(bf1,30,"%s",globalsrch->replacement);
 			if (zlen(globalsrch->replacement)>29)
 				zcat(bf1,US "$");
-			joe_snprintf_1((char *)buf,sizeof(buf),"Replace with (^C to abort) [%s]: ",bf1);
-		} else
-			zcpy(buf, US "Replace with (^C to abort): ");
+			joe_snprintf_1(buf,sizeof(buf),joe_gettext(_("Replace with (^C to abort) [%s]: ")),bf1);
+		} else */
+			zcpy(buf, joe_gettext(_("Replace with (^C to abort): ")));
 		if (wmkpw(bw->parent, buf, &replhist, set_replace, srchstr, pfabort, srch_cmplt, srch, notify, bw->b->o.charmap, 0))
 			return 0;
 		else
@@ -611,9 +632,9 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 	unsigned char *p;
 
 	if (icase)
-		p = US "case (S)ensitive (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ";
+		p = joe_gettext(_("case (S)ensitive (R)eplace (B)ackwards Bloc(K) (A)ll files NNN (^C to abort): "));
 	else
-		p = US "(I)gnore (R)eplace (B)ackwards Bloc(K) NNN (^C to abort): ";
+		p = joe_gettext(_("(I)gnore (R)eplace (B)ackwards Bloc(K) (A)ll files NNN (^C to abort): "));
 
 	vsrm(srch->pattern);
 	if (s[0] || !globalsrch || !pico)
@@ -622,7 +643,7 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 		vsrm(s);
 		srch->pattern = vsdup(globalsrch->pattern);
 	}
-	if ((pbw = wmkpw(bw->parent, p, NULL, set_options, srchstr, pfabort, utypebw, srch, notify, bw->b->o.charmap, 0)) != NULL) {
+	if ((pbw = wmkpw(bw->parent, p, NULL, set_options, srchopt, pfabort, utypebw, srch, notify, bw->b->o.charmap, 0)) != NULL) {
 		unsigned char buf[10];
 
 		if (srch->ignore)
@@ -632,7 +653,7 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 		if (srch->backwards)
 			binsc(pbw->cursor, 'b');
 		if (srch->repeat >= 0)
-			joe_snprintf_1((char *)buf, sizeof(buf), "%d", srch->repeat), binss(pbw->cursor, buf);
+			joe_snprintf_1(buf, sizeof(buf), "%d", srch->repeat), binss(pbw->cursor, buf);
 		pset(pbw->cursor, pbw->b->eof);
 		pbw->cursor->xcol = piscol(pbw->cursor);
 		srch->ignore = 0;
@@ -644,6 +665,21 @@ static int set_pattern(BW *bw, unsigned char *s, SRCH *srch, int *notify)
 		rmsrch(srch);
 		return -1;
 	}
+}
+
+/* Unescape for text going to genfmt */
+
+void unesc_genfmt(unsigned char *d, unsigned char *s, int max)
+{
+	while (max && *s) {
+		if (*s == '\\')
+			*d++ = '\\';
+		*d++ = *s++;
+		--max;
+	}
+	if (*s)
+		*d++ = '$';
+	*d = 0;
 }
 
 int dofirst(BW *bw, int back, int repl, unsigned char *hint)
@@ -668,18 +704,16 @@ int dofirst(BW *bw, int back, int repl, unsigned char *hint)
 			prgetc(bw->cursor);
 		return urtn((BASE *)bw, -1);
 	}
-	srch = mksrch(NULL, NULL, 0, back, -1, repl, 0);
+	srch = mksrch(NULL, NULL, 0, back, -1, repl, 0, 0);
 	srch->addr = bw->cursor->byte;
-	srch->wrap_p = pdup(bw->cursor);
+	srch->wrap_p = pdup(bw->cursor, US "dofirst");
 	srch->wrap_p->owner = &srch->wrap_p;
 	if (pico && globalsrch && globalsrch->pattern) {
-		joe_snprintf_1((char *)bf1,30,"%s",globalsrch->pattern);
-		if (zlen(globalsrch->pattern)>29)
-			zcat(bf1,US "$");
-		joe_snprintf_1((char *)buf,sizeof(buf),"Find (^C to abort) [%s]: ",bf1);
+		unesc_genfmt(bf1, globalsrch->pattern, 30);
+		joe_snprintf_1(buf,sizeof(buf),joe_gettext(_("Find (^C to abort) [%s]: ")),bf1);
 	} else
-		zcpy(buf, US "Find (^C to abort): ");
-	if (pbw=wmkpw(bw->parent, buf, &findhist, set_pattern, srchstr, pfabort, srch_cmplt, srch, NULL, bw->b->o.charmap, 0)) {
+		zcpy(buf, joe_gettext(_("Find (^C to abort): ")));
+	if ((pbw=wmkpw(bw->parent, buf, &findhist, set_pattern, srchstr, pfabort, srch_cmplt, srch, NULL, bw->b->o.charmap, 0))) {
 		if (hint) {
 			binss(pbw->cursor, hint);
 			pset(pbw->cursor, pbw->b->eof);
@@ -719,7 +753,7 @@ static int doreplace(BW *bw, SRCH *srch)
 		markk->end = 1;
 	if (srch->markk)
 		srch->markk->end = 1;
-	q = pdup(bw->cursor);
+	q = pdup(bw->cursor, US "doreplace");
 	if (srch->backwards) {
 		q = pfwrd(q, (long) sLEN(srch->entire));
 		bdel(bw->cursor, q);
@@ -731,6 +765,7 @@ static int doreplace(BW *bw, SRCH *srch)
 	}
 	insert(srch, bw->cursor, sv(srch->replacement));
 	srch->addr = bw->cursor->byte;
+	srch->last_repl = bw->cursor->byte;
 	if (markk)
 		markk->end = 0;
 	if (srch->markk)
@@ -741,10 +776,11 @@ static int doreplace(BW *bw, SRCH *srch)
 static void visit(SRCH *srch, BW *bw, int yn)
 {
 	SRCHREC *r = (SRCHREC *) alitem(&fsr, sizeof(SRCHREC));
-
 	r->addr = bw->cursor->byte;
 	r->yn = yn;
 	r->wrap_flag = srch->wrap_flag;
+	r->last_repl = srch->last_repl;
+	r->b = bw->b;
 	enqueb(SRCHREC, link, &srch->recs, r);
 }
 
@@ -753,11 +789,19 @@ static void goback(SRCH *srch, BW *bw)
 	SRCHREC *r = srch->recs.link.prev;
 
 	if (r != &srch->recs) {
-		if (r->yn)
+		srch->current = r->b;
+		if (r->yn) {
 			uundo(bw);
+		}
+		if (r->b != bw->b) {
+			W *w = bw->parent;
+			get_buffer_in_window(bw, r->b);
+			bw = (BW *)w->object;
+		}
 		if (bw->cursor->byte != r->addr)
 			pgoto(bw->cursor, r->addr);
 		srch->wrap_flag = r->wrap_flag;
+		srch->last_repl = r->last_repl;
 		demote(SRCHREC, link, &fsr, r);
 	}
 }
@@ -780,9 +824,10 @@ static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
 		srch->rest = 1;
 		return dopfnext(bw, srch, notify);
 	} else if (c == 8 || c == 127 || c == 'b' || c == 'B') {
+		W *w = bw->parent;
 		goback(srch, bw);
-		goback(srch, bw);
-		return dopfnext(bw, srch, notify);
+		goback(srch, (BW *)w->object);
+		return dopfnext((BW *)w->object, srch, notify);
 	} else if (c != -1) {
 		if (notify)
 			*notify = 1;
@@ -790,7 +835,7 @@ static int dopfrepl(BW *bw, int c, SRCH *srch, int *notify)
 		nungetc(c);
 		return 0;
 	}
-	if (mkqwnsr(bw->parent, sc("Replace (Y)es (N)o (R)est (B)ackup (^C to abort)?"), dopfrepl, pfsave, srch, notify))
+	if (mkqwnsr(bw->parent, sz(joe_gettext(_("Replace (Y)es (N)o (R)est (B)ackup (^C to abort)?"))), dopfrepl, pfsave, srch, notify))
 		return 0;
 	else
 		return pfsave(bw, srch);
@@ -840,27 +885,55 @@ static int restrict_to_block(BW *bw, SRCH *srch)
  *   0) Search or search & replace is finished.
  *   1) Search string was not found.
  *   2) Search string was found.
+ *   3) Abort due to infinite loop
  */
 
 static int fnext(BW *bw, SRCH *srch)
 {
 	P *sta;
 
-      next:
+	if (!srch->first) {
+		srch->first = bw->b;
+		srch->current = bw->b;
+	}
+
+	next:
 	if (srch->repeat != -1) {
 		if (!srch->repeat)
 			return 0;
 		else
 			--srch->repeat;
 	}
-      again:if (srch->backwards)
+	again:
+	if (srch->backwards)
 		sta = searchb(bw, srch, bw->cursor);
 	else
 		sta = searchf(bw, srch, bw->cursor);
+	if (!sta && srch->all) {
+		B *b;
+		if (srch->all == 2)
+			b = beafter(srch->current);
+		else {
+			berror = 0;
+			b = bafter(srch->current);
+		}
+		if (b && b != srch->first && !berror) {
+			W *w = bw->parent;
+			srch->current = b;
+			/* this bumps reference count of b */
+			get_buffer_in_window(bw, b);
+			bw = (BW *)w->object;
+			p_goto_bof(bw->cursor);
+			goto again;
+		} else if (berror) {
+			msgnw(bw->parent, joe_gettext(msgs[-berror]));
+		}
+	}
 	if (!sta) {
 		srch->repeat = -1;
 		return 1;
-	} else if (srch->rest || (srch->repeat != -1 && srch->replace)) {
+	}
+	if (srch->rest || (srch->repeat != -1 && srch->replace)) {
 		if (srch->valid)
 			switch (restrict_to_block(bw, srch)) {
 			case -1:
@@ -891,6 +964,8 @@ static int fnext(BW *bw, SRCH *srch)
 
 int dopfnext(BW *bw, SRCH *srch, int *notify)
 {
+	W *w;
+	int fnr;
 	int orgmid = mid;	/* Original mid status */
 	int ret = 0;
 
@@ -899,17 +974,24 @@ int dopfnext(BW *bw, SRCH *srch, int *notify)
 		smode = 2;	/* We have started a search mode */
 	if (srch->replace)
 		visit(srch, bw, 0);
-again:	switch (fnext(bw, srch)) {
+again:	w = bw->parent;
+	fnr = fnext(bw, srch);
+	bw  = (BW *)w->object;
+	switch (fnr) {
 	case 0:
 		break;
 	case 1:
 bye:		if (!srch->flg && !srch->rest) {
 			if (srch->valid && srch->block_restrict)
-				msgnw(bw->parent, US "Not found (search restricted to marked block)");
+				msgnw(bw->parent, joe_gettext(_("Not found (search restricted to marked block)")));
 			else
-				msgnw(bw->parent, US "Not found");
+				msgnw(bw->parent, joe_gettext(_("Not found")));
 			ret = -1;
 		}
+		break;
+	case 3:
+		msgnw(bw->parent, joe_gettext(_("Infinite loop aborted: your search repeatedly matched same place")));
+		ret = -1;
 		break;
 	case 2:
 		if (srch->valid)
@@ -942,15 +1024,15 @@ bye:		if (!srch->flg && !srch->rest) {
 			if (square)
 				bw->cursor->xcol = piscol(bw->cursor);
 			if (srch->backwards) {
-				pdupown(bw->cursor, &markb);
+				pdupown(bw->cursor, &markb, US "dopfnext");
 				markb->xcol = piscol(markb);
-				pdupown(markb, &markk);
+				pdupown(markb, &markk, US "dopfnext");
 				pfwrd(markk, (long) sLEN(srch->entire));
 				markk->xcol = piscol(markk);
 			} else {
-				pdupown(bw->cursor, &markk);
+				pdupown(bw->cursor, &markk, US "dopfnext");
 				markk->xcol = piscol(markk);
-				pdupown(bw->cursor, &markb);
+				pdupown(bw->cursor, &markb, US "dopfnext");
 				pbkwd(markb, (long) sLEN(srch->entire));
 				markb->xcol = piscol(markb);
 			}
@@ -976,16 +1058,16 @@ bye:		if (!srch->flg && !srch->rest) {
 
 int pfnext(BW *bw)
 {
-	if (!globalsrch)	/* Query for search string if there isn't any */
+	if (!globalsrch) {	/* Query for search string if there isn't any */
 		return pffirst(bw);
-	else {
+	} else {
 		SRCH *srch = globalsrch;
 
 		globalsrch = 0;
 		srch->addr = bw->cursor->byte;
 		if (!srch->wrap_p || srch->wrap_p->b!=bw->b) {
 			prm(srch->wrap_p);
-			srch->wrap_p = pdup(bw->cursor);
+			srch->wrap_p = pdup(bw->cursor, US "pfnext");
 			srch->wrap_p->owner = &srch->wrap_p;
 			srch->wrap_flag = 0;
 		}
@@ -998,12 +1080,12 @@ void save_srch(FILE *f)
 	if(globalsrch) {
 		if(globalsrch->pattern) {
 			fprintf(f,"	pattern ");
-			emit_hdlc(f,globalsrch->pattern,sLEN(globalsrch->pattern));
+			emit_string(f,globalsrch->pattern,sLEN(globalsrch->pattern));
 			fprintf(f,"\n");
 		}
 		if(globalsrch->replacement) {
 			fprintf(f,"	replacement ");
-			emit_hdlc(f,globalsrch->replacement,sLEN(globalsrch->replacement));
+			emit_string(f,globalsrch->replacement,sLEN(globalsrch->replacement));
 			fprintf(f,"\n");
 		}
 		fprintf(f,"	backwards %d\n",globalsrch->backwards);
@@ -1031,14 +1113,14 @@ void load_srch(FILE *f)
 			int len;
 			parse_ws(&p,'#');
 			bf[0] = 0;
-			len = parse_hdlc(&p,bf,1023);
+			len = parse_string(&p,bf,sizeof(bf));
 			if (len>0)
 				pattern = vsncpy(NULL,0,bf,len);
 		} else if(!parse_kw(&p,US "replacement")) {
 			int len;
 			parse_ws(&p,'#');
 			bf[0] = 0;
-			len = parse_hdlc(&p,bf,1023);
+			len = parse_string(&p,bf,sizeof(bf));
 			if (len>0)
 				replacement = vsncpy(NULL,0,bf,len);
 		} else if(!parse_kw(&p,US "backwards")) {
@@ -1055,6 +1137,6 @@ void load_srch(FILE *f)
 			parse_int(&p,&block_restrict);
 		}
 	}
-	globalsrch = mksrch(pattern,replacement,ignore,backwards,0,replace,0);
+	globalsrch = mksrch(pattern,replacement,ignore,backwards,-1,replace,0,0);
 	globalsrch->block_restrict = block_restrict;
 }

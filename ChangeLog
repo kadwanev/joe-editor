@@ -1,3 +1,257 @@
+Tue May 30 09:26:59 EDT 2006
+
+	Wordwrap improvements.
+
+	Fix gettext() bug foudn by egmont.
+
+	Change tag ^K ; to jump to beginning of file before doing a search.
+
+Fri May 26 11:13:10 EDT 2006
+
+	Autoindent now happens for word-wrap.
+
+	Fix ':include' so that it searches ~/.joe and JOERC
+
+	Put file type table in a separate file.
+
+	Limit no. yank records stored in .joe_state
+
+	new '-transpose' flag transposes all menus.
+
+ 	more columns for line number
+
+Wed May 24 11:01:53 EDT 2006
+
+	Rearrange directories.
+	Check for localized joerc file, like joerc.ru.
+
+	Only complain if lock already exists on a file.
+
+	Give file changed under us notice only once.
+
+	New -help_is_utf8 option- allows help text to be either UTF-8 or
+	8-bit.
+
+	Restore cursor position works for ^K E
+
+	Improve sh highlighter
+
+	Rearrange again: now we use SUBDIRS
+
+Tue May 23 17:28:48 EDT 2006
+
+	Switch to my own gettext() library.
+
+Mon May 22 23:35:21 EDT 2006
+
+	Fix shell highlighting bugs.
+
+	Clean up ^T options display.
+
+	Fix querysave bug (it was not always saving everything!)
+
+	Add Russion .po file.
+
+	Get gettext() to actually work.
+
+	Add -restore option.
+
+2006-05-22  gettextize  <bug-gnu-gettext@gnu.org>
+
+	* Makefile.am (ACLOCAL_AMFLAGS): New variable.
+	(EXTRA_DIST): Add m4/ChangeLog.
+
+2006-05-22  gettextize  <bug-gnu-gettext@gnu.org>
+
+	* Makefile.am (SUBDIRS): New variable.
+	(ACLOCAL_AMFLAGS): New variable.
+	(EXTRA_DIST): Add config.rpath.
+	* configure.ac (AC_CONFIG_FILES): Add po/Makefile.in, m4/Makefile.
+
+Sun May 21 12:28:10 EST 2006
+
+	'e' option for search & replace.
+
+	Add -guess_utf8 and -guess_non_utf8 options.
+
+	Add gettext() support.
+
+Sat May 20 17:03:48 EDT 2006
+
+	Improve compile window
+
+	Jump to previous file cursor position.
+
+	'a' option for search & replace.
+
+Fri May 19 13:29:11 EDT 2006
+
+	Add REX.  Fix highlighter subroutine bugs.
+
+	Update php, html, css and java highlighters to take
+	advantage of subroutines.
+
+	Add LUA
+
+	Heredoc support for PHP
+
+	Add Ruby
+
+	Eliminate ^# from *rc files.   This is only used in Amiga, and it
+	screws up i18n.
+
+	Assume256 color now uses normal entry for colors less than t->Co.
+
+Tue May 16 01:31:16 EDT 2006
+
+	Get rid of last type punning warning.
+
+	Add subroutines to syntax highlighter.
+
+	Fix .tcl highlighting glitch.
+
+Sun May 14 12:20:40 EDT 2006
+
+	cleanup header files.
+
+	gcc-4.1.0 -Wall run: fixed all but two warnings.
+
+	Precompiled headers now work.  Try: "gcc -O2 -g types.h" before
+	building.  Saves 15 seconds out of a 95 second build.
+
+	Change SCREEN to Screen
+
+Fri May 12 15:39:12 EDT 2006
+
+	fix lattr bugs.
+
+Thu May 11 10:27:47 EDT 2006
+
+	Add skill syntax file.
+
+	Fix semi_comment bug.
+
+	^K E does not now ask to load original for scratch buffers.
+
+	ESC SPACE now consults line number tracking database
+
+	Fix diff highlighter bugs
+
+Tue May  9 11:15:22 EDT 2006
+
+	Fix some compiler warnings.
+
+Mon May  8 15:35:20 EDT 2006
+
+	Convert to proper character set in %x
+
+	Guess encoding.
+
+Fri May  5 10:24:33 EDT 2006
+
+	You can now define which characters can indent paragraphs in joerc
+	file: look for '-cpara' in joerc file.
+
+	Allow escape sequences in syntax highlight strings.
+
+	Fix ^L so that it works the first time.
+
+	Fix input redirection.
+
+Wed May  3 21:10:21 EDT 2006
+
+	Better handling of 'joe -'
+
+Wed May  3 16:59:06 EDT 2006
+
+	Improve speed of highlighting.  Now it's comparable to JED's
+	highlighter.  (VIM and emacs are 10x slower).
+
+	Also it should now correctly handle the case of two windows open
+	on a file, each with a different syntax.
+
+Fri Apr 28 15:07:21 EDT 2006
+
+	Yeah! Xterm-212 now works properly with joe.  The '-joexterm' option
+	now works without having to do any patches.
+
+	Note that xterm should be compiled with '--enable-paste64 and
+        --enable-256-color'
+
+Tue Mar  7 23:28:47 EST 2006
+
+	Add joe_debug command.  Fix pointer leak (caused paragraph reformat
+	to be very slow).
+
+Sun Mar  5 12:46:27 EST 2006
+
+	Fix range of %p
+
+	Allow setting of foreground and background colors.
+
+	Fix search problems with ^ $
+	Backward search now moves cursor beginning of insertion point.
+	Still need to fix bugs with undo in search.
+
+Sat Mar  4 21:59:22 EST 2006
+
+	Highlight python docstrings the same as regular strings.
+
+	Fix bug with -assume_256color: missing ; in escape sequence
+
+	Fix .php variable highlighting
+
+	File selection menu is now above prompt instead of below it.  This
+	needs to be an option.
+
+	Added new "-menu_above" option.
+
+	Fix pgup/pgdn to work with menu_above.
+
+Wed Mar  1 10:19:49 EST 2006
+
+	Match how Thomas Dickey implemented the xterm-paste patch.
+	Xterm has a bug: if selection is not owned by xterm, the string
+	is messed up.
+
+Tue Feb 28 18:50:32 EST 2006
+
+	Fix bug where 'complete' command core dumps.
+	Fix bug where '.' alone with c highlighting enabled core dumps.
+	Don't run editor if joerc file is bad.
+	Improve lock messages.
+
+Mon Feb 27 01:34:37 EST 2006
+
+	Fix perl highlighter bug.  $q not handled properly.
+	Show properly escaped previous search string
+
+Thu Feb 23 13:41:20 EST 2006
+
+	Fix bugs with quoted entry.  Now we ignore terminal's encoding on
+quoted entry.
+
+
+Sun Feb 19 22:34:20 EST 2006
+
+	Fix some bugs on itanium: call to joe_malloc was return a (int) and
+then got converted to a pointer.  Likewise with things in termcap.c which
+needed term.h and curses.h.
+
+	Improved speed of highlighting.
+
+Tue Dec 27 16:56:44 EST 2005
+
+	Allow entry of replacement blank replacement strings when search
+	prompting is enabled (basically eliminate automatic replace-string
+	prompting).
+
+	"bufed" now works like other file name commands (it prompts for a
+	buffer name, and allows completion).
+
+	H-scroll jumps left ~ 10 cols (this needs more work: it should be an
+	option).
+
 Tue May 17 18:20:02 EDT 2005
 
 	Release JOE 3.3

@@ -5,23 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <stdio.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-#include "bw.h"
-#include "blocks.h"
-#include "scrn.h"
-#include "termcap.h"
-#include "charmap.h"
-#include "utf8.h"
-#include "syntax.h"
-#include "utils.h"
-#include "mouse.h"
 
 int bg_text = 0; /* Background color for text */
 int skiptop = 0;
@@ -31,8 +15,6 @@ int notite = 0;
 int usetabs = 0;
 int assume_color = 0;
 int assume_256color = 0;
-
-extern int mid;
 
 /* How to display characters (especially the control ones) */
 /* here are characters ... */
@@ -179,19 +161,37 @@ int set_attr(SCRN *t, int c)
 		if (t->mh)
 			texec(t->cap, t->mh, 1, 0, 0, 0, 0);
 
-	if ((t->attrib & FG_MASK) != (c & FG_MASK))
-		if (t->Sf)
-			if (t->Co & (t->Co - 1))
-				texec(t->cap, t->Sf, 1, ((c & FG_VALUE) >> FG_SHIFT) % t->Co, 0, 0, 0);
-			else
-				texec(t->cap, t->Sf, 1, ((c & FG_VALUE) >> FG_SHIFT) & (t->Co - 1), 0, 0, 0);
+	if ((t->attrib & FG_MASK) != (c & FG_MASK)) {
+		if (t->Sf) {
+			int color = ((c & FG_VALUE) >> FG_SHIFT);
+			if (t->assume_256 && color >= t->Co) {
+				unsigned char bf[32];
+				joe_snprintf_1(bf,sizeof(bf),"\033[38;5;%dm",color);
+				ttputs(bf);
+			} else {
+				if (t->Co & (t->Co - 1))
+					texec(t->cap, t->Sf, 1, color % t->Co, 0, 0, 0);
+				else
+					texec(t->cap, t->Sf, 1, color & (t->Co - 1), 0, 0, 0);
+			}
+		}
+	}
 
-	if ((t->attrib & BG_MASK) != (c & BG_MASK))
-		if (t->Sb)
-			if (t->Co & (t->Co - 1))
-				texec(t->cap, t->Sb, 1, ((c & BG_VALUE) >> BG_SHIFT) % t->Co, 0, 0, 0);
-			else
-				texec(t->cap, t->Sb, 1, ((c & BG_VALUE) >> BG_SHIFT) & (t->Co - 1), 0, 0, 0);
+	if ((t->attrib & BG_MASK) != (c & BG_MASK)) {
+		if (t->Sb) {
+			int color = ((c & BG_VALUE) >> BG_SHIFT);
+			if (t->assume_256 && color >= t->Co) {
+				unsigned char bf[32];
+				joe_snprintf_1(bf,sizeof(bf),"\033[48;5;%dm",color);
+				ttputs(bf);
+			} else {
+				if (t->Co & (t->Co - 1))
+					texec(t->cap, t->Sb, 1, color % t->Co, 0, 0, 0);
+				else
+					texec(t->cap, t->Sb, 1, color & (t->Co - 1), 0, 0, 0);
+			}
+		}
+	}
 
 	t->attrib = c;
 
@@ -250,7 +250,7 @@ void outatr(struct charmap *map,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c
 		} else {
 			/* UTF-8 char to non-UTF-8 terminal */
 			/* Don't convert control chars below 256 */
-			if (c>=32 && c<=126 || c>=160) {
+			if ((c>=32 && c<=126) || c>=160) {
 				if (unictrl(c))
 					a ^= UNDERLINE;
 				c = from_uni(locale_map,c);
@@ -527,7 +527,7 @@ SCRN *nopen(CAP *cap)
       oops:
 
 
-	if (assume_color) {
+	if (assume_color || assume_256color) {
 		/* Install 8 color support if it looks like an ansi terminal (it has bold which begins with ESC [) */
 #ifndef TERMINFO
 		if (!t->Sf && t->md && t->md[0]=='\\' && t->md[1]=='E' && t->md[2]=='[') { 
@@ -545,20 +545,26 @@ SCRN *nopen(CAP *cap)
 #endif
 	}
 
+	t->assume_256 = 0;
       	if (assume_256color && t->Co < 256) {
-      		t->Co = 256;
 		/* Force 256 color support */
 #ifndef TERMINFO
-		if (!t->Sf && t->md && t->md[0]=='\\' && t->md[1]=='E' && t->md[2]=='[') { 
+		if (t->md && t->md[0]=='\\' && t->md[1]=='E' && t->md[2]=='[') { 
+			t->assume_256 = 1;
+#ifdef junk
 			t->ut = 1;
 			t->Sf = US "\\E[38;5;%dm";
 			t->Sb = US "\\E[48;5;%dm";
+#endif
 		}
 #else
-		if (!t->Sf && t->md && t->md[0]=='\033' && t->md[1]=='[') { 
+		if (t->md && t->md[0]=='\033' && t->md[1]=='[') { 
+			t->assume_256 = 1;
+#ifdef junk
 			t->ut = 1;
-			t->Sf = US "\033[38;5%p1%dm";
-			t->Sb = US "\033[48;5%p1%dm";
+			t->Sf = US "\033[38;5;%p1%dm";
+			t->Sb = US "\033[48;5;%p1%dm";
+#endif
 		}
 #endif
 	}
@@ -709,9 +715,9 @@ SCRN *nopen(CAP *cap)
 	leave = 1;
 	ttclose();
 	signrm();
-        fprintf(stderr,"cm=%d ch=%d cv=%d ho=%d lf=%d DO=%d ll=%d up=%d UP=%d cr=%d\n",
+        fprintf(stderr,"cm=%p ch=%p cv=%p ho=%p lf=%p DO=%p ll=%p up=%p UP=%p cr=%p\n",
                        t->cm, t->ch, t->cv, t->ho, t->lf, t->DO, t->ll, t->up, t->UP, t->cr);
-	fprintf(stderr,"Sorry, your terminal can't do absolute cursor positioning.\nIt's broken\n");
+	fprintf(stderr,(char *)joe_gettext(_("Sorry, your terminal can't do absolute cursor positioning.\nIt's broken\n")));
 	return NULL;
       ok:
 
@@ -747,7 +753,6 @@ SCRN *nopen(CAP *cap)
 	t->attr = NULL;
 	t->sary = NULL;
 	t->updtab = NULL;
-	t->syntab = NULL;
 	t->compose = NULL;
 	t->ofst = NULL;
 	t->ary = NULL;
@@ -775,8 +780,6 @@ void nresize(SCRN *t, int w, int h)
 		joe_free(t->sary);
 	if (t->updtab)
 		joe_free(t->updtab);
-	if (t->syntab)
-		joe_free(t->syntab);
 	if (t->scrn)
 		joe_free(t->scrn);
 	if (t->attr)
@@ -791,7 +794,6 @@ void nresize(SCRN *t, int w, int h)
 	t->attr = (int *) joe_malloc(t->li * t->co * sizeof(int));
 	t->sary = (int *) joe_calloc(t->li, sizeof(int));
 	t->updtab = (int *) joe_malloc(t->li * sizeof(int));
-	t->syntab = (HIGHLIGHT_STATE *) joe_malloc(t->li * sizeof(HIGHLIGHT_STATE));
 	t->compose = (int *) joe_malloc(t->co * sizeof(int));
 	t->ofst = (int *) joe_malloc(t->co * sizeof(int));
 	t->ary = (struct hentry *) joe_malloc(t->co * sizeof(struct hentry));
@@ -1385,7 +1387,7 @@ void magic(SCRN *t, int y, int *cs, int *ca,int *s, int *a, int placex)
 			ofst[x++] = t->co - 1;
 		else {
 			int aryy;
-			int maxaryy;
+			int maxaryy = 0;
 			int maxlen = 0;
 			int best = 0;
 			int bestback = 0;
@@ -1467,7 +1469,6 @@ void magic(SCRN *t, int y, int *cs, int *ca,int *s, int *a, int placex)
 static void doupscrl(SCRN *t, int top, int bot, int amnt, int atr)
 {
 	int a = amnt;
-	int q;
 
 	if (!amnt)
 		return;
@@ -1519,8 +1520,6 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt, int atr)
 		goto done;
 	}
 	msetI(t->updtab + top, 1, bot - top);
-	for(q=0; q!=bot-top; ++q)
-		invalidate_state(t->syntab + top + q);
 	return;
 
       done:
@@ -1531,8 +1530,6 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt, int atr)
 		msetI(t->scrn + (t->li - amnt) * t->co, -1, amnt * t->co);
 		msetI(t->attr + (t->li - amnt) * t->co, 0, amnt * t->co);
 		msetI(t->updtab + t->li - amnt, 1, amnt);
-		for(q=0; q!=amnt; ++q)
-			invalidate_state(t->syntab + t->li - amnt + q);
 	} else {
 		msetI(t->scrn + (bot - amnt) * t->co, ' ', amnt * t->co);
 		msetI(t->attr + (bot - amnt) * t->co, 0, amnt * t->co); 
@@ -1542,7 +1539,6 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt, int atr)
 static void dodnscrl(SCRN *t, int top, int bot, int amnt, int atr)
 {
 	int a = amnt;
-	int q;
 
 	if (!amnt)
 		return;
@@ -1594,8 +1590,6 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt, int atr)
 		goto done;
 	}
 	msetI(t->updtab + top, 1, bot - top);
-	for(q=0; q!=bot-top; ++q)
-		invalidate_state(t->syntab + top + q);
 	return;
       done:
 	mmove(t->scrn + (top + amnt) * t->co, t->scrn + top * t->co, (bot - top - amnt) * t->co * sizeof(int));
@@ -1605,8 +1599,6 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt, int atr)
 		msetI(t->scrn, -1, amnt * t->co);
 		msetI(t->attr, 0, amnt * t->co);
 		msetI(t->updtab, 1, amnt);
-		for(q=0;q!=amnt; ++q)
-			invalidate_state(t->syntab + q);
 	} else {
 		msetI(t->scrn + t->co * top, ' ', amnt * t->co);
 		msetI(t->attr + t->co * top, 0, amnt * t->co); 
@@ -1705,21 +1697,17 @@ void nscrldn(SCRN *t, int top, int bot, int amnt)
 		for (x = bot; x != top + amnt; --x) {
 			t->sary[x - 1] = (t->sary[x - amnt - 1] == t->li ? t->li : t->sary[x - amnt - 1] - amnt);
 			t->updtab[x - 1] = t->updtab[x - amnt - 1];
-			move_state(t->syntab + x - 1, t->syntab + x - amnt - 1);
 		}
 		for (x = top; x != top + amnt; ++x) {
 			t->updtab[x] = 1;
-			invalidate_state(t->syntab + x);
-			}
+		}
 	}
 	if (amnt > bot - top)
 		amnt = bot - top;
 	msetI(t->sary + top, t->li, amnt);
 	if (amnt == bot - top) {
 		msetI(t->updtab + top, 1, amnt);
-		for(x=0; x!=amnt; ++x)
-			invalidate_state(t->syntab + top + x);
-		}
+	}
 }
 
 void nscrlup(SCRN *t, int top, int bot, int amnt)
@@ -1734,28 +1722,21 @@ void nscrlup(SCRN *t, int top, int bot, int amnt)
 		for (x = top + amnt; x != bot; ++x) {
 			t->sary[x - amnt] = (t->sary[x] == t->li ? t->li : t->sary[x] + amnt);
 			t->updtab[x - amnt] = t->updtab[x];
-			move_state(t->syntab + x - amnt, t->syntab + x);
 		}
 		for (x = bot - amnt; x != bot; ++x) {
 			t->updtab[x] = 1;
-			invalidate_state(t->syntab + x);
-			}
+		}
 	}
 	if (amnt > bot - top)
 		amnt = bot - top;
 	msetI(t->sary + bot - amnt, t->li, amnt);
 	if (amnt == bot - top) {
 		msetI(t->updtab + bot - amnt, 1, amnt);
-		for(x=0; x!=amnt; ++x)
-			invalidate_state(t->syntab + bot - amnt + x);
 		}
 }
 
-extern volatile int dostaupd;
-
 void nredraw(SCRN *t)
 {
-	int x;
 	dostaupd = 1;
 	msetI(t->scrn, ' ', t->co * skiptop);
 	msetI(t->attr, BG_COLOR(bg_text), t->co * skiptop);  
@@ -1763,8 +1744,6 @@ void nredraw(SCRN *t)
 	msetI(t->attr + skiptop * t->co, BG_COLOR(bg_text), (t->li - skiptop) * t->co); 
 	msetI(t->sary, 0, t->li);
 	msetI(t->updtab + skiptop, -1, t->li - skiptop);
-	for(x=0; x!=t->li - skiptop; ++x)
-		invalidate_state(t->syntab + skiptop + x);
 	t->x = -1;
 	t->y = -1;
 	t->top = t->li;
@@ -1793,7 +1772,7 @@ void nredraw(SCRN *t)
 
 /* Convert color/attribute name into internal code */
 
-int meta_color(unsigned char *s)
+int meta_color_single(unsigned char *s)
 {
 	if(!zcmp(s,US "inverse"))
 		return INVERSE;
@@ -1903,6 +1882,27 @@ int meta_color(unsigned char *s)
 		return 0;
 }
 
+int meta_color(unsigned char *s)
+{
+	int code = 0;
+	while (*s) {
+		unsigned char buf[32];
+		int x = 0;
+		while (*s)
+			if (*s && *s != '+') {
+				if (x != sizeof(buf) - 1)
+					buf[x++] = *s;
+				++s;
+			} else
+				break;
+		if (*s == '+')
+			++s;
+		buf[x] = 0;
+		code |= meta_color_single(buf);
+	}
+	return code;
+}
+
 /* Generate a field
  *
  * 't' is SCRN to write to.
@@ -1939,7 +1939,7 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 			/* Byte mode: character is one column wide */
 			wid = 1 ;
 		}
-		if (wid>=0)
+		if (wid>=0) {
 			if (col >= ofst) {
 				if (x + wid > last_col) {
 					/* Character crosses end of field, so fill balance of field with '>' characters instead */
@@ -1970,6 +1970,7 @@ void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,
 				}
 			} else
 				col += wid;
+		}
 	}
 	/* Fill balance of field with spaces */
 	while (x < last_col) {
@@ -2064,7 +2065,7 @@ void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int atr, int flg)
 				wid = 1 ;
 			}
 
-			if (wid>=0)
+			if (wid>=0) {
 				if (col >= ofst) {
 					outatr(locale_map, t, scrn, attr, x, y, c, atr);
 					scrn += wid;
@@ -2086,6 +2087,7 @@ void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int atr, int flg)
 					}
 				} else
 					col += wid;
+			}
 		}
 	if (flg)
 		eraeol(t, x, y, atr);
@@ -2101,7 +2103,7 @@ int fmtlen(unsigned char *s)
 
 	utf8_init(&sm);
 
-	while (c= *s++) {
+	while ((c= *s++)) {
 		if (c == '\\') {
 			switch (*s++) {
 			case 'u':

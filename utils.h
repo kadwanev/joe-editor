@@ -10,15 +10,6 @@
 #ifndef _JOE_UTILS_H
 #define _JOE_UTILS_H 1
 
-#include "config.h"
-
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>			/* we need size_t, ssize_t */
-#endif
-#ifdef HAVE_SIGNAL_H
-#include <signal.h>
-#endif
-
 /* Destructors */
 
 #define AUTO_DESTRUCT GC *gc = 0;
@@ -146,16 +137,14 @@ int joe_set_signal PARAMS((int signum, sighandler_t handler));
 int parse_ws PARAMS((unsigned char **p,int cmt));
 int parse_ident PARAMS((unsigned char **p,unsigned char *buf,int len));
 int parse_kw PARAMS((unsigned char **p,unsigned char *kw));
+long parse_num PARAMS((unsigned char **p));
 int parse_tows PARAMS((unsigned char **p,unsigned char *buf));
 int parse_field PARAMS((unsigned char **p,unsigned char *field));
 int parse_char PARAMS((unsigned char  **p,unsigned char c));
 int parse_int PARAMS((unsigned char **p,int *buf));
+int parse_long PARAMS((unsigned char **p,long  *buf));
 int parse_string PARAMS((unsigned char **p,unsigned char *buf,int len));
 int parse_range PARAMS((unsigned char **p,int *first,int *second));
 void emit_string PARAMS((FILE *f,unsigned char *s,int len));
-int parse_escapes PARAMS((unsigned char *buf,int len));
-
-void emit_hdlc PARAMS((FILE *f,unsigned char *s,int len));
-int parse_hdlc PARAMS((unsigned char **p,unsigned char *buf,int len));
 
 #endif

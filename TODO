@@ -1,24 +1,177 @@
+autodetect xterm?  it doesn't give enough information.
 
-Short (infinite) list for 3.3:
+did shell window in joe-3.2 3.2 create a new window?
+
+  bugs?
+
+    grep ... | joe     missing lots sometime
+
+    pipe into joe is broken.   If it's a regular file, we should just load it.
+
+  Make joerc merge program and run it on joerc.ru
+
+=-=-=-=-=
+
+Improvements for regular text
+-----------------------------
+mode where wordwrap wraps rest of paragraph?
+
+mode where all editing wraps rest of paragraph?
+
+=-=-=-=-=
+
+Load status window...
+
+ Show path to joerc file.
+
+ syntax file errors should go to a pop-up error window.
+
+=-=-=-=-=
+
+We need a built-in joerc file: then joe will work on a boot disk.
+
+=-=-=-=-=
+
+long prompts for qw.c (locking message) should spill onto multiple lines.
+
+=-=-=-=-=
+
+should force -Wall if compiler is gcc
+
+=-=-=-=-=
+
+- rc file format needs revamping:  You can not put comments on lines with string
+  arguments.
+
+=-=-=-=-=
+
+option for compile window size (or make mfit prompt for the size)
+
+multi-file search & replace: check for deleted 'B *'.
+
+
+=-=-=-=-=
+
+- We need regexp for error parsing.
+
+=-=-=-=-=
+
+- better grep-find (trigger in ^KE)
+
+- need current directory for grep-find.
+
+=-=-=-=-=
+
+- search: automatically use 'k' mode if there is a block selected?  Cursor
+  should jump to top of block when done?  Modes for this?
+
+- stop macro execution at ^KK?
+
+Compiling:
+----------
+
+Key to bring up help on word under cursor:
+  like pop up window with man page, or google search
+  for the function.
+
+    man -P cat -S 2:3 printf
+
+work with cscope?  hit F1 to look up man entry for function?
+
+Tags file search should auto-run ctags if there is no tags file.
+It should update it if any files have changed...
+
+gdb inteface?
+  run  (when segfault, jump to given source location)
+  run-to
+  step-over
+  step-into
+  eval  (to look at variables)
+  peek up stack frame
+
+allow options after string and istring? -just note it for now.
+
+sh highlighter: $(   ) onle one level of parenthasis.
+  inside of $( ) and ` ` should be parsed as commands.
+
+Makefile.in and Makefile.am need to be the same as Makefile.
+
+820497   reload files which have changes (for example after cvs update)
+
+622978   use last column
+
+1218685  utf-8 problems in hex mode
+           ideally we should ignore utf8 and crs in hex mode.
+           next, save and restore them.
+           last, at least clear these modes.
+ when we change from hex back to normal, position the cursor at a valid
+ character.
+
+1218708  ? for unknown characters is not informative (at least highlight the ?)
+
+1218701  report character offset in ^K-<space> (not just byte offset).
+
+1304794  X at end of line is changed to space when character above 128 in utf-8
+
+
+1221499  fix sysconf_joedir and sysconf_docdir
+
+1323285  joe does not repeatedly wrap searches (add an option for this?)
+
+1218717  lock message is confusing.  we need multi-line query windows
+
+1218686  syntax hightlight in hex mode (sheesh!)
+
+1211243  long $HOME causes joe to crash
+
+531899   joe +23 is weird: cursor on startup line
+
+1413863  sigwinch breaks tcsetsw which messes up keyboard?  I haven't seen this
+
+
+get rid of /bin/cat: mpxmk should just have a copy process and not run cat.
+
+Garbage collect line attribute databases.
+
+Parse xterm version number.
+
+we should store location of menu. menu_above could change while menu is
+open (but menu could be deleted, so this raises other problems).
+
+performace:
+ getcontext causes huge cpu usage for very large functions (xp_useq.v for
+ example).
+
+
+Short (infinite) list for 3.4:
+
+-smart bs/tab is driving me up the wall:
+
+       if (sdfjklhsdfkjhsdfjkh
+           sdflks dfkjshdf sd
+           sdfkjhsdkjfhsdkhsd)
+           . <- thinks this is indentation point.
+
+-tab should default to tab?
+
+- improve mnew/mold etc so we can gzip/gunzip files being
+  edited (maybe recursive call to file recognizer with .gz removed).
+
+- when lock is stolen under us, we don't tell anyone.
+
 
 - test i18n in cygwin
-- better grep-find (trigger in ^KE)
 - reformat/reindent function on ^KJ
 - insert last word (last word typed/copied/etc.).
 - orthogonal jump
-- regex for compiler
 - safer hex edit mode
 - win32? DOS?
-- improve mnew/mold etc so we can gzip/gunzip files being
-  edited (maybe recursive call to file recognizer with .gz removed).
-- fix/check formatter for tex files
 - man page
 
 - cygwin- make sure we put files in the right place.
 - dynamic spell checking with highlighter- there should be a way
 - smart-end key
 
-- need current directory for grep-find.
 
 Mouse issues:
 
@@ -59,8 +212,6 @@ Dangerous situations:
 - name keyboard macro and append it to .joerc file
 
 - - - - - - - -
-
-- regexp for compiler parsing
 
 - - - - - - - -
 
@@ -111,6 +262,7 @@ Dangerous situations:
       (can be a macro: ^KE name rtn)
 
     (a user asked: can it periodically reload log file like tail -f)?
+    (just run tail -f in shell window)
 
 - - - - - - - -
 
@@ -130,21 +282,11 @@ can we highlight backup files? files ending in .in?
 
 - - - - - - - -
 
-- search: automatically use 'k' mode if there is a block selected?  Cursor should
-  jump to top of block when done?  Modes for this?
-
-- stop macro execution at ^KK?
-
 - - - - - - - -
   exemac for first change: it should be run with cursor in window.
 
   -orphan will break -mnew, -mold macros (because macros are run without a
 window on the screen).
-
-- - - - - - - -
-
-- better string demarcation in highlighter (highlight all words with 's in
-  them- need to use pointers instead of buffer to refer to string)
 
 - - - - - - - -
 
@@ -188,15 +330,7 @@ regex: character classes? a-z matches any letter?
 can't load terminfo- should switch to termcap or provide compiled
 ANSI terminfo built in.
 
-gettext patch
-
 Perl compatible regex search.
-
-Improvements for regular text
------------------------------
-mode where wordwrap wraps rest of paragraph?
-
-mode where all editing wraps rest of paragraph?
 
 Improvements for programming
 ----------------------------
@@ -210,18 +344,7 @@ Tie in with CVS
 
 Refactoring
 
-Syntax Highlighting:
---------------------
-
-Fix for next release highlight:
-
-  other windows why
-  lose state during page down?
-
-
 Support for more languages:
-
- Paragraph reformat mode for TeX files.
 
  Reformat paragraph should reformat C function if we're editing C.
 
@@ -320,8 +443,6 @@ Options
 Other requests:
 
  -cleanup (delete extra lines and extra spaces at ends of lines).
-
- -show no. utf characters, not no. bytes
 
 
 Do something with these keys:

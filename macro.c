@@ -5,29 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <stdio.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-#include "b.h"
-#include "cmd.h"
-#include "main.h"
-#include "pw.h"
-#include "qw.h"
-#include "tty.h"
-#include "ublock.h"
-#include "uedit.h"
-#include "umath.h"
-#include "undo.h"
-#include "utils.h"
-#include "vs.h"
-#include "utf8.h"
-#include "charmap.h"
-#include "w.h"
 
 MACRO *freemacros = NULL;
 
@@ -454,7 +432,7 @@ int exmacro(MACRO *m, int u)
 {
 	int larg;
 	int negarg = 0;
-	int oid, oifl, oifa;
+	int oid=0, oifl=0, oifa=0;
 	int ret = 0;
 	int main_ret = 0;
 	int o_arg_set = argset;
@@ -681,13 +659,11 @@ int urecord(BW *bw, int c)
 {
 	if (c >= '0' && c <= '9')
 		return dorecord(bw, c, NULL, NULL);
-	else if (mkqw(bw->parent, sc("Macro to record (0-9 or ^C to abort): "), dorecord, NULL, NULL, NULL))
+	else if (mkqw(bw->parent, sz(joe_gettext(_("Macro to record (0-9 or ^C to abort): "))), dorecord, NULL, NULL, NULL))
 		return 0;
 	else
 		return -1;
 }
-
-extern volatile int dostaupd;
 
 int ustop(void)
 {
@@ -739,7 +715,7 @@ int umacros(BW *bw)
 			mtext(buf, kbdmacro[x]);
 			binss(bw->cursor, buf);
 			p_goto_eol(bw->cursor);
-			joe_snprintf_2((char *)buf, JOE_MSGBUFSIZE, "\t^K %c\tMacro %d", x + '0', x);
+			joe_snprintf_2(buf, JOE_MSGBUFSIZE, "\t^K %c\tMacro %d", x + '0', x);
 			binss(bw->cursor, buf);
 			p_goto_eol(bw->cursor);
 			binsc(bw->cursor, '\n');
@@ -756,7 +732,7 @@ void save_macros(FILE *f)
 		if(kbdmacro[x]) {
 			mtext(buf, kbdmacro[x]);
 			fprintf(f,"	%d ",x);
-			emit_hdlc(f,buf,zlen(buf));
+			emit_string(f,buf,zlen(buf));
 			fprintf(f,"\n");
 		}
 	fprintf(f,"done\n");
@@ -774,7 +750,7 @@ void load_macros(FILE *f)
 		parse_ws(&p, '#');
 		if(!parse_int(&p,&n)) {
 			parse_ws(&p, '#');
-			len = parse_hdlc(&p,bf,1023);
+			len = parse_string(&p,bf,sizeof(bf));
 			if (len>0)
 				kbdmacro[n] = mparse(NULL,bf,&sta);
 		}
@@ -785,7 +761,7 @@ int uplay(BW *bw, int c)
 {
 	if (c >= '0' && c <= '9')
 		return doplay(bw, c, NULL, NULL);
-	else if (mkqwna(bw->parent, sc("Play-"), doplay, NULL, NULL, NULL))
+	else if (mkqwna(bw->parent, sz(joe_gettext(_("Play-"))), doplay, NULL, NULL, NULL))
 		return 0;
 	else
 		return -1;
@@ -812,7 +788,7 @@ static int doarg(BW *bw, unsigned char *s, void *object, int *notify)
 
 int uarg(BW *bw)
 {
-	if (wmkpw(bw->parent, US "No. times to repeat next command (^C to abort): ", NULL, doarg, NULL, NULL, utypebw, NULL, NULL, locale_map,0))
+	if (wmkpw(bw->parent, joe_gettext(_("No. times to repeat next command (^C to abort): ")), NULL, doarg, NULL, NULL, utypebw, NULL, NULL, locale_map,0))
 		return 0;
 	else
 		return -1;
@@ -833,34 +809,36 @@ static int doif(BW *bw,unsigned char *s,void *object,int *notify)
 static int ifabrt()
 {
 	ifdepth--;
+	return 0;
 }
 
 int uif(BW *bw)
 {
 	ifdepth++;
 	if (!ifflag) return 0;
-	if (wmkpw(bw->parent,US "If (^C to abort): ",NULL,doif,NULL,ifabrt,utypebw,NULL,NULL,locale_map,0)) return 0;
+	if (wmkpw(bw->parent,joe_gettext(_("If (^C to abort): ")),NULL,doif,NULL,ifabrt,utypebw,NULL,NULL,locale_map,0)) return 0;
 	else return -1;
 }
 
 int uelsif(BW *bw)
 {
 	if (!ifdepth) {
-		msgnw(bw->parent,US "Elsif without if");
+		msgnw(bw->parent,joe_gettext(_("Elsif without if")));
 		return -1;
 	} else if(ifflag) {
 		ifflag=iffail=0; /* don't let the next else/elsif get run */
 	} else if(ifdepth == iffail) {
 		ifflag=1;	/* so the script can type the condition :) */
-		if(wmkpw(bw->parent,US "Else if: ",NULL,doif,NULL,NULL,utypebw,NULL,NULL,locale_map,0)) return 0;
+		if(wmkpw(bw->parent,joe_gettext(_("Else if: ")),NULL,doif,NULL,NULL,utypebw,NULL,NULL,locale_map,0)) return 0;
 		else return -1;
 	}
+	return 0;
 }
 
 int uelse(BW *bw)
 {
 	if (!ifdepth) {
-		msgnw(bw->parent,US "Else without if");
+		msgnw(bw->parent,joe_gettext(_("Else without if")));
 		return -1;
 	} else if(ifdepth == iffail) {
 		ifflag = !ifflag;
@@ -871,7 +849,7 @@ int uelse(BW *bw)
 int uendif(BW *bw)
 {
 	if(!ifdepth) {
-		msgnw(bw->parent,US "Endif without if");
+		msgnw(bw->parent,joe_gettext(_("Endif without if")));
 		return -1;
 	}
 	if(iffail==ifdepth) iffail--, ifflag=1;
@@ -914,7 +892,7 @@ static int douarg(BW *bw, int c, void *object, int *notify)
 			*notify = 1;
 		return 0;
 	}
-	joe_snprintf_2((char *)msgbuf, JOE_MSGBUFSIZE, "Repeat %s%d", negarg ? "-" : "", unaarg);
+	joe_snprintf_2(msgbuf, JOE_MSGBUFSIZE, joe_gettext(_("Repeat %s%d")), negarg ? "-" : "", unaarg);
 	if (mkqwna(bw->parent, sz(msgbuf), douarg, NULL, NULL, notify))
 		return 0;
 	else
@@ -927,7 +905,7 @@ int uuarg(BW *bw, int c)
 	negarg = 0;
 	if ((c >= '0' && c <= '9') || c == '-')
 		return douarg(bw, c, NULL, NULL);
-	else if (mkqwna(bw->parent, sc("Repeat"), douarg, NULL, NULL, NULL))
+	else if (mkqwna(bw->parent, sz(joe_gettext(_("Repeat"))), douarg, NULL, NULL, NULL))
 		return 0;
 	else
 		return -1;

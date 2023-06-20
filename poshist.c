@@ -5,16 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-#include "b.h"
-#include "queue.h"
-#include "w.h"
 
 typedef struct pos POS;
 
@@ -34,7 +25,7 @@ static void markpos(W *w, P *p)
 	POS *new = alitem(&frpos, sizeof(POS));
 
 	new->p = NULL;
-	pdupown(p, &new->p);
+	pdupown(p, &new->p, US "markpos");
 	poffline(new->p);
 	new->w = w;
 	enqueb(POS, link, &pos, new);

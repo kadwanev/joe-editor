@@ -5,33 +5,19 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
 #ifdef HAVE_PWD_H
 #include <pwd.h>
 #endif
-#include <stdio.h>
-#include <sys/types.h>
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#include <fcntl.h>
-#include <unistd.h>
+
 #ifdef HAVE_PATHS_H
 #  include <paths.h>	/* for _PATH_TMP */
 #endif
 #ifdef HAVE_LIMITS_H
 #include <limits.h>
 #endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
 
-#include "utils.h"
-#include "path.h"
-#include "vs.h"
-#include "va.h"
 
 #ifdef HAVE_DIRENT_H
 #  include <dirent.h>
@@ -216,7 +202,7 @@ unsigned char *mktmp(unsigned char *where)
 				   area returned by mktmp() is destroyed later with
 				   vsrm(); */
 #ifdef HAVE_MKSTEMP
-	joe_snprintf_1((char *)name, namesize, "%s/joe.tmp.XXXXXX", where);
+	joe_snprintf_1(name, namesize, "%s/joe.tmp.XXXXXX", where);
 	if((fd = mkstemp((char *)name)) == -1)
 		return NULL;	/* FIXME: vflsh() and vflshf() */
 				/* expect mktmp() always succeed!!! */
@@ -366,7 +352,7 @@ unsigned char **rexpnd_users(unsigned char *word)
 	unsigned char **lst = NULL;
 	struct passwd *pw;
 
-	while(pw=getpwent())
+	while((pw=getpwent()))
 		if (rmatch(word+1, (unsigned char *)pw->pw_name)) {
 			unsigned char *t = vsncpy(NULL,0,sc("~"));
 			lst = vaadd(lst, vsncpy(sv(t),sz((unsigned char *)pw->pw_name)));

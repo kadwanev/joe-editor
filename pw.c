@@ -5,30 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include "b.h"
-#include "bw.h"
-#include "help.h"
-#include "kbd.h"
-#include "pw.h"
-#include "scrn.h"
-#include "tab.h"
-#include "termcap.h"
-#include "tw.h"
-#include "uedit.h"
-#include "undo.h"
-#include "utils.h"
-#include "vfile.h"
-#include "menu.h"
-#include "va.h"
-#include "path.h"
-#include "w.h"
 
 /* The current directory */
 
@@ -38,7 +15,7 @@ unsigned char *current_dir;
 
 void set_current_dir(unsigned char *s,int simp)
 {
-	if (s[0]=='!' || s[0]=='>' && s[1]=='>')
+	if (s[0]=='!' || (s[0]=='>' && s[1]=='>'))
 		return;
 	vsrm(current_dir);
 	if (s) {
@@ -53,9 +30,6 @@ void set_current_dir(unsigned char *s,int simp)
 		current_dir = 0;
 }
 
-extern int smode;
-extern int joe_beep;
-
 static void disppw(BW *bw, int flg)
 {
 	W *w = bw->parent;
@@ -66,7 +40,7 @@ static void disppw(BW *bw, int flg)
 	}
 
 	/* Scroll buffer and position prompt */
-	if (pw->promptlen > w->w / 2 + w->w / 4) {
+	if (pw->promptlen > w->w - 5) {
 		pw->promptofst = pw->promptlen - w->w / 2;
 		if (piscol(bw->cursor) < w->w - (pw->promptlen - pw->promptofst)) {
 			bw->offset = 0;
@@ -115,7 +89,7 @@ void setup_history(B **history)
 
 void append_history(B *hist,unsigned char *s,int len)
 {
-	P *q = pdup(hist->eof);
+	P *q = pdup(hist->eof, US "append_history");
 	binsm(q, s, len);
 	p_goto_eof(q);
 	binsc(q, '\n');
@@ -126,14 +100,14 @@ void append_history(B *hist,unsigned char *s,int len)
 
 void promote_history(B *hist, long line)
 {
-	P *q = pdup(hist->bof);
+	P *q = pdup(hist->bof, US "promote_history");
 	P *r;
 	P *t;
 
 	pline(q, line);
-	r = pdup(q);
+	r = pdup(q, US "promote_history");
 	pnextl(r);
-	t = pdup(hist->eof);
+	t = pdup(hist->eof, US "promote_history");
 	binsb(t, bcpy(q, r));
 	bdel(q, r);
 	prm(q);
@@ -142,8 +116,6 @@ void promote_history(B *hist, long line)
 }
 
 /* When user hits return in a prompt window */
-
-extern volatile int dostaupd;
 
 static int rtnpw(BW *bw)
 {
@@ -264,8 +236,6 @@ BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned cha
 	W *new;
 	PW *pw;
 	BW *bw;
-	unsigned char *s;
-	unsigned char *t;
 
 	new = wcreate(w->t, &watompw, w, w, w->main, 1, huh, notify);
 	if (!new) {
@@ -322,7 +292,7 @@ unsigned char **regsub(unsigned char **z, int len, unsigned char *s)
 
 void cmplt_ins(BW *bw, unsigned char *line)
 {
-	P *p = pdup(bw->cursor);
+	P *p = pdup(bw->cursor, US "cmplt_ins");
 
 	p_goto_bol(p);
 	p_goto_eol(bw->cursor);
@@ -351,9 +321,6 @@ int cmplt_rtn(MENU *m, int x, unsigned char *line)
 	return 0;
 }
 
-extern int menu_jump;
-extern WATOM watommenu;
-
 int simple_cmplt(BW *bw,unsigned char **list)
 {
 	MENU *m;
@@ -362,9 +329,9 @@ int simple_cmplt(BW *bw,unsigned char **list)
 	unsigned char *line1;
 	unsigned char **lst;
 
-	p = pdup(bw->cursor);
+	p = pdup(bw->cursor, US "simple_cmplt");
 	p_goto_bol(p);
-	q = pdup(bw->cursor);
+	q = pdup(bw->cursor, US "simple_cmplt");
 	p_goto_eol(q);
 	line = brvs(p, (int) (q->byte - p->byte));	/* Assumes short lines :-) */
 	prm(p);
@@ -381,11 +348,17 @@ int simple_cmplt(BW *bw,unsigned char **list)
 		return -1;
 	}
 
-	if (bw->parent->link.next->watom==&watommenu) {
-		wabort(bw->parent->link.next);
+	if (menu_above) {
+		if (bw->parent->link.prev->watom==&watommenu) {
+			wabort(bw->parent->link.prev);
+		}
+	} else {
+		if (bw->parent->link.next->watom==&watommenu) {
+			wabort(bw->parent->link.next);
+		}
 	}
 
-	m = mkmenu(bw->parent, lst, cmplt_rtn, cmplt_abrt, NULL, 0, line, NULL);
+	m = mkmenu((menu_above ? bw->parent->link.prev : bw->parent), bw->parent, lst, cmplt_rtn, cmplt_abrt, NULL, 0, line, NULL);
 	if (!m) {
 		varm(lst);
 		vsrm(line);

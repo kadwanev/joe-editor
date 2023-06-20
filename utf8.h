@@ -8,11 +8,6 @@
 #ifndef _Iutf8
 #define _Iutf8 1
 
-#include "config.h"
-#include "types.h"
-
-#include "i18n.h"
-
 /* UTF-8 Encoder
  *
  * c is unicode character.
@@ -53,11 +48,18 @@ void joe_locale();
 void to_utf8 PARAMS((struct charmap *map,unsigned char *s,int c));
 int from_utf8 PARAMS((struct charmap *map,unsigned char *s));
 
-extern int utf8;
-
 int unictrl PARAMS((int ucs));
 int mk_wcwidth PARAMS((int wide,int c));
 
 extern struct charmap *locale_map;	/* Default bytemap of terminal */
+extern unsigned char *locale_lang;	/* Locale language (like de_DE) */
+
+void my_iconv PARAMS((unsigned char *dest,struct charmap *dest_map,
+              unsigned char *src,struct charmap *src_map));
+
+struct charmap *guess_map PARAMS((unsigned char *buf, int len));
+
+extern int guess_non_utf8;
+extern int guess_utf8;
 
 #endif

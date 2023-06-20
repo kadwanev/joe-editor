@@ -5,35 +5,12 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
-#include <stdio.h>
-#ifdef HAVE_TIME_H
-#include <time.h>
-#endif
-
-#include "b.h"
-#include "bw.h"
-#include "macro.h"
-#include "main.h"
-#include "qw.h"
-#include "scrn.h"
-#include "uedit.h"
-#include "ufile.h"
-#include "ushell.h"
-#include "utils.h"
-#include "vs.h"
-#include "syntax.h"
-#include "path.h"
-#include "w.h"
-
-extern int bg_text;
-extern unsigned char *exmsg;
-extern int square;
 int staen = 0;
 int staupd = 0;
 int keepup = 0;
+int bg_stalin;
 
 /* Move text window */
 
@@ -91,7 +68,7 @@ static void resizetw(BW *bw, int wi, int he)
 
 unsigned char *get_context(BW *bw)
 {
-	P *p = pdup(bw->cursor);
+	P *p = pdup(bw->cursor, US "get_context");
 	static unsigned char buf1[stdsiz];
 	int i, j, spc;
 
@@ -101,17 +78,17 @@ unsigned char *get_context(BW *bw)
 	do {
 		p_goto_bol(p);
 		if (!pisindent(p) && !pisblank(p)) {
-			next:
-			brzs(p,stdbuf,stdsiz-1);
+			/* next: */
+			brzs(p,stdbuf,stdsiz/8); /* To avoid buffer overruns with my_iconv */
 			/* Ignore comment and block structuring lines */
 			if (!(stdbuf[0]=='{' ||
-			    stdbuf[0]=='/' && stdbuf[1]=='*' ||
+			    (stdbuf[0]=='/' && stdbuf[1]=='*') ||
 			    stdbuf[0]=='\f' ||
-			    stdbuf[0]=='/' && stdbuf[1]=='/' ||
+			    (stdbuf[0]=='/' && stdbuf[1]=='/') ||
 			    stdbuf[0]=='#' ||
-			    stdbuf[0]=='b' && stdbuf[1]=='e' && stdbuf[2]=='g' && stdbuf[3]=='i' && stdbuf[4]=='n' ||
-			    stdbuf[0]=='B' && stdbuf[1]=='E' && stdbuf[2]=='G' && stdbuf[3]=='I' && stdbuf[4]=='N' ||
-			    stdbuf[0]=='-' && stdbuf[1]=='-' ||
+			    (stdbuf[0]=='b' && stdbuf[1]=='e' && stdbuf[2]=='g' && stdbuf[3]=='i' && stdbuf[4]=='n') ||
+			    (stdbuf[0]=='B' && stdbuf[1]=='E' && stdbuf[2]=='G' && stdbuf[3]=='I' && stdbuf[4]=='N') ||
+			    (stdbuf[0]=='-' && stdbuf[1]=='-') ||
 			    stdbuf[0]==';')) {
 			    	/* zcpy(buf1,stdbuf); */
  				/* replace tabs to spaces and remove adjoining spaces */
@@ -162,7 +139,10 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				{
 					if ( bw->o.autoindent) {
 						unsigned char *s = get_context(bw);
-						stalin = vsncpy(sv(stalin), sz(s));
+						/* We need to translate between file's character set to
+						   locale */
+						my_iconv(stdbuf,locale_map,s,bw->o.charmap);
+						stalin = vsncpy(sv(stalin), sz(stdbuf));
 					}
 				}
 				break;
@@ -170,7 +150,7 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 			case 'y':
 				{
 					if (bw->o.syntax) {
-						joe_snprintf_1((char *)buf, sizeof(buf), "(%s)", bw->o.syntax->name);
+						joe_snprintf_1(buf, sizeof(buf), "(%s)", bw->o.syntax->name);
 						stalin = vsncpy(sv(stalin), sz(buf));
 					}
 				}
@@ -184,7 +164,7 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 					l = (d[11] - '0') * 10 + d[12] - '0';
 					if (l > 12)
 						l -= 12;
-					joe_snprintf_1((char *)buf, sizeof(buf), "%2.2d", l);
+					joe_snprintf_1(buf, sizeof(buf), "%2.2d", l);
 					if (buf[0] == '0')
 						buf[0] = fill;
 					stalin = vsncpy(sv(stalin), buf, 2);
@@ -230,17 +210,17 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 					stalin = vsncpy(sv(stalin), sv(tmp));
 					vsrm(tmp);
 				} else {
-					stalin = vsncpy(sv(stalin), sc("Unnamed"));
+					stalin = vsncpy(sv(stalin), sz(joe_gettext(_("Unnamed"))));
 				}
 				}
 				break;
 			case 'm':
 				if (bw->b->changed)
-					stalin = vsncpy(sv(stalin), sc("(Modified)"));
+					stalin = vsncpy(sv(stalin), sz(joe_gettext(_("(Modified)"))));
 				break;
 			case 'R':
 				if (bw->b->rdonly)
-					stalin = vsncpy(sv(stalin), sc("(Read only)"));
+					stalin = vsncpy(sv(stalin), sz(joe_gettext(_("(Read only)"))));
 				break;
 			case '*':
 				if (bw->b->changed)
@@ -249,21 +229,21 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 					stalin = vsadd(stalin, fill);
 				break;
 			case 'r':
-				joe_snprintf_1((char *)buf, sizeof(buf), "%-4ld", bw->cursor->line + 1);
+				joe_snprintf_1(buf, sizeof(buf), "%-4ld", bw->cursor->line + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'o':
-				joe_snprintf_1((char *)buf, sizeof(buf), "%-4ld", bw->cursor->byte);
+				joe_snprintf_1(buf, sizeof(buf), "%-4ld", bw->cursor->byte);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'O':
-				joe_snprintf_1((char *)buf, sizeof(buf), "%-4lX", bw->cursor->byte);
+				joe_snprintf_1(buf, sizeof(buf), "%-4lX", bw->cursor->byte);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -271,9 +251,9 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				break;
 			case 'a':
 				if (!piseof(bw->cursor))
-					joe_snprintf_1((char *)buf, sizeof(buf), "%3d", 255 & brc(bw->cursor));
+					joe_snprintf_1(buf, sizeof(buf), "%3d", 255 & brc(bw->cursor));
 				else
-					joe_snprintf_0((char *)buf, sizeof(buf), "   ");
+					joe_snprintf_0(buf, sizeof(buf), "   ");
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -281,33 +261,35 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				break;
 			case 'A':
 				if (!piseof(bw->cursor))
-					joe_snprintf_1((char *)buf, sizeof(buf), "%2.2X", 255 & brc(bw->cursor));
+					joe_snprintf_1(buf, sizeof(buf), "%2.2X", 255 & brc(bw->cursor));
 				else
-					joe_snprintf_0((char *)buf, sizeof(buf), "  ");
+					joe_snprintf_0(buf, sizeof(buf), "  ");
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'c':
-				joe_snprintf_1((char *)buf, sizeof(buf), "%-3ld", piscol(bw->cursor) + 1);
+				joe_snprintf_1(buf, sizeof(buf), "%-3ld", piscol(bw->cursor) + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'p':
-				if (bw->b->eof->byte)
-					joe_snprintf_1((char *)buf, sizeof(buf), "%3ld", bw->cursor->byte * 100 / bw->b->eof->byte);
+				if (bw->b->eof->byte >= 1024*1024)
+					joe_snprintf_1(buf, sizeof(buf), "%3ld", ((unsigned long)bw->cursor->byte >> 10) * 100 / ((unsigned long)bw->b->eof->byte >> 10));
+				else if (bw->b->eof->byte)
+					joe_snprintf_1(buf, sizeof(buf), "%3ld", bw->cursor->byte * 100 / bw->b->eof->byte);
 				else
-					joe_snprintf_0((char *)buf, sizeof(buf), "100");
+					joe_snprintf_0(buf, sizeof(buf), "100");
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
 				stalin = vsncpy(sv(stalin), sz(buf));
 				break;
 			case 'l':
-				joe_snprintf_1((char *)buf, sizeof(buf), "%-4ld", bw->b->eof->line + 1);
+				joe_snprintf_1(buf, sizeof(buf), "%-4ld", bw->b->eof->line + 1);
 				for (x = 0; buf[x]; ++x)
 					if (buf[x] == ' ')
 						buf[x] = fill;
@@ -344,11 +326,11 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 				break;
 			case 'S':
 				if (bw->b->pid)
-					stalin = vsncpy(sv(stalin), sc("*SHELL*"));
+					stalin = vsncpy(sv(stalin), sz(joe_gettext(_("*SHELL*"))));
 				break;
 			case 'M':
 				if (recmac) {
-					joe_snprintf_1((char *)buf, sizeof(buf), "(Macro %d recording...)", recmac->n);
+					joe_snprintf_1(buf, sizeof(buf), joe_gettext(_("(Macro %d recording...)")), recmac->n);
 					stalin = vsncpy(sv(stalin), sz(buf));
 				}
 				break;
@@ -361,8 +343,6 @@ static unsigned char *stagen(unsigned char *stalin, BW *bw, unsigned char *s, in
 	}
 	return stalin;
 }
-
-extern int hex;
 
 static void disptw(BW *bw, int flg)
 {
@@ -404,15 +384,16 @@ static void disptw(BW *bw, int flg)
 			tw->stalin = vsncpy(tw->stalin, fmtpos(tw->stalin, w->w - fmtlen(tw->staright)), sv(tw->staright));
 		}
 		tw->stalin = vstrunc(tw->stalin, fmtpos(tw->stalin, w->w));
-		genfmt(w->t->t, w->x, w->y, 0, tw->stalin, BG_COLOR(bg_text), 0);
+		genfmt(w->t->t, w->x, w->y, 0, tw->stalin, bg_stalin, 0);
 		w->t->t->updtab[w->y] = 0;
 	}
 
-	if (flg)
+	if (flg) {
 		if (bw->o.hex)
 			bwgenh(bw);
 		else
 			bwgen(bw, bw->o.linums);
+	}
 }
 
 /* Split current window */
@@ -426,8 +407,6 @@ static void iztw(TW *tw, int y)
 	tw->staon = (!staen || y);
 	tw->prev_b = 0;
 }
-
-extern int dostaupd;
 
 int usplitw(BW *bw)
 {
@@ -495,7 +474,7 @@ static void deltw(BW *bw, B *b, long int l, long int n, int flg)
 		bwdel(bw, l, n, flg);
 }
 
-static WATOM watomtw = {
+WATOM watomtw = {
 	US "main",
 	disptw,
 	bwfllw,
@@ -576,7 +555,7 @@ int uabort(BW *bw, int k)
 	if (bw->b->pid && bw->b->count==1)
 		return ukillpid(bw);
 	if (bw->b->changed && bw->b->count == 1 && !bw->b->scratch)
-		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), naborttw, NULL, NULL, NULL))
+		if (mkqw(bw->parent, sz(joe_gettext(_("Lose changes to this file (y,n,^C)? "))), naborttw, NULL, NULL, NULL))
 			return 0;
 		else
 			return -1;
@@ -602,7 +581,7 @@ int uabort1(BW *bw, int k)
 	if (bw->b->pid && bw->b->count==1)
 		return ukillpid(bw);
 	if (bw->b->changed && bw->b->count == 1 && !bw->b->scratch)
-		if (mkqw(bw->parent, sc("Lose changes to this file (y,n,^C)? "), naborttw1, NULL, NULL, NULL))
+		if (mkqw(bw->parent, sz(joe_gettext(_("Lose changes to this file (y,n,^C)? "))), naborttw1, NULL, NULL, NULL))
 			return 0;
 		else
 			return -1;
@@ -655,7 +634,7 @@ int utw1(BASE *b)
 {
 	W *starting = b->parent;
 	W *mainw = starting->main;
-	SCREEN *t = mainw->t;
+	Screen *t = mainw->t;
 	int yn;
 
 	do {
@@ -685,20 +664,25 @@ void setline(B *b, long int line)
 			if (bw->b == b) {
 				long oline = bw->top->line;
 
-				pline(bw->top, line);
+				/* pline(bw->top, line); */
 				pline(bw->cursor, line);
 				if (w->y >= 0 && bw->top->line > oline && bw->top->line - oline < bw->h)
 					nscrlup(w->t->t, bw->y, bw->y + bw->h, (int) (bw->top->line - oline));
 				else if (w->y >= 0 && bw->top->line < oline && oline - bw->top->line < bw->h)
 					nscrldn(w->t->t, bw->y, bw->y + bw->h, (int) (oline - bw->top->line));
+				msetI(bw->t->t->updtab + bw->y, 1, bw->h);
 			}
 		}
 	} while ((w = w->link.next) != maint->curwin);
+	/* In case error buffer was orphaned */
+	if (errbuf == b && b->oldcur) {
+		pline(b->oldcur, line);
+	}
 }
 
 /* Create a text window.  It becomes the last window on the screen */
 
-BW *wmktw(SCREEN *t, B *b)
+BW *wmktw(Screen *t, B *b)
 {
 	W *w;
 	BW *bw;

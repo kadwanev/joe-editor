@@ -5,29 +5,10 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-
-#include "b.h"
-#include "blocks.h"
-#include "menu.h"
-#include "path.h"
-#include "tty.h"
-#include "utils.h"
-#include "va.h"
-#include "w.h"
 
 typedef struct tab TAB;
 
-extern int smode;		/* ??? */
-extern int joe_beep;
 int menu_explorer = 0;		/* Stay in menu system when directory selected */
 int menu_jump = 0;		/* Jump into menu */
 
@@ -121,7 +102,7 @@ static int get_entries(TAB *tab, int prv)
 
 static void insnam(BW *bw, unsigned char *path, unsigned char *nam, int dir, int ofst)
 {
-	P *p = pdup(bw->cursor);
+	P *p = pdup(bw->cursor, US "insnam");
 
 	pgoto(p, ofst);
 	p_goto_eol(bw->cursor);
@@ -228,7 +209,7 @@ static int tabrtn(MENU *m, int cursor, TAB *tab)
 		vsrm(e);
 		tab->pattern = vsncpy(NULL, 0, sc("*"));
 		if (!treload(m->object, m, m->parent->win->object, 0, NULL)) {
-			msgnw(m->parent, US "Couldn't read directory ");
+			msgnw(m->parent, joe_gettext(_("Couldn't read directory ")));
 			vsrm(tab->pattern);
 			tab->pattern = orgpattern;
 			vsrm(tab->path);
@@ -287,7 +268,7 @@ static int tabbacks(MENU *m, int cursor, TAB *tab)
 	tab->pattern = vsncpy(NULL, 0, sc("*"));
 
 	if (!treload(m->object, m, m->parent->win->object, 1, NULL)) {
-		msgnw(m->parent, US "Couldn't read directory ");
+		msgnw(m->parent, joe_gettext(_("Couldn't read directory ")));
 		vsrm(tab->pattern);
 		tab->pattern = orgpattern;
 		vsrm(tab->path);
@@ -325,13 +306,13 @@ P *p_goto_start_of_path(P *p)
 /*****************************************************************************/
 /****************** Create a tab window **************************************/
 /*****************************************************************************/
+
 int cmplt(BW *bw)
 {
 	MENU *new;
 	TAB *tab;
 	P *p, *q;
 	unsigned char *cline;
-	long a, b;
 	int which;
 	unsigned char **l;
 	int ofst;
@@ -343,9 +324,9 @@ int cmplt(BW *bw)
 	tab->prv = 0;
 	tab->len = 0;
 
-	q = pdup(bw->cursor);
+	q = pdup(bw->cursor, US "cmplt");
 	p_goto_eol(q);
-	p = pdup(q);
+	p = pdup(q, US "cmplt");
 	p_goto_start_of_path(p);
 	ofst = p->byte;
 
@@ -367,12 +348,20 @@ int cmplt(BW *bw)
 	l = treload(tab, 0, bw, 0, &which);
 
 	/* bash */
-	if (bw->parent->link.next->watom==&watommenu) {
-		wabort(bw->parent->link.next);
-		/* smode=2; */
+	/* TRY */
+	if (menu_above) {
+		if (bw->parent->link.prev->watom==&watommenu) {
+			wabort(bw->parent->link.prev);
+			/* smode=2; */
+		}
+	} else {
+		if (bw->parent->link.next->watom==&watommenu) {
+			wabort(bw->parent->link.next);
+			/* smode=2; */
+		}
 	}
 
-	if (l && (new = mkmenu(bw->parent, l, tabrtn, tababrt, tabbacks, which, tab, NULL))) {
+	if (l && (new = mkmenu((menu_above ? bw->parent->link.prev : bw->parent), bw->parent, l, tabrtn, tababrt, tabbacks, which, tab, NULL))) {
 		if (sLEN(tab->files) == 1)
 			/* Only one file found, so select it */
 			return tabrtn1(new, 0, tab);

@@ -5,54 +5,19 @@
  *
  * 	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
 #ifdef MOUSE_GPM
 #include <gpm.h>
 #endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
 
-#include "b.h"
-#include "help.h"
-#include "kbd.h"
-#include "macro.h"
-#include "path.h"
-#include "rc.h"
-#include "scrn.h"
-#include "termcap.h"
-#include "tw.h"
-#include "vfile.h"
-#include "vs.h"
-#include "w.h"
-#include "utf8.h"
-#include "charmap.h"
-#include "syntax.h"
-#include "pw.h"
-
-extern int mid, dspasis, force, help, pgamnt, nobackups, lightoff, exask, skiptop, noxon, lines, staen, columns, Baud, dopadding, marking, joe_beep;
-
-extern int idleout;		/* Clear to use /dev/tty for screen */
-extern int bg_text;
-extern unsigned char *joeterm;
-int help = 0;			/* Set to have help on when starting */
-int nonotice = 0;		/* Set to prevent copyright notice */
-int orphan = 0;
 unsigned char *exmsg = NULL;		/* Message to display when exiting the editor */
 int usexmouse=0;
 int xmouse=0;
+int nonotice;
+int help;
 
-SCREEN *maint;			/* Main edit screen */
-int nowmarking;
-
-extern B *filehist;		/* History of file names */
+Screen *maint;			/* Main edit screen */
 
 /* Make windows follow cursor */
 
@@ -69,8 +34,7 @@ void dofollows(void)
 
 /* Update screen */
 
-int dostaupd = 1;
-extern int staupd;
+volatile int dostaupd = 1;
 
 void edupd(int flg)
 {
@@ -175,13 +139,14 @@ extern int breakflg;
 
 unsigned char **mainenv;
 
-int main(int argc, unsigned char **argv, unsigned char **envv)
+int main(int argc, char **real_argv, char **envv)
 {
 	CAP *cap;
+	unsigned char **argv = (unsigned char **)real_argv;
 	struct stat sbuf;
 	unsigned char *s;
 	unsigned char *t;
-	long time_t;
+	long time_rc;
 	unsigned char *run;
 #ifdef __MSDOS__
 	unsigned char *rundir;
@@ -194,7 +159,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 
 	joe_locale();
 
-	mainenv = envv;
+	mainenv = (unsigned char **)envv;
 
 #ifdef __MSDOS__
 	_fmode = O_BINARY;
@@ -216,7 +181,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	if ((s = (unsigned char *)getenv("COLUMNS")) != NULL)
 		sscanf((char *)s, "%d", &columns);
 	if ((s = (unsigned char *)getenv("BAUD")) != NULL)
-		sscanf((char *)s, "%u", &Baud);
+		sscanf((char *)s, "%u", (unsigned *)&Baud);
 	if (getenv("DOPADDING"))
 		dopadding = 1;
 	if (getenv("NOXON"))
@@ -226,7 +191,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 
 #ifndef __MSDOS__
 	if (!(cap = getcap(NULL, 9600, NULL, NULL))) {
-		fprintf(stderr, "Couldn't load termcap/terminfo entry\n");
+		fprintf(stderr, (char *)joe_gettext(_("Couldn't load termcap/terminfo entry\n")));
 		return 1;
 	}
 #endif
@@ -241,7 +206,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	if (c == 1) {
 		unsigned char buf[8];
 
-		fprintf(stderr, "There were errors in '%s'.  Use it anyway?", s);
+		fprintf(stderr, (char *)joe_gettext(_("There were errors in '%s'.  Use it anyway?")), s);
 		fflush(stderr);
 		fgets(buf, 8, stdin);
 		if (buf[0] == 'y' || buf[0] == 'Y')
@@ -258,7 +223,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	if (c == 1) {
 		unsigned char buf[8];
 
-		fprintf(stderr, "There were errors in '%s'.  Use it anyway?", s);
+		fprintf(stderr, (char *)joe_gettext(_("There were errors in '%s'.  Use it anyway?")), s);
 		fflush(stderr);
 		fgets(buf, 8, stdin);
 		if (buf[0] == 'y' || buf[0] == 'Y')
@@ -266,16 +231,42 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	}
 #else
 
-	/* Name of system joerc file */
+	/* Name of system joerc file.  Try to find one with matching language... */
+	
+	/* Try full language: like joerc.de_DE */
 	t = vsncpy(NULL, 0, sc(JOERC));
 	t = vsncpy(sv(t), sv(run));
-	t = vsncpy(sv(t), sc("rc"));
+	t = vsncpy(sv(t), sc("rc."));
+	t = vsncpy(sv(t), sz(locale_lang));
 	if (!stat((char *)t,&sbuf))
-		time_t = sbuf.st_mtime;
-	else
-		time_t = 0;
+		time_rc = sbuf.st_mtime;
+	else {
+		/* Try generic language: like joerc.de */
+		if (locale_lang[0] && locale_lang[1] && locale_lang[2]=='_') {
+			vsrm(t);
+			t = vsncpy(NULL, 0, sc(JOERC));
+			t = vsncpy(sv(t), sv(run));
+			t = vsncpy(sv(t), sc("rc."));
+			t = vsncpy(sv(t), locale_lang, 2);
+			if (!stat((char *)t,&sbuf))
+				time_rc = sbuf.st_mtime;
+			else
+				goto nope;
+		} else {
+			nope:
+			vsrm(t);
+			/* Try Joe's bad english */
+			t = vsncpy(NULL, 0, sc(JOERC));
+			t = vsncpy(sv(t), sv(run));
+			t = vsncpy(sv(t), sc("rc"));
+			if (!stat((char *)t,&sbuf))
+				time_rc = sbuf.st_mtime;
+			else
+				time_rc = 0;
+		}
+	}
 
-	/* Local joerc file */
+	/* User's joerc file */
 	s = (unsigned char *)getenv("HOME");
 	if (s) {
 		unsigned char buf[8];
@@ -286,10 +277,10 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 		s = vsncpy(sv(s), sc("rc"));
 
 		if (!stat((char *)s,&sbuf)) {
-			if (sbuf.st_mtime<time_t) {
-				fprintf(stderr, "Warning: %s is newer than your %s.\n",t,s);
-				fprintf(stderr,"You should update or delete %s\n",s);
-				fprintf(stderr,"Hit enter to continue with %s ",t);
+			if (sbuf.st_mtime < time_rc) {
+				fprintf(stderr,(char *)joe_gettext(_("Warning: %s is newer than your %s.\n")),t,s);
+				fprintf(stderr,(char *)joe_gettext(_("You should update or delete %s\n")),s);
+				fprintf(stderr,(char *)joe_gettext(_("Hit enter to continue with %s ")),t);
 				fflush(stderr);
 				fgets((char *)buf, 8, stdin);
 				goto use_sys;
@@ -302,7 +293,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 			goto donerc;
 		}
 		if (c == 1) {
-			fprintf(stderr, "There were errors in '%s'.  Use it anyway (y,n)? ", s);
+			fprintf(stderr,(char *)joe_gettext(_("There were errors in '%s'.  Use it anyway (y,n)? ")), s);
 			fflush(stderr);
 			fgets((char *)buf, 8, stdin);
 			if (buf[0] == 'y' || buf[0] == 'Y') {
@@ -321,7 +312,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	if (c == 1) {
 		unsigned char buf[8];
 
-		fprintf(stderr, "There were errors in '%s'.  Use it anyway (y,n)? ", s);
+		fprintf(stderr,(char *)joe_gettext(_("There were errors in '%s'.  Use it anyway (y,n)? ")), s);
 		fflush(stderr);
 		fgets((char *)buf, 8, stdin);
 		if (buf[0] == 'y' || buf[0] == 'Y')
@@ -329,16 +320,26 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 	}
 #endif
 
-	fprintf(stderr, "Couldn't open '%s'\n", s);
+	fprintf(stderr,(char *)joe_gettext(_("Couldn't open '%s'\n")), s);
 	return 1;
 
-      donerc:
+	donerc:
+
+	if (validate_rc()) {
+		fprintf(stderr,(char *)joe_gettext(_("rc file has no :main key binding section or no bindings.  Bye.\n")));
+		return 1;
+	}
+
+
+	if (!isatty(fileno(stdin)))
+		idleout = 0;
+
 	for (c = 1; argv[c]; ++c) {
 		if (argv[c][0] == '-') {
 			if (argv[c][1])
 				switch (glopt(argv[c] + 1, argv[c + 1], NULL, 1)) {
 				case 0:
-					fprintf(stderr, "Unknown option '%s'\n", argv[c]);
+					fprintf(stderr,(char *)joe_gettext(_("Unknown option '%s'\n")), argv[c]);
 					break;
 				case 1:
 					break;
@@ -379,7 +380,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 		} else {
 			B *b = bfind(argv[c]);
 			BW *bw = NULL;
-			int er = error;
+			int er = berror;
 
 			/* This is too annoying */
 			/* set_current_dir(argv[c],1); */
@@ -391,9 +392,18 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 			if (!orphan || !opened) {
 				bw = wmktw(maint, b);
 				if (er)
-					msgnwt(bw->parent, msgs[-er]);
-			} else
+					msgnwt(bw->parent, joe_gettext(msgs[-er]));
+			} else {
+				long line;
 				b->orphan = 1;
+				b->oldcur = pdup(b->bof, US "main");
+				pline(b->oldcur, get_file_pos(b->name));
+				line = b->oldcur->line - (maint->h - 1) / 2;
+				if (line < 0)
+					line = 0;
+				b->oldtop = pdup(b->oldcur, US "main");
+				pline(b->oldtop, line);
+			}
 			if (bw) {
 				long lnum = 0;
 
@@ -408,7 +418,7 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 								backopt += 2;
 							else
 								backopt += 1;
-							lazy_opts(&bw->o);
+							lazy_opts(bw->b, &bw->o);
 						}
 					}
 				}
@@ -424,6 +434,8 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 				/* Hmm... window might not exist any more... depends on what macro does... */
 				if (lnum > 0)
 					pline(bw->cursor, lnum - 1);
+				else
+					pline(bw->cursor, get_file_pos(bw->b->name));
 				/* Go back to first window so windows are in same order as command line  */
 				if (opened)
 					wnext(maint);
@@ -453,12 +465,27 @@ int main(int argc, unsigned char **argv, unsigned char **envv)
 		help_on(maint);
 	}
 	if (!nonotice) {
-		if (locale_map->type)
-			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright © 2005 **\\i",locale_map->name);
-		else
-			joe_snprintf_1((char *)msgbuf,JOE_MSGBUFSIZE,"\\i** Joe's Own Editor v" VERSION " ** (%s) ** Copyright (C) 2005 **\\i",locale_map->name);
+		joe_snprintf_3(msgbuf,JOE_MSGBUFSIZE,joe_gettext(_("\\i** Joe's Own Editor v%s ** (%s) ** Copyright %s 2006 **\\i")),VERSION,locale_map->name,(locale_map->type ? "©" : "(C)"));
 
 		msgnw(((BASE *)lastw(maint)->object)->parent, msgbuf);
+	}
+
+	if (!idleout) {
+		if (!isatty(fileno(stdin)) && modify_logic(maint->curwin->object, ((BW *)maint->curwin->object)->b)) {
+			/* Start shell going in first window */
+			unsigned char **a;
+			unsigned char *cmd;
+
+			a = vamk(10);
+			cmd = vsncpy(NULL, 0, sc("/bin/sh"));
+			a = vaadd(a, cmd);
+			cmd = vsncpy(NULL, 0, sc("-c"));
+			a = vaadd(a, cmd);
+			cmd = vsncpy(NULL, 0, sc("/bin/cat"));
+			a = vaadd(a, cmd);
+			
+			cstart (maint->curwin->object, US "/bin/sh", a, NULL, NULL, 0, 1);
+		}
 	}
 
 	edloop(0);

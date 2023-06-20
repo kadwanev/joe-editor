@@ -5,24 +5,14 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#include "scrn.h"
-#include "utils.h"
-#include "vs.h"
-#include "charmap.h"
-#include "utf8.h"
-#include "w.h"
-
-extern int bg_prompt;
 
 static void dispqw(QW *qw)
 {
 	W *w = qw->parent;
 
 	/* Scroll buffer and position prompt */
-	if (qw->promptlen > w->w / 2 + w->w / 4)
+	if (qw->promptlen > w->w - 5)
 		qw->promptofst = qw->promptlen - w->w / 2;
 	else
 		qw->promptofst = 0;

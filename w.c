@@ -5,30 +5,11 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#include "config.h"
 #include "types.h"
-
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-
-#include "blocks.h"
-#include "kbd.h"
-#include "poshist.h"
-#include "queue.h"
-#include "rc.h"
-#include "scrn.h"
-#include "utils.h"
-#include "utf8.h"
-#include "syntax.h"
-#include "w.h"
-
-extern int dspasis;		/* Set to display chars above 127 as-is */
-extern int staen;		/* 0 if top-most status line not displayed */
 
 /* Count no. of main windows */
 
-int countmain(SCREEN *t)
+int countmain(Screen *t)
 {
 	int nmain = 1;
 	W *m = t->curwin->main;
@@ -46,10 +27,7 @@ int countmain(SCREEN *t)
 
 void wredraw(W *w)
 {
-	int x;
 	msetI(w->t->t->updtab + w->y, 1, w->h);
-	for(x=0; x!=w->h; ++x)
-		invalidate_state(w->t->t->syntab + w->y + x);
 }
 
 /* Find first window in a group */
@@ -154,7 +132,7 @@ int demotegroup(W *w)
 
 /* Find last window on the screen */
 
-W *lastw(SCREEN *t)
+W *lastw(Screen *t)
 {
 	W *x;
 
@@ -164,11 +142,11 @@ W *lastw(SCREEN *t)
 
 /* Create a screen object */
 
-SCREEN *scr;
+Screen *scr;
 
-SCREEN *screate(SCRN *scrn)
+Screen *screate(SCRN *scrn)
 {
-	SCREEN *t = (SCREEN *) joe_malloc(sizeof(SCREEN));
+	Screen *t = (Screen *) joe_malloc(sizeof(Screen));
 
 	t->t = scrn;
 	t->w = scrn->co;
@@ -180,7 +158,7 @@ SCREEN *screate(SCRN *scrn)
 	return t;
 }
 
-void sresize(SCREEN *t)
+void sresize(Screen *t)
 {
 	SCRN *scrn = t->t;
 	W *w;
@@ -207,8 +185,7 @@ void updall(void)
 
 	for (y = 0; y != scr->h; ++y) {
 		scr->t->updtab[y] = 1;
-		invalidate_state(scr->t->syntab + y);
-		}
+	}
 }
 
 void scrins(B *b, long l, long n, int flg)
@@ -241,7 +218,7 @@ void scrdel(B *b, long l, long n, int flg)
 	}
 }
 
-W *watpos(SCREEN *t,int x,int y)
+W *watpos(Screen *t,int x,int y)
 {
 	W *w=t->topwin;
 	do
@@ -259,9 +236,8 @@ W *watpos(SCREEN *t,int x,int y)
  */
 
 static int doabort(W *w, int *ret);
-extern volatile int dostaupd;
 
-void wfit(SCREEN *t)
+void wfit(Screen *t)
 {
 	int y;			/* Where next window goes */
 	int left;		/* Lines left on screen */
@@ -384,11 +360,8 @@ void wfit(SCREEN *t)
 					w->watom->resize(w->object, w->w, w->nh);
 			}
 			if (w->y == -1) {
-				int q;
 				msetI(t->t->updtab + w->ny, 1, w->nh);
-				for(q=0; q!=w->nh; ++q)
-					invalidate_state(t->t->syntab + w->ny + q);
-				}
+			}
 			w->y = w->ny;
 		} else
 			w->y = -1;
@@ -400,7 +373,7 @@ void wfit(SCREEN *t)
 
 /* Goto next window */
 
-int wnext(SCREEN *t)
+int wnext(Screen *t)
 {
 	if (t->curwin->link.next != t->curwin) {
 		t->curwin = t->curwin->link.next;
@@ -413,7 +386,7 @@ int wnext(SCREEN *t)
 
 /* Goto previous window */
 
-int wprev(SCREEN *t)
+int wprev(Screen *t)
 {
 	if (t->curwin->link.prev != t->curwin) {
 		t->curwin = t->curwin->link.prev;
@@ -502,7 +475,7 @@ int wgrowdown(W *w)
 
 /* Show all windows */
 
-void wshowall(SCREEN *t)
+void wshowall(Screen *t)
 {
 	int n = 0;
 	int set;
@@ -539,7 +512,7 @@ void wshowall(SCREEN *t)
 	wfit(t);
 }
 
-static void wspread(SCREEN *t)
+static void wspread(Screen *t)
 {
 	int n = 0;
 	W *w = t->topwin;
@@ -591,7 +564,7 @@ void wshowone(W *w)
 
 /* Create a window */
 
-W *wcreate(SCREEN *t, WATOM *watom, W *where, W *target, W *original, int height, unsigned char *huh, int *notify)
+W *wcreate(Screen *t, WATOM *watom, W *where, W *target, W *original, int height, unsigned char *huh, int *notify)
 {
 	W *new;
 
@@ -710,7 +683,7 @@ static int doabort(W *w, int *ret)
 
 int wabort(W *w)
 {
-	SCREEN *t = w->t;
+	Screen *t = w->t;
 	int ret;
 
 	if (w != w->main) {
@@ -826,5 +799,76 @@ int uexpld(BASE *bw)
 int uretyp(BASE *bw)
 {
 	nredraw(bw->parent->t->t);
+	return 0;
+}
+
+/* Get message window on screen */
+
+W *find_window(Screen *t, B *b)
+{
+	W *w = t->topwin;
+	do {
+		if (w->watom == &watomtw && ((BW *)w->object)->b == b)
+			return w;
+		w = w->link.next;
+	} while(w != t->topwin);
+	return 0;
+}
+
+int umwind(BW *bw)
+{
+	W *msgw;
+	if (!errbuf) {
+		msgnw(bw->parent, joe_gettext(_("There is no message buffer")));
+		return -1;
+	}
+
+	/* Find message window */
+	msgw = find_window(bw->parent->t, errbuf);
+
+	if (msgw) {
+		/* The window exists */
+		bw->parent->t->curwin = msgw;
+		wshowone(msgw);
+		return 0;
+	} else {
+		/* Make it the current window */
+		msgw = bw->parent;
+		get_buffer_in_window(bw, errbuf);
+		wshowone(msgw);
+		return 0;
+	}
+	return -1;
+}
+
+/* Fit previous window and current window on screen.  If there is no previous window,
+ * split the current window to create one. */
+
+int umfit(BW *bw)
+{
+	W *p;
+	W *w = bw->parent->main;
+	Screen *t = w->t;
+	wshowone(w);
+	p = findtopw(w)->link.prev->main;
+	if (p == w) {
+		/* We have to split */
+		usplitw(bw);
+	}
+	w = t->curwin;
+	p = findtopw(w)->link.prev->main;
+	if (p == w) {
+		return -1;
+	}
+	/* Request size */
+	if (p->t->h - 6 < 3)
+		return -1;
+	seth(p, p->t->h - 6);
+	t->topwin = p;
+	t->curwin = p;
+	/* Fit them on the screen */
+	wfit(t);
+	t->curwin = w;
+	wfit(t);
 	return 0;
 }
