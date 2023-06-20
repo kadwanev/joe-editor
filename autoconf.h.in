@@ -27,6 +27,9 @@
 /* Define if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* Define if you have the `isblank' function. */
+#undef HAVE_ISBLANK
+
 /* Define if you have the <locale.h> header file. */
 #undef HAVE_LOCALE_H
 
@@ -149,6 +152,9 @@
 /* Define if you have the <utime.h> header file. */
 #undef HAVE_UTIME_H
 
+/* Define if isblank() works with expressions with side effects */
+#undef HAVE_WORKING_ISBLANK
+
 /* Define if `lstat' dereferences a symlink specified with a trailing slash.
    */
 #undef LSTAT_FOLLOWS_SLASHED_SYMLINK
@@ -188,6 +194,16 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* Check to see if we can use strict prototypes */
+#ifndef PARAMS
+#  if PROTOTYPES
+#    define PARAMS(protos) protos
+#  else
+#    define PARAMS(protos) ()
+#  endif
+#endif
+
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
