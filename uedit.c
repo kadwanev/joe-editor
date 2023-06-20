@@ -428,7 +428,7 @@ int tomatch_word(BW *bw,unsigned char *set,unsigned char *group)
 			if(peek!=NO_MORE_DATA)
 				pgetc(p);
 			if (peek=='\\') {
-			} else if (c == '"') {
+			} else if (!bw->o.no_double_quoted && c == '"') {
 				while((c = prgetc(p)) != NO_MORE_DATA) {
 					if (c == '"') {
 						c = prgetc(p);
@@ -462,14 +462,15 @@ int tomatch_word(BW *bw,unsigned char *set,unsigned char *group)
 				} else if (c != NO_MORE_DATA)
 					pgetc(p);
 			} else if ((bw->o.cpp_comment || bw->o.pound_comment ||
-			            bw->o.semi_comment || bw->o.vhdl_comment) && c == '\n') {
+			            bw->o.semi_comment || bw->o.vhdl_comment ||
+			            bw->o.tex_comment) && c == '\n') {
 				P *q = pdup(p, USTR "tomatch_word");
 				int cc;
 				p_goto_bol(q);
 				while((cc = pgetc(q)) != '\n') {
 					if (bw->o.pound_comment && cc == '$' && brch(q)=='#') {
 						pgetc(q);
-					} else if(cc=='"') {
+					} else if(!bw->o.no_double_quoted && cc=='"') {
 						while ((cc = pgetc(q)) != '\n')
 							if (cc == '"') break;
 							else if (cc == '\\') pgetc(q);
@@ -493,6 +494,9 @@ int tomatch_word(BW *bw,unsigned char *set,unsigned char *group)
 						pset(p,q);
 						break;
 					} else if (bw->o.semi_comment && cc == ';') {
+						pset(p,q);
+						break;
+					} else if (bw->o.tex_comment && cc == '%') {
 						pset(p,q);
 						break;
 					}
@@ -559,7 +563,7 @@ int tomatch_word(BW *bw,unsigned char *set,unsigned char *group)
 		while ((c=pgetc(p)) != NO_MORE_DATA) {
 			if (c == '\\') {
 				pgetc(p);
-			} else if (c == '"') {
+			} else if (!bw->o.no_double_quoted && c == '"') {
 				while ((c = pgetc(p)) != NO_MORE_DATA)
 					if (c == '"') break;
 					else if (c == '\\') pgetc(p);
@@ -567,6 +571,7 @@ int tomatch_word(BW *bw,unsigned char *set,unsigned char *group)
 				pgetc(p);
 			} else if ((bw->o.pound_comment && c == '#') ||
 				   (bw->o.semi_comment && c == ';') ||
+				   (bw->o.tex_comment && c == '%') ||
 				   (bw->o.vhdl_comment && c == '-' && brch(p) == '-')) {
 				while ((c = pgetc(p)) != NO_MORE_DATA)
 					if (c == '\n')
@@ -948,7 +953,7 @@ int utomatch(BW *bw)
 				pgetc(p);
 			} else if (d == '$' && brch(p)=='#' && bw->o.pound_comment) {
 				pgetc(p);
-			} else if (d == '"') {
+			} else if (!bw->o.no_double_quoted && d == '"') {
 				while ((d = pgetc(p)) != NO_MORE_DATA)
 					if (d == '"') break;
 					else if (d == '\\') pgetc(p);
@@ -958,6 +963,7 @@ int utomatch(BW *bw)
 					else if (d == '\\') pgetc(p);
 			} else if ((bw->o.pound_comment && d == '#') ||
 				   (bw->o.semi_comment && d == ';') ||
+				   (bw->o.tex_comment && d == '%') ||
 				   (bw->o.vhdl_comment && d == '-' && brch(p) == '-')) {
 				while ((d = pgetc(p)) != NO_MORE_DATA)
 					if (d == '\n')
@@ -1001,7 +1007,7 @@ int utomatch(BW *bw)
 				pgetc(p);
 			}
 			if (peek == '\\' && peek1!='\\') {
-			} else if (d == '"') {
+			} else if (!bw->o.no_double_quoted && d == '"') {
 				while((d = prgetc(p)) != NO_MORE_DATA) {
 					if (d == '"') {
 						d = prgetc(p);
@@ -1025,17 +1031,22 @@ int utomatch(BW *bw)
 				} else if (d != NO_MORE_DATA)
 					pgetc(p);
 			} else if ((bw->o.cpp_comment || bw->o.pound_comment ||
-			            bw->o.semi_comment || bw->o.vhdl_comment) && d == '\n') {
+			            bw->o.semi_comment || bw->o.vhdl_comment || bw->o.tex_comment) && d == '\n') {
 				P *q = pdup(p, USTR "utomatch");
 				int cc;
 				p_goto_bol(q);
 				while((cc = pgetc(q)) != '\n') {
-					if (bw->o.pound_comment && cc == '$' && brch(q)=='#') {
+					if (bw->o.pound_comment && cc == '$' && brch(q) == '#') {
 						pgetc(q);
-					} else if(cc=='"') {
+					} else if (cc == '\\') {
+						if (pgetc(q) == '\n')
+							break;
+					} else if(!bw->o.no_double_quoted && cc=='"') {
 						while ((cc = pgetc(q)) != '\n')
 							if (cc == '"') break;
 							else if (cc == '\\') pgetc(q);
+						if (cc == '\n')
+							break;
 					} else if (bw->o.cpp_comment && cc == '/') {
 						if (brch(q)=='/') {
 							prgetc(q);
@@ -1046,6 +1057,8 @@ int utomatch(BW *bw)
 						while((cc = pgetc(q)) != '\n')
 							if (cc == '\'') break;
 							else if (cc == '\\') pgetc(q);
+						if (cc == '\n')
+							break;
 					} else if (bw->o.vhdl_comment && cc == '-') {
 						if (brch(q)=='-') {
 							prgetc(q);
@@ -1056,6 +1069,9 @@ int utomatch(BW *bw)
 						pset(p,q);
 						break;
 					} else if (bw->o.semi_comment && cc == ';') {
+						pset(p,q);
+						break;
+					} else if (bw->o.tex_comment && cc == '%') {
 						pset(p,q);
 						break;
 					}
@@ -1826,7 +1842,7 @@ int utypebw_raw(BW *bw, int k, int no_decode)
 
 		/* Not sure if we're in right position for wordwrap when we're in overtype mode */
 		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !joe_isblank(map,k)) {
-			wrapword(bw, bw->cursor, (long) bw->o.lmargin, bw->o.french, NULL);
+			wrapword(bw, bw->cursor, (long) bw->o.lmargin, bw->o.french, 0, NULL);
 			simple = 0;
 		}
 
@@ -2297,10 +2313,20 @@ int umsg(BASE *b)
 
 static int dotxt(BW *bw, unsigned char *s, void *object, int *notify)
 {
-	int x;
+	int x,fill;
+	char *str;
 
 	if (notify)
 		*notify = 1;
+	if (s[0]=='`') {   
+	   str=vsmk(1024);
+	   fill=' ';
+	   str=stagen(str,bw,&s[1],fill);
+	   if (str) {
+	     for(x=0;x!=sLEN(str);++x) utypebw(bw,str[x]);
+	     vsrm(str);
+	     }
+	} else
 	for (x = 0; x != sLEN(s); ++x)
 		utypebw(bw, s[x]);
 	vsrm(s);

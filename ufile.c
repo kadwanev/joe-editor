@@ -7,13 +7,11 @@
  */
 #include "types.h"
 
-#ifdef UTIME
+#ifdef HAVE_UTIME_H
 #include <utime.h>
-#define HAVEUTIME 1
 #else
-#ifdef SYSUTIME
+#ifdef HAVE_SYS_UTIME_H
 #include <sys/utime.h>
-#define HAVEUTIME 1
 #endif
 #endif
 
@@ -117,7 +115,7 @@ static int cp(unsigned char *from, unsigned char *to)
 	int f, g, amnt;
 	struct stat sbuf;
 
-#ifdef HAVEUTIME
+#ifdef HAVE_UTIME
 #ifdef NeXT
 	time_t utbuf[2];
 #else
@@ -148,7 +146,7 @@ static int cp(unsigned char *from, unsigned char *to)
 		return -1;
 	}
 
-#ifdef HAVEUTIME
+#ifdef HAVE_UTIME
 #ifdef NeXT
 	utbuf[0] = (time_t) sbuf.st_atime;
 	utbuf[1] = (time_t) sbuf.st_mtime;
@@ -173,7 +171,7 @@ static int cp(unsigned char *from, unsigned char *to)
 
 static int backup(BW *bw)
 {
-	if (!bw->b->backup && !nobackups && bw->b->name && bw->b->name[0]) {
+	if (!bw->b->backup && !nobackups && !bw->o.nobackup && bw->b->name && bw->b->name[0]) {
 		unsigned char tmp[1024];
 		unsigned char name[1024];
 
@@ -508,7 +506,7 @@ int usave(BW *bw)
 	BW *pbw;
 	
 	pbw = wmkpw(bw->parent, joe_gettext(_("Name of file to save (^C to abort): ")), &filehist, dosave1, USTR "Names", NULL, cmplt,
-	            mksavereq(NULL,NULL,NULL,0, 0), NULL, locale_map, bw->b->name ? 1 : 7);
+	            mksavereq(NULL,NULL,NULL, 1, 0), NULL, locale_map, bw->b->name ? 1 : 7);
 
 	if (pbw && bw->b->name) {
 		binss(pbw->cursor, bw->b->name);

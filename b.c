@@ -11,6 +11,14 @@
 #include <pwd.h>
 #endif
 
+#ifndef S_ISLNK
+#ifdef S_IFLNK
+#define S_ISLNK(n) (((n) & (S_IFMT)) == (S_IFLNK))
+#else
+#define S_ISLNK(n) (0)
+#endif
+#endif
+
 extern int errno;
 
 #ifdef WITH_SELINUX
@@ -2341,7 +2349,7 @@ opnerr:
 					b->o.istep = 1;
 				} else {
 					b->o.indentc = ' ';
-					b->o.istep = 2;
+					/* b->o.istep = 2; */
 				}
 				break;
 			}
@@ -2510,7 +2518,7 @@ int bsavefd(P *p, int fd, off_t size)
 	return berror = 0;
 err:
 	prm(np);
-	return berror = 5;
+	return berror = -5;
 }
 
 /* Save 'size' bytes beginning at 'p' in file 's' */
@@ -2521,12 +2529,14 @@ err:
  */
 
 int break_links; /* Set to break hard links on writes */
+int break_symlinks; /* Set to break symbolic links and hard links on writes */
 
 int bsave(P *p, unsigned char *s, off_t size, int flag)
 {
+	struct stat sbuf;
+	int have_stat = 0;
 	FILE *f;
 	off_t skip, amnt;
-	struct stat sbuf;
 	int norm = 0;
 
 	s = parsens(s, &skip, &amnt);
@@ -2550,13 +2560,20 @@ int bsave(P *p, unsigned char *s, off_t size, int flag)
 	} else if (skip || amnt != MAXLONG)
 		f = fopen((char *)s, "r+");
 	else {
+		have_stat = !stat((char *)s, &sbuf);
+		if (!have_stat)
+			sbuf.st_mode = 0666;
 		/* Normal file save */
-		if (break_links) {
-			struct stat sbuf;
+		if (break_links || break_symlinks) {
+			struct stat lsbuf;
 
 			/* Try to copy permissions */
-			if (!stat((char *)s,&sbuf)) {
+			if (!lstat((char *)s,&lsbuf)) {
 				int g;
+				if (!break_symlinks && S_ISLNK(lsbuf.st_mode)) {
+					goto nobreak;
+				}
+
 #ifdef WITH_SELINUX
 				security_context_t se;
 				if (selinux_enabled == -1)
@@ -2578,6 +2595,7 @@ int bsave(P *p, unsigned char *s, off_t size, int flag)
 				}
 #endif
 				close(g);
+				nobreak:;
 			} else {
 				unlink((char *)s);
 			}
@@ -2609,6 +2627,11 @@ int bsave(P *p, unsigned char *s, off_t size, int flag)
 		if (brc(q) != '\n' && joe_write(fileno(f), &nl, 1) < 0)
 			berror = -5;
 		prm(q);
+	}
+
+	/* Restore setuid bit */
+	if (!berror && have_stat) {
+		fchmod(fileno(f), sbuf.st_mode);
 	}
 
 err:

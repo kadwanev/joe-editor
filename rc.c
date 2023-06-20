@@ -117,6 +117,7 @@ OPTIONS pdefault = {
 	76,		/* rmargin */
 	0,		/* autoindent */
 	0,		/* wordwrap */
+	0,		/* nobackup */
 	8,		/* tab */
 	' ',		/* indent char */
 	1,		/* indent step */
@@ -126,6 +127,7 @@ OPTIONS pdefault = {
 	0,		/* line numbers */
 	0,		/* read only */
 	0,		/* french spacing */
+	0,		/* flowed text */
 	0,		/* spaces */
 #ifdef __MSDOS__
 	1,		/* crlf */
@@ -144,11 +146,13 @@ OPTIONS pdefault = {
 	0,		/* Purify indentation */
 	0,		/* Picture mode */
 	0,		/* single_quoted */
+	0,		/* no_double_quoted */
 	0,		/* c_comment */
 	0,		/* cpp_comment */
 	0,		/* pound_comment */
 	0,		/* vhdl_comment */
 	0,		/* semi_comment */
+	0,		/* tex_comment */
 	0,		/* hex */
 	NULL,		/* text_delimiters */
 	NULL,		/* Characters which can indent paragraphs */
@@ -170,6 +174,7 @@ OPTIONS fdefault = {
 	76,		/* rmargin */
 	0,		/* autoindent */
 	0,		/* wordwrap */
+	0,		/* nobackup */
 	8,		/* tab */
 	' ',		/* indent char */
 	1,		/* indent step */
@@ -179,6 +184,7 @@ OPTIONS fdefault = {
 	0,		/* line numbers */
 	0,		/* read only */
 	0,		/* french spacing */
+	0,		/* flowed text */
 	0,		/* spaces */
 #ifdef __MSDOS__
 	1,		/* crlf */
@@ -197,14 +203,16 @@ OPTIONS fdefault = {
 	0,		/* Purity indentation */
 	0,		/* Picture mode */
 	0,		/* single_quoted */
+	0,		/* no_double_quoted */
 	0,		/* c_comment */
 	0,		/* cpp_comment */
 	0,		/* pound_comment */
 	0,		/* vhdl_comment */
 	0,		/* semi_comment */
+	0,		/* tex_comment */
 	0,		/* hex */
 	NULL,		/* text_delimiters */
-	USTR ">;!#%/",	/* Characters which can indent paragraphs */
+	USTR ">;!#%/*-",	/* Characters which can indent paragraphs */
 	NULL, NULL, NULL, NULL, NULL	/* macros (see above) */
 };
 
@@ -228,7 +236,7 @@ void lazy_opts(B *b, OPTIONS *o)
 	if (!o->charmap)
 		o->charmap = locale_map;
 	if (!o->language)
-		o->language = zdup(locale_lang);
+		o->language = zdup(locale_msgs);
 }
 
 /* Set local options depending on file name and contents */
@@ -297,7 +305,7 @@ struct glopts {
 	{USTR "autoindent",	4, NULL, (unsigned char *) &fdefault.autoindent, USTR _("Autoindent enabled"), USTR _("Autoindent disabled"), USTR _("I Autoindent ") },
 	{USTR "wordwrap",	4, NULL, (unsigned char *) &fdefault.wordwrap, USTR _("Wordwrap enabled"), USTR _("Wordwrap disabled"), USTR _("W Word wrap ") },
 	{USTR "tab",	5, NULL, (unsigned char *) &fdefault.tab, USTR _("Tab width (%d): "), 0, USTR _("D Tab width "), 0, 1, 64 },
-	{USTR "lmargin",	7, NULL, (unsigned char *) &fdefault.lmargin, USTR _("Left margin (%d): "), 0, USTR _("L Left margin "), 0, 1, 63 },
+	{USTR "lmargin",	7, NULL, (unsigned char *) &fdefault.lmargin, USTR _("Left margin (%d): "), 0, USTR _("L Left margin "), 0, 0, 63 },
 	{USTR "rmargin",	7, NULL, (unsigned char *) &fdefault.rmargin, USTR _("Right margin (%d): "), 0, USTR _("R Right margin "), 0, 7, 255 },
 	{USTR "restore",	0, &restore_file_pos, NULL, USTR _("Restore cursor position when files loaded"), USTR _("Don't restore cursor when files loaded"), USTR _("  Restore cursor ") },
 	{USTR "square",	0, &square, NULL, USTR _("Rectangle mode"), USTR _("Text-stream mode"), USTR _("X Rectangle mode ") },
@@ -311,6 +319,7 @@ struct glopts {
 	{USTR "indentc",	5, NULL, (unsigned char *) &fdefault.indentc, USTR _("Indent char %d (SPACE=32, TAB=9, ^C to abort): "), 0, USTR _("  Indent char "), 0, 0, 255 },
 	{USTR "istep",	5, NULL, (unsigned char *) &fdefault.istep, USTR _("Indent step %d (^C to abort): "), 0, USTR _("  Indent step "), 0, 1, 64 },
 	{USTR "french",	4, NULL, (unsigned char *) &fdefault.french, USTR _("One space after periods for paragraph reformat"), USTR _("Two spaces after periods for paragraph reformat"), USTR _("  French spacing ") },
+	{USTR "flowed",	4, NULL, (unsigned char *) &fdefault.flowed, USTR _("One space after paragraph line"), USTR _("No spaces after paragraph lines"), USTR _("  Flowed text ") },
 	{USTR "highlight",	4, NULL, (unsigned char *) &fdefault.highlight, USTR _("Highlighting enabled"), USTR _("Highlighting disabled"), USTR _("H Highlighting ") },
 	{USTR "spaces",	4, NULL, (unsigned char *) &fdefault.spaces, USTR _("Inserting spaces when tab key is hit"), USTR _("Inserting tabs when tab key is hit"), USTR _("  No tabs ") },
 	{USTR "mid",	0, &mid, NULL, USTR _("Cursor will be recentered on scrolls"), USTR _("Cursor will not be recentered on scroll"), USTR _("C Center on scroll ") },
@@ -325,11 +334,13 @@ struct glopts {
 	{USTR "asis",	0, &dspasis, NULL, USTR _("Characters above 127 shown as-is"), USTR _("Characters above 127 shown in inverse"), USTR _("  Meta chars as-is ") },
 	{USTR "force",	0, &force, NULL, USTR _("Last line forced to have NL when file saved"), USTR _("Last line not forced to have NL"), USTR _("  Force last NL ") },
 	{USTR "joe_state",0, &joe_state, NULL, USTR _("~/.joe_state file will be updated"), USTR _("~/.joe_state file will not be updated"), USTR _("  Joe_state file ") },
+	{USTR "nobackup",	4, NULL, (unsigned char *) &fdefault.nobackup, USTR _("Nobackup enabled"), USTR _("Nobackup disabled"), USTR _("  No backup ") },
 	{USTR "nobackups",	0, &nobackups, NULL, USTR _("Backup files will not be made"), USTR _("Backup files will be made"), USTR _("  Disable backups ") },
 	{USTR "nolocks",	0, &nolocks, NULL, USTR _("Files will not be locked"), USTR _("Files will be locked"), USTR _("  Disable locks ") },
 	{USTR "nomodcheck",	0, &nomodcheck, NULL, USTR _("No file modification time check"), USTR _("File modification time checking enabled"), USTR _("  Disable mtime check ") },
 	{USTR "nocurdir",	0, &nocurdir, NULL, USTR _("No current dir"), USTR _("Current dir enabled"), USTR _("  Disable current dir ") },
-	{USTR "break_links",	0, &break_links, NULL, USTR _("Hardlinks will be broken"), USTR _("Hardlinks not broken"), USTR _("  Break hard links ") },
+	{USTR "break_hardlinks",	0, &break_links, NULL, USTR _("Hardlinks will be broken"), USTR _("Hardlinks not broken"), USTR _("  Break hard links ") },
+	{USTR "break_links",	0, &break_symlinks, NULL, USTR _("Links will be broken"), USTR _("Links not broken"), USTR _("  Break links ") },
 	{USTR "lightoff",	0, &lightoff, NULL, USTR _("Highlighting turned off after block operations"), USTR _("Highlighting not turned off after block operations"), USTR _("  Auto unmark ") },
 	{USTR "exask",	0, &exask, NULL, USTR _("Prompt for filename in save & exit command"), USTR _("Don't prompt for filename in save & exit command"), USTR _("  Exit ask ") },
 	{USTR "beep",	0, &joe_beep, NULL, USTR _("Warning bell enabled"), USTR _("Warning bell disabled"), USTR _("B Beeps ") },
@@ -348,11 +359,13 @@ struct glopts {
 	{USTR "syntax",	9, NULL, NULL, USTR _("Select syntax (^C to abort): "), 0, USTR _("Y Syntax") },
 	{USTR "encoding",13, NULL, NULL, USTR _("Select file character set (^C to abort): "), 0, USTR _("E Encoding ") },
 	{USTR "single_quoted",	4, NULL, (unsigned char *) &fdefault.single_quoted, USTR _("Single quoting enabled"), USTR _("Single quoting disabled"), USTR _("  ^G ignores '... ' ") },
+	{USTR "no_double_quoted",4, NULL, (unsigned char *) &fdefault.no_double_quoted, USTR _("Double quoting disabled"), USTR _("Double quoting enabled"), USTR _("  ^G ignores \"... \" ") },
 	{USTR "c_comment",	4, NULL, (unsigned char *) &fdefault.c_comment, USTR _("/* comments enabled"), USTR _("/* comments disabled"), USTR _("  ^G ignores /*...*/ ") },
 	{USTR "cpp_comment",	4, NULL, (unsigned char *) &fdefault.cpp_comment, USTR _("// comments enabled"), USTR _("// comments disabled"), USTR _("  ^G ignores //... ") },
 	{USTR "pound_comment",	4, NULL, (unsigned char *) &fdefault.pound_comment, USTR _("# comments enabled"), USTR _("# comments disabled"), USTR _("  ^G ignores #... ") },
 	{USTR "vhdl_comment",	4, NULL, (unsigned char *) &fdefault.vhdl_comment, USTR _("-- comments enabled"), USTR _("-- comments disabled"), USTR _("  ^G ignores --... ") },
 	{USTR "semi_comment",	4, NULL, (unsigned char *) &fdefault.semi_comment, USTR _("; comments enabled"), USTR _("; comments disabled"), USTR _("  ^G ignores ;... ") },
+	{USTR "tex_comment",	4, NULL, (unsigned char *) &fdefault.tex_comment, USTR _("% comments enabled"), USTR _("% comments disabled"), USTR _("  ^G ignores %... ") },
 	{USTR "text_delimiters",	6, NULL, (unsigned char *) &fdefault.text_delimiters, USTR _("Text delimiters (%s): "), 0, USTR _("  Text delimiters ") },
 	{USTR "language",	6, NULL, (unsigned char *) &fdefault.language, USTR _("Language (%s): "), 0, USTR _("V Language ") },
 	{USTR "cpara",		6, NULL, (unsigned char *) &fdefault.cpara, USTR _("Characters which can indent paragraphs (%s): "), 0, USTR _("  Paragraph indent chars ") },

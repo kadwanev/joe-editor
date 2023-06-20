@@ -314,7 +314,7 @@ int ueop(BW *bw)
  * after . ? or !
  */
 
-void wrapword(BW *bw, P *p, long int indent, int french, unsigned char *indents)
+void wrapword(BW *bw, P *p, long int indent, int french, int no_over, unsigned char *indents)
 {
 	P *q;
 	P *r;
@@ -345,29 +345,46 @@ void wrapword(BW *bw, P *p, long int indent, int french, unsigned char *indents)
 		} else {
 			/* First line */
 			P *r = pdup(s, USTR "uformat");
-			int x;
+			int x, y;
 
 			indent = nindent(bw, s, 1);
 			pcol(r, indent);
 			indents = brs(s, r->byte - s->byte);
 			prm(r);
-			/* Ignore blanks unless autoindent is on */
-			for (x = 0; indents[x] == ' ' || indents[x] == '\t'; ++x);
-			if (!indents[x] && !bw->o.autoindent) {
-				indents[0] = 0;
-				x = 0;
+			if (!bw->o.autoindent) {
+				/* Don't indent second line of single-line paragraphs if autoindent is off */
+				int x = zlen(indents);
+				while (x && (indents[x - 1] == ' ' || indents[x - 1] == '\t'))
+					indents[--x] = 0;
+				if (x) {
+					indents[x++] = ' ';
+					indents[x] = 0;
+				}
+				indent = txtwidth1(bw->o.charmap, bw->o.tab, indents, x);
 			}
-			/* Don't duplicate bullet, but leave VHDL comment */
-			while (indents[x])
-				++x;
-			if (x >= 2 && indents[x - 1] == ' ' &&
-			    ((indents[x - 2] == '*' && (x == 2 || indents[x - 3] == ' ' || indents[x - 3] == '\t')) || (indents[x - 2] == '-' && (x == 2 || indents[x - 3] != '-')))) {
-			    	indents[x - 2] = ' ';
-			}
+			for (x = 0; indents[x] && (indents[x] == ' ' || indents[x] == '\t'); ++x);
+			y = zlen(indents);
+			while (y && (indents[y - 1] == ' ' || indents[y - 1] == '\t'))
+				--y;
+			/* Don't duplicate bullet */
+/*			if (y && (indents[y - 1] == '*' || indents[y - 1] == '-') &&
+			    (y == 1 || indents[y - 2] == ' ' || indents[y - 2] == '\t'))
+			    	indents[y - 1] = ' '; */
 			/* Fix C comment */
-			if (x >= 3 && indents[x - 3] == '/' && indents[x - 2] == '*' && indents[x - 1] == ' ')
-				indents[x - 3] = ' ';
-			
+			if (indents[x] == '/' && indents[x + 1] == '*')
+				indents[x] = ' ';
+		}
+		if (bw->o.lmargin > indent) {
+			int x;
+			for (x = 0; indents[x] == ' ' || indents[x] == '\t'; ++x);
+			if (!indents[x]) {
+				joe_free(indents);
+				indent = bw->o.lmargin;
+				indents = joe_malloc(indent+1);
+				for (x = 0; x != indent; ++x)
+					indents[x] = ' ';
+				indents[x] = 0;
+			}
 		}
 		my_indents = 1;
 		prm(q);
@@ -422,11 +439,17 @@ void wrapword(BW *bw, P *p, long int indent, int french, unsigned char *indents)
 		bdel(q, p);
 		prm(q);
 
+		if (bw->o.flowed) {
+			binsc(p, ' ');
+			pgetc(p);
+			++to;
+		}
+
 		/* Move word to beginning of next line */
 		binsc(p, '\n');
 		
-		/* Take care that wordwrap is done the right way when overtype mode is active */
-		if (p->b->o.overtype){
+		/* When overtype is on, do not insert lines */
+		if (!no_over && p->b->o.overtype){
 			/* delete the next line break which is unnecessary */
 			r = pdup(p, USTR "wrapword");
 			/* p_goto_eol(r); */
@@ -447,10 +470,11 @@ void wrapword(BW *bw, P *p, long int indent, int french, unsigned char *indents)
 			p_goto_eol(s);
 			
 			/* If s is located behind r then the line goes beyond the right margin and we need to call wordwrap() for that line. */
+/*
 			if (r->byte < s->byte){
-				wrapword(bw, r, indent, french, indents);
+				wrapword(bw, r, indent, french, 1, indents);
 			}
-			
+*/			
 			prm(r);
 			prm(s);
 		}
@@ -525,21 +549,49 @@ int uformat(BW *bw)
 		prm(r);
 	} else {
 		P *r = pdup(p, USTR "uformat");
-
-		indent = nindent(bw, p, 0);
+		int x, y;
+		indent = nindent(bw, p, 1); /* allowing * and - here */
 		pcol(r, indent);
 		indents = brs(p, r->byte - p->byte);
 		prm(r);
+		if (!bw->o.autoindent) {
+			/* Don't indent second line of single-line paragraphs if autoindent is off */
+			int x = zlen(indents);
+			while (x && (indents[x - 1] == ' ' || indents[x - 1] == '\t'))
+				indents[--x] = 0;
+			if (x) {
+				indents[x++] = ' ';
+				indents[x] = 0;
+			}
+			indent = txtwidth1(bw->o.charmap, bw->o.tab, indents, x);
+		}
+		for (x = 0; indents[x] && (indents[x] == ' ' || indents[x] == '\t'); ++x);
+		y = zlen(indents);
+		while (y && (indents[y - 1] == ' ' || indents[y - 1] == '\t'))
+			--y;
+		/* Don't duplicate if it looks like a bullet */
+/*		if (y && (indents[y - 1] == '*' || indents[y - 1] == '-') &&
+		    (y == 1 || indents[y - 2] == ' ' || indents[y - 2] == '\t'))
+			indents[y - 1] = ' '; */
+		/* Fix C comment */
+		if (indents[x] == '/' && indents[x + 1] == '*')
+			indents[x] = ' ';
 	}
 	prm(q);
 
-	/* Fix C */
-	if (indents[0] == '/' && indents[1] == '*' && indents[2] == ' ')
-		indents[0] = ' ';
-
 	/* But if the left margin is greater, we use that instead */
-	if (bw->o.lmargin > indent)
-		indent = bw->o.lmargin;
+	if (bw->o.lmargin > indent) {
+		int x;
+		for (x = 0; indents[x] == ' ' || indents[x] == '\t'; ++x);
+		if (!indents[x]) {
+			joe_free(indents);
+			indent = bw->o.lmargin;
+			indents = joe_malloc(indent+1);
+			for (x = 0; x != indent; ++x)
+				indents[x] = ' ';
+			indents[x] = 0;
+		}
+	}
 
 	/* Cut paragraph into new buffer */
 	
@@ -569,8 +621,10 @@ int uformat(BW *bw)
 		}
 
 		/* Stop if we found white-space followed by end of line */
-		if (joe_isblank(b->b->o.charmap, c) && piseolblank(b))
+		if (joe_isblank(b->b->o.charmap, c) && piseolblank(b)) {
+			prgetc(b);
 			break;
+		}
 
 		/* Insert character, advance pointer */
 		binsc(p, c);
@@ -578,7 +632,7 @@ int uformat(BW *bw)
 
 		/* Do word wrap if we reach right margin */
 		if (piscol(p) > bw->o.rmargin && !joe_isblank(p->b->o.charmap,c)) {
-			wrapword(bw, p, indent, bw->o.french, indents);
+			wrapword(bw, p, indent, bw->o.french, 1, indents);
 			break;
 		}
 	}
@@ -597,10 +651,13 @@ int uformat(BW *bw)
 			d=pdup(b, USTR "uformat");
 			g=prgetc(d);
 			if (g=='.' || g=='?' || g=='!') {
-				pset(d,b);
+				f = 1;
+/*				pset(d,b);
 				pgetc(d);
-				if (joe_isspace(bw->b->o.charmap,brch(d)))
+				if (c == '\n' || piseol(d) || joe_isspace(bw->b->o.charmap,brch(d))) {
 					f = 1;
+				}
+*/
 			}
 			prm(d);
 			
@@ -642,7 +699,7 @@ int uformat(BW *bw)
 			binsc(p, pgetc(b));
 			pgetc(p);
 			if (piscol(p) > bw->o.rmargin)
-				wrapword(bw, p, indent, bw->o.french, indents);
+				wrapword(bw, p, indent, bw->o.french, 1, indents);
 		}
 	}
 

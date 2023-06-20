@@ -61,7 +61,14 @@
 		(this checking happens on save even with this option).
  -nocurdir	Do not prompt with current directory
  -nobackups	If you don't want backup files to be created
- -break_links	Delete file before writing, to break hard links
+ -break_hardlinks
+		Delete file before writing, to break hard links
+		(but don't break symbolic links).
+
+ -break_links
+		Delete file before writing, to break hard links
+		and symbolic links.
+
  -lightoff	Turn off highlighting after block copy or move
  -exask		^KX always confirms file name
  -beep		Beep on errors and when cursor goes past extremes
@@ -248,6 +255,8 @@
 
 	-wordwrap		Wordwrap
 
+	-nobackup		If you don't want backup file to be created
+
 	-autoindent		Auto indent
 
 	-overwrite		Overtype mode
@@ -257,6 +266,9 @@
 	-lmargin nnn		Left margin
 
 	-rmargin nnn		Right margin
+
+	-flowed			Put one space after intermediate paragraph lines
+				for support of flowed text.
 
 
 	-french			One space after '.', '?' and '!' for wordwrap
@@ -425,11 +437,25 @@
 }
 
 {Joe
-\i   Help Screen    \|turn off with ^J     prev. screen ^[,                        \i
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,    next screen ^[.     \i
 \i \i Send bug reports to: http://sourceforge.net/projects/joe-editor \|\i \i
 \i \i \|\i \i
 \i \i  default jstarrc file is here @JOERC@/jstarrc \|\i \i
 \i \i  additional documentation can be found here @JOERC@/doc \|\i \i
+}
+
+{CharTable
+\i   Help Screen    \|turn off with ^J     prev. screen ^[,                        \i
+\i \i\| Dec  \u 0123 4567  8901 2345    0123 4567  8901 2345 \u  Dec \|\i \i
+\i \i\|     |                                              |     \|\i \i
+\i \i\|   0 | \u@ABC\u \uDEFG\u  \uHIJK\u \uLMNO\u    \i\u@ABC\u\i \i\uDEFG\u\i  \i\uHIJK\u\i \i\uLMNO\u\i | 128 \|\i \i
+\i \i\|  16 | \uPQRS\u \uTUVW\u  \uXYZ[\u \u\\]^_\u    \i\uPQRS\u\i \i\uTUVW\u\i  \i\uXYZ[\u\i \i\u\\]^_\u\i | 144 \|\i \i
+\i \i\|  32 |  !"# $%&'  ()*+ ,-./     ¡¢£ ¤¥¦§  ¨©ª« ¬­®¯ | 160 \|\i \i
+\i \i\|  48 | 0123 4567  89:; <=>?    °±²³ ´µ¶·  ¸¹º» ¼½¾¿ | 176 \|\i \i
+\i \i\|  64 | @ABC DEFG  HIJK LMNO    ÀÁÂÃ ÄÅÆÇ  ÈÉÊË ÌÍÎÏ | 192 \|\i \i
+\i \i\|  80 | PQRS TUVW  XYZ[ \\]^_    ÐÑÒÓ ÔÕÖ×  ØÙÚÛ ÜÝÞß | 208 \|\i \i
+\i \i\|  96 | `abc defg  hijk lmno    àáâã äåæç  èéêë ìíîï | 224 \|\i \i
+\i \i\| 112 | pqrs tuvw  xyz{ |}~    ðñòó ôõö÷  øùúû üýþÿ | 240 \|\i \i
 }
 
  FOURTH SECTION: Key bindings:

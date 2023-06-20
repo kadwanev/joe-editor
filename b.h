@@ -55,6 +55,7 @@ struct options {
 	int	rmargin;
 	int	autoindent;
 	int	wordwrap;
+	int	nobackup;
 	int	tab;
 	int	indentc;
 	int	istep;
@@ -64,6 +65,7 @@ struct options {
 	int	linums;
 	int	readonly;
 	int	french;
+	int	flowed;
 	int	spaces;
 	int	crlf;
 	int	highlight;	/* Set to enable highlighting */
@@ -78,11 +80,13 @@ struct options {
 	int	purify;		/* Purify indentation */
 	int	picture;	/* Picture mode */
 	int	single_quoted;	/* Ignore '  ' for ^G */
+	int	no_double_quoted;	/* Don't ignore " " for ^G */
 	int	c_comment;	/* Ignore text in C comments */
 	int	cpp_comment;	/* Ignore text after // comments */
 	int	pound_comment;	/* Ignore text after # comments */
 	int	vhdl_comment;	/* Ignore text after -- comments */
 	int	semi_comment;	/* Ignore text after ; comments */
+	int	tex_comment;	/* Ignore text after % comments */
 	int	hex;		/* Hex edit mode */
 	unsigned char *text_delimiters;	/* Define word delimiters */
 	unsigned char *cpara;	/* Characters which can indent paragraphcs */
@@ -291,6 +295,7 @@ int udebug_joe PARAMS((BW *bw));
 extern int guesscrlf; /* Try to guess line ending when set */
 extern int guessindent; /* Try to guess indent character and step when set */
 extern int break_links; /* Break hard links on write */
+extern int break_symlinks; /* Break symbolic links on write */
 
 void set_file_pos_orphaned();
 

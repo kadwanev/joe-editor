@@ -20,6 +20,20 @@
 +\[1-9]\+\[0-9]\[cda]
 -syntax diff
 
+*.diff
+-syntax diff
+
+*.patch
+-syntax diff
+
+*
++Only in
+-syntax _diff
+
+*
++Nur in
+-syntax _diff
+
  Troff
 *.1
 -wordwrap
@@ -33,10 +47,14 @@
 *.tex
 -wordwrap
 -syntax tex
+-tex_comment
+-no_double_quoted
 
 *.sty
 -wordwrap
 -syntax tex
+-tex_comment
+-no_double_quoted
 
  Text file.
 *.txt
@@ -403,6 +421,7 @@
 -purify
 -vhdl_comment
 -text_delimiters entity|ENTITY|if|IF|component|COMPONENT|loop|LOOP|configuration|CONFIGURATION|units|UNITS|record|RECORD|case|CASE|function|FUNCTION|package|PACKAGE|architecture|ARCHITECTURE|block|BLOCK|process|PROCESS|generate|GENERATE=end|END
+-cpara >#!;*-/%
 
  XML
 *.xml
@@ -429,6 +448,15 @@
 
  JAVA
 *.java
+-autoindent
+-syntax java
+-smarthome
+-smartbacks
+-purify
+-cpara >#!;*/%
+
+ Javascript
+*.js
 -autoindent
 -syntax java
 -smarthome
@@ -645,11 +673,14 @@
  Joe Syntax File
 *.jsf
 -autoindent
--syntax conf
+-syntax jsf
+-smarthome
+
 
 *.jsf.in
 -autoindent
--syntax conf
+-syntax jsf
+-smarthome
 
  Autoconfig file
 *.ac
@@ -660,6 +691,11 @@
 *.m4
 -autoindent
 -syntax m4
+
+ Matlab file
+*.m
+-wordwrap
+-syntax matlab
 
  Automake file
 *.am

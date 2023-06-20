@@ -250,17 +250,17 @@ int main(int argc, char **real_argv, char **envv)
 	t = vsncpy(NULL, 0, sc(JOERC));
 	t = vsncpy(sv(t), sv(run));
 	t = vsncpy(sv(t), sc("rc."));
-	t = vsncpy(sv(t), sz(locale_lang));
+	t = vsncpy(sv(t), sz(locale_msgs));
 	if (!stat((char *)t,&sbuf))
 		time_rc = sbuf.st_mtime;
 	else {
 		/* Try generic language: like joerc.de */
-		if (locale_lang[0] && locale_lang[1] && locale_lang[2]=='_') {
+		if (locale_msgs[0] && locale_msgs[1] && locale_msgs[2]=='_') {
 			vsrm(t);
 			t = vsncpy(NULL, 0, sc(JOERC));
 			t = vsncpy(sv(t), sv(run));
 			t = vsncpy(sv(t), sc("rc."));
-			t = vsncpy(sv(t), locale_lang, 2);
+			t = vsncpy(sv(t), locale_msgs, 2);
 			if (!stat((char *)t,&sbuf))
 				time_rc = sbuf.st_mtime;
 			else
@@ -391,6 +391,7 @@ int main(int argc, char **real_argv, char **envv)
 	vmem = vtmp();
 
 	startup_log = bfind_scratch(USTR "* Startup Log *");
+	startup_log->internal = 1;
 
 	load_state();
 
@@ -430,11 +431,13 @@ int main(int argc, char **real_argv, char **envv)
 				b->orphan = 1;
 				b->oldcur = pdup(b->bof, USTR "main");
 				pline(b->oldcur, get_file_pos(b->name));
+				p_goto_bol(bw->cursor);
 				line = b->oldcur->line - (maint->h - 1) / 2;
 				if (line < 0)
 					line = 0;
 				b->oldtop = pdup(b->oldcur, USTR "main");
 				pline(b->oldtop, line);
+				p_goto_bol(b->oldtop);
 			}
 			if (bw) {
 				long lnum = 0;
@@ -468,6 +471,7 @@ int main(int argc, char **real_argv, char **envv)
 					pline(bw->cursor, lnum - 1);
 				else
 					pline(bw->cursor, get_file_pos(bw->b->name));
+				p_goto_bol(bw->cursor);
 				/* Go back to first window so windows are in same order as command line  */
 				if (opened)
 					wnext(maint);
@@ -505,7 +509,7 @@ int main(int argc, char **real_argv, char **envv)
 		help_on(maint);
 	}
 	if (!nonotice) {
-		joe_snprintf_3(msgbuf,JOE_MSGBUFSIZE,joe_gettext(_("\\i** Joe's Own Editor v%s ** (%s) ** Copyright %s 2006 **\\i")),VERSION,locale_map->name,(locale_map->type ? "©" : "(C)"));
+		joe_snprintf_3(msgbuf,JOE_MSGBUFSIZE,joe_gettext(_("\\i** Joe's Own Editor v%s ** (%s) ** Copyright %s 2008 **\\i")),VERSION,locale_map->name,(locale_map->type ? "©" : "(C)"));
 
 		msgnw(((BASE *)lastw(maint)->object)->parent, msgbuf);
 	}

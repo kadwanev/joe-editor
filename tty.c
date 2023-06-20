@@ -188,7 +188,7 @@ static int mpxfd;		/* Editor reads packets from this fd */
 static int mpxsfd;		/* Clients send packets to this fd */
 
 static int nmpx = 0;
-static int accept = NO_MORE_DATA;	/* =-1 if we have last packet */
+static int acceptch = NO_MORE_DATA;	/* =-1 if we have last packet */
 
 struct packet {
 	MPX *who;
@@ -349,7 +349,7 @@ void ttopnn(void)
 	bbaud = cfgetospeed(&newterm);
 #else
 #ifdef HAVE_SYSV_TERMIO
-	ioctl(fileno(termin), TCGETA, &oldterm);
+	joe_ioctl(fileno(termin), TCGETA, &oldterm);
 	newterm = oldterm;
 	newterm.c_lflag = 0;
 	if (noxon)
@@ -359,12 +359,12 @@ void ttopnn(void)
 	newterm.c_oflag = 0;
 	newterm.c_cc[VMIN] = 1;
 	newterm.c_cc[VTIME] = 0;
-	ioctl(fileno(termin), TCSETAW, &newterm);
+	joe_ioctl(fileno(termin), TCSETAW, &newterm);
 	bbaud = (newterm.c_cflag & CBAUD);
 #else
-	ioctl(fileno(termin), TIOCGETP, &arg);
-	ioctl(fileno(termin), TIOCGETC, &targ);
-	ioctl(fileno(termin), TIOCGLTC, &ltarg);
+	joe_ioctl(fileno(termin), TIOCGETP, &arg);
+	joe_ioctl(fileno(termin), TIOCGETC, &targ);
+	joe_ioctl(fileno(termin), TIOCGLTC, &ltarg);
 	oarg = arg;
 	otarg = targ;
 	oltarg = ltarg;
@@ -383,9 +383,9 @@ void ttopnn(void)
 	ltarg.t_flushc = -1;
 	ltarg.t_werasc = -1;
 	ltarg.t_lnextc = -1;
-	ioctl(fileno(termin), TIOCSETN, &arg);
-	ioctl(fileno(termin), TIOCSETC, &targ);
-	ioctl(fileno(termin), TIOCSLTC, &ltarg);
+	joe_ioctl(fileno(termin), TIOCSETN, &arg);
+	joe_ioctl(fileno(termin), TIOCSETC, &targ);
+	joe_ioctl(fileno(termin), TIOCSLTC, &ltarg);
 	bbaud = arg.sg_ospeed;
 #endif
 #endif
@@ -434,11 +434,11 @@ void ttclsn(void)
 	tcsetattr(fileno(termin), TCSADRAIN, &oldterm);
 #else
 #ifdef HAVE_SYSV_TERMIO
-	ioctl(fileno(termin), TCSETAW, &oldterm);
+	joe_ioctl(fileno(termin), TCSETAW, &oldterm);
 #else
-	ioctl(fileno(termin), TIOCSETN, &oarg);
-	ioctl(fileno(termin), TIOCSETC, &otarg);
-	ioctl(fileno(termin), TIOCSLTC, &oltarg);
+	joe_ioctl(fileno(termin), TIOCSETN, &oarg);
+	joe_ioctl(fileno(termin), TIOCSETC, &otarg);
+	joe_ioctl(fileno(termin), TIOCSLTC, &oltarg);
 #endif
 #endif
 
@@ -542,14 +542,14 @@ int ttflsh(void)
 	}
 
 	/* Ack previous packet */
-	if (ackkbd != -1 && accept != NO_MORE_DATA && !have) {
+	if (ackkbd != -1 && acceptch != NO_MORE_DATA && !have) {
 		unsigned char c = 0;
 
 		if (pack.who && pack.who->func)
 			joe_write(pack.who->ackfd, &c, 1);
 		else
 			joe_write(ackkbd, &c, 1);
-		accept = NO_MORE_DATA;
+		acceptch = NO_MORE_DATA;
 	}
 
 	/* Check for typeahead or next packet */
@@ -561,7 +561,7 @@ int ttflsh(void)
 				fcntl(mpxfd, F_SETFL, 0);
 				joe_read(mpxfd, pack.data, pack.size);
 				have = 1;
-				accept = pack.ch;
+				acceptch = pack.ch;
 			} else
 				fcntl(mpxfd, F_SETFL, 0);
 		} else {
@@ -632,11 +632,11 @@ int ttgetc(void)
 				else
 					ttsig(0);
 			}
-			accept = pack.ch;
+			acceptch = pack.ch;
 		}
 		have = 0;
 		if (pack.who) {	/* Got bknd input */
-			if (accept != NO_MORE_DATA) {
+			if (acceptch != NO_MORE_DATA) {
 				if (pack.who->func) {
 					pack.who->func(pack.who->object, pack.data, pack.size);
 					edupd(1);
@@ -645,9 +645,9 @@ int ttgetc(void)
 				mpxdied(pack.who);
 			goto loop;
 		} else {
-			if (accept != NO_MORE_DATA) {
+			if (acceptch != NO_MORE_DATA) {
 				tickoff();
-				return accept;
+				return acceptch;
 			}
 			else {
 				tickoff();
@@ -697,13 +697,13 @@ void ttgtsz(int *x, int *y)
 	*y = 0;
 
 #ifdef TIOCGSIZE
-	if (ioctl(fileno(termout), TIOCGSIZE, &getit) != -1) {
+	if (joe_ioctl(fileno(termout), TIOCGSIZE, &getit) != -1) {
 		*x = getit.ts_cols;
 		*y = getit.ts_lines;
 	}
 #else
 #ifdef TIOCGWINSZ
-	if (ioctl(fileno(termout), TIOCGWINSZ, &getit) != -1) {
+	if (joe_ioctl(fileno(termout), TIOCGWINSZ, &getit) != -1) {
 		*x = getit.ws_col;
 		*y = getit.ws_row;
 	}
@@ -751,7 +751,7 @@ static void mpxresume(void)
 {
 	int fds[2];
 	pipe(fds);
-	accept = NO_MORE_DATA;
+	acceptch = NO_MORE_DATA;
 	have = 0;
 	if (!(kbdpid = fork())) {
 		close(fds[1]);
@@ -1093,7 +1093,7 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 
 #ifdef TIOCNOTTY
 			x = open("/dev/tty", O_RDWR);
-			ioctl(x, TIOCNOTTY, 0);
+			joe_ioctl(x, TIOCNOTTY, 0);
 #endif
 
 			setsid();	/* I think you do setprgp(0,0) on systems with no setsid() */
@@ -1123,8 +1123,8 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 #else
 				/* This tells the fd that it's a tty (I think) */
 #ifdef __svr4__
-					ioctl(x, I_PUSH, "ptem");
-					ioctl(x, I_PUSH, "ldterm");
+					joe_ioctl(x, I_PUSH, "ptem");
+					joe_ioctl(x, I_PUSH, "ldterm");
 #endif
 
 				/* Open stdout, stderr */
@@ -1138,11 +1138,11 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 					tcsetattr(0, TCSADRAIN, &oldterm);
 #else
 #ifdef HAVE_SYSV_TERMIO
-					ioctl(0, TCSETAW, &oldterm);
+					joe_ioctl(0, TCSETAW, &oldterm);
 #else
-					ioctl(0, TIOCSETN, &oarg);
-					ioctl(0, TIOCSETC, &otarg);
-					ioctl(0, TIOCSLTC, &oltarg);
+					joe_ioctl(0, TIOCSETN, &oarg);
+					joe_ioctl(0, TIOCSETC, &otarg);
+					joe_ioctl(0, TIOCSLTC, &oltarg);
 #endif
 #endif
 					/* We could probably have a special TTY set-up for JOE, but for now

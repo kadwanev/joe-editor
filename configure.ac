@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 3.5)
+AC_INIT(joe, 3.6)
 AC_CONFIG_SRCDIR([b.c])
 
 AC_CANONICAL_BUILD
@@ -72,7 +72,7 @@ AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
 AC_CHECK_HEADERS([sys/dirent.h time.h pwd.h paths.h pty.h libutil.h])
 AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
-AC_CHECK_HEADERS([curses.h term.h utmp.h])
+AC_CHECK_HEADERS([curses.h term.h utmp.h sys/utime.h])
 
 AC_CHECK_HEADERS([selinux/selinux.h selinux/context.h])
 if test "$ac_cv_header_selinux_selinux_h" = "yes" -a "$ac_cv_header_selinux_context_h" = "yes" ; then
@@ -162,5 +162,5 @@ syntax/asm.jsf syntax/css.jsf syntax/tex.jsf syntax/ocaml.jsf syntax/4gl.jsf
 syntax/sml.jsf syntax/sql.jsf syntax/awk.jsf syntax/cobol.jsf syntax/sed.jsf
 syntax/ps.jsf syntax/ada.jsf syntax/troff.jsf syntax/haskell.jsf
 syntax/rexx.jsf syntax/skill.jsf syntax/lua.jsf syntax/ruby.jsf syntax/m4.jsf
-syntax/joerc.jsf])
+syntax/joerc.jsf syntax/spec.jsf syntax/matlab.jsf syntax/jsf.jsf syntax/jsf_check.jsf])
 AC_OUTPUT
