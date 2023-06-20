@@ -50,12 +50,12 @@ static void setjoedata()
 
 	GetFullPathNameW(tmp1, MAX_PATH, tmp2, NULL);
 	n = wcstoutf8len(tmp2);
-	jw_joedata = (unsigned char*)malloc(n + 2);
+	jw_joedata = (char*)malloc(n + 2);
 	wcstoutf8(jw_joedata, tmp2, n);
 	strcat(jw_joedata, "\\");
 
 	// JOERC = startup dir + \conf
-	jw_joerc = (unsigned char*)malloc(strlen(jw_joedata) + 6);
+	jw_joerc = (char*)malloc(strlen(jw_joedata) + 6);
 	strcpy(jw_joerc, jw_joedata);
 	strcat(jw_joerc, "conf\\");
 }
@@ -93,7 +93,7 @@ static void setjoehome()
 	if (gotit)
 	{
 		size_t len = wcstoutf8len(appdata);
-		jw_home = (unsigned char*)malloc(len + 1);
+		jw_home = (char*)malloc(len + 1);
 		wcstoutf8(jw_home, appdata, len);
 	}
 	else
@@ -176,7 +176,7 @@ static void setjoedir()
 	wchar_t exepath[MAX_PATH], curpath[MAX_PATH];
 
 	if (GetModuleFileName(NULL, exepath, MAX_PATH - 1) && _wgetcwd(curpath, MAX_PATH - 1)) {
-		int curlen = wcslen(curpath);
+		size_t curlen = wcslen(curpath);
 		wchar_t *p;
 
 		p = wcsrchr(exepath, L'\\');
@@ -203,7 +203,13 @@ int jwInitJoe(int argc, wchar_t **argv)
 	{
 		setjoedata();
 		setjoehome();
-		setjoedir();
+
+		/* Change to user's home directory if started from program directory,
+		   but only if there are no arguments (otherwise relative paths get
+		   screwed up). */
+		if (argc == 1) {
+			setjoedir();
+		}
 
 		/* Set up builtin resource loader */
 		{

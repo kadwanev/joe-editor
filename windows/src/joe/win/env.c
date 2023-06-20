@@ -26,9 +26,33 @@
 #include "jwglobals.h"
 #include "jwutils.h"
 
+static char *getrealenv(const wchar_t *env, char **result)
+{
+	wchar_t *tmp;
+	int sz;
+
+	if (*result) {
+		return *result;
+	}
+
+	sz = GetEnvironmentVariableW(env, NULL, 0);
+	tmp = (wchar_t *)malloc(sz * sizeof(wchar_t));
+	GetEnvironmentVariableW(env, tmp, sz);
+	*result = (char *)malloc(sz);
+
+	if (wcstoutf8(*result, tmp, sz)) {
+		free(tmp);
+		assert(0);
+		return NULL;
+	}
+
+	free(tmp);
+	return *result;
+}
+
 char* glue_getenv(const char* env)
 {
-	static char *lang = NULL, *temp = NULL, *shell = NULL;
+	static char *lang = NULL, *temp = NULL, *shell = NULL, *path = NULL;
 
 	if (!strcmp(env, "HOME")) {
 		return (char*)jw_home;
@@ -39,7 +63,7 @@ char* glue_getenv(const char* env)
 			char langtmp[LOCALE_NAME_MAX_LENGTH];
 			
 			if (GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_SISO639LANGNAME, langtmp, LOCALE_NAME_MAX_LENGTH)) {
-				int len = strlen(langtmp);
+				size_t len = strlen(langtmp);
 
 				langtmp[len++] = '_';
 				if (GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_SISO3166CTRYNAME, &langtmp[len], LOCALE_NAME_MAX_LENGTH - len)) {
@@ -73,21 +97,9 @@ char* glue_getenv(const char* env)
 
 		return temp;
 	} else if (!strcmp(env, "SHELL")) {
-		if (!shell) {
-			wchar_t wshell[MAX_PATH];
-			int sz;
-
-			GetEnvironmentVariableW(L"ComSpec", wshell, MAX_PATH);
-			sz = wcstoutf8len(wshell) + 1;
-			shell = (char *)malloc(sz);
-
-			if (wcstoutf8(shell, wshell, sz)) {
-				assert(0);
-				return NULL;
-			}
-		}
-
-		return shell;
+		return getrealenv(L"ComSpec", &shell);
+	} else if (!strcmp(env, "PATH")) {
+		return getrealenv(L"PATH", &path);
 	}
 
 	return NULL;

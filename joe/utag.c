@@ -7,63 +7,163 @@
  */
 #include "types.h"
 
-static unsigned char **get_tag_list()
-{
-	unsigned char buf[512];
-	unsigned char tag[512];
-	int i,pos;
-	FILE *f;
-	unsigned char **lst = NULL;
-	
-	f = fopen("tags", "r");
-	if (f) {
-		while (fgets((char *)buf, 512, f)) {
-			pos = 0;
-			for (i=0; i<512; i++) {
-				if (buf[i] == ' ' || buf[i] == '\t') {
-					pos = i;
-					i = 512;
-				}
-			}
-			if (pos > 0) {
-				zncpy(tag, buf, pos);
-				tag[pos] = '\0';
-			}
-			lst = vaadd(lst, vsncpy(NULL, 0, sz(tag)));
-		}
-		fclose(f);	
-	}
-	return lst;
-}
+/* Forward */
 
-static unsigned char **tag_word_list;
+static char **tag_word_list;
+static time_t last_update;
 
-static int tag_cmplt(BW *bw)
-{
-	/* Reload every time: we should really check date of tags file...
-	if (tag_word_list)
-		varm(tag_word_list); */
+static void get_tag_list();
+static int tag_cmplt(BW *bw, int k);
 
-	if (!tag_word_list) {
-		tag_word_list = get_tag_list();
-		vaperm(tag_word_list);
-	}
+/* Tag database */
 
-	if (!tag_word_list) {
-		ttputc(7);
-		return 0;
-	}
+int notagsmenu = 0;
 
-	return simple_cmplt(bw,tag_word_list);
-}
+typedef struct tag TAG;
+static struct tag {
+	LINK(TAG) link;
+	char *key;	/* Key */
+	char *file;	/* Target file */
+	char *srch;	/* Target search pattern */
+	off_t line;		/* Target line number */
+	char *cmnt;	/* Comment */
+	int last;		/* Set on last record */
+} tags = { { &tags, &tags } };
+
+static TAG tagnodes = { { &tagnodes, &tagnodes } };
 
 static B *taghist = NULL;
 
-unsigned char *get_word_under_cursor(BW *bw)
+static void freetag(TAG *n)
 {
-	P *p = pdup(bw->cursor, USTR "utag");
-	P *q = pdup(p, USTR "utag");
-	unsigned char *s;
+	obj_free(n->key);
+	obj_free(n->file);
+	obj_free(n->srch);
+	obj_free(n->cmnt);
+	enquef(TAG, link, &tagnodes, n);
+}
+
+static void clrtags()
+{
+	while (!qempty(TAG, link, &tags)) {
+		freetag(deque_f(TAG, link, tags.link.next));
+	}
+}
+
+static void addtag(char *key, char *file, char *srch, off_t line, char *cmnt)
+{
+	TAG *n = (TAG *)alitem(&tagnodes, SIZEOF(TAG));
+	n->key = key;
+	n->file = file;
+	n->srch = srch;
+	n->line = line;
+	n->cmnt = cmnt;
+	n->last = 0;
+	enqueb(TAG, link, &tags, n);
+	
+	obj_perm(key);
+	obj_perm(file);
+	obj_perm(srch);
+	obj_perm(cmnt);
+}
+
+static int dotagjump(BW *bw, int flag)
+{
+	char *file;
+	char *srch;
+	off_t line;
+	int last;
+	if (qempty(TAG, link, &tags)) {
+		msgnw(bw->parent, joe_gettext(_("Not found")));
+		return -1;
+	}
+	file = tags.link.next->file;
+	srch = tags.link.next->srch;
+	line = tags.link.next->line;
+	last = tags.link.next->last;
+	demote(TAG,link,&tags,tags.link.next);
+	if (doswitch(bw->parent, vsncpy(NULL, 0, sv(file)))) {
+		return -1;
+	}
+	bw = (BW *)maint->curwin->object;
+	p_goto_bof(bw->cursor);
+	if (notagsmenu) {
+		if (last) {
+			msgnw(bw->parent, joe_gettext(_("Last match")));
+		} else {
+			msgnw(bw->parent, joe_gettext(_("There are more matches")));
+		}
+	}
+	if (!srch) {
+		int omid = opt_mid;
+		opt_mid = 1;
+		pline(bw->cursor, line - 1);
+		bw->cursor->xcol = piscol(bw->cursor);
+		dofollows();
+		opt_mid = omid;
+		if (flag)
+			smode = 2;
+		return 0;
+	} else {
+		if (flag)
+			smode = 2;
+		return dopfnext(bw, mksrch(vsncpy(NULL, 0, sv(srch)), NULL, 0, 0, -1, 0, 0, 0, 0));
+	}
+}
+
+int utagjump(W *w, int k)
+{
+	BW *bw;
+	WIND_BW(bw, w);
+	return dotagjump(bw, 1);
+}
+
+static ptrdiff_t last_cursor;
+
+static int dotagmenu(MENU *m, ptrdiff_t x, void *obj, int k)
+{
+	char *file;
+	char *srch;
+	off_t line;
+	struct tag *t = tags.link.next;
+	BW *bw = (BW *)m->parent->win->object;
+	last_cursor = x;
+	if (t == &tags)
+		return -1;
+	while (x--) {
+		t = t->link.next;
+		if (t == &tags)
+			return -1;
+	}
+	file = t->file;
+	srch = t->srch;
+	line = t->line;
+	wabort(m->parent);
+	if (doswitch(bw->parent, vsncpy(NULL, 0, sv(file)))) {
+		return -1;
+	}
+	bw = (BW *)maint->curwin->object;
+	p_goto_bof(bw->cursor);
+	if (!srch) {
+		int omid = opt_mid;
+		opt_mid = 1;
+		pline(bw->cursor, line - 1);
+		bw->cursor->xcol = piscol(bw->cursor);
+		dofollows();
+		opt_mid = omid;
+		smode = 2;
+		return 0;
+	} else {
+		smode = 2;
+		return dopfnext(bw, mksrch(vsncpy(NULL, 0, sv(srch)), NULL, 0, 0, -1, 0, 0, 0, 0));
+	}
+}
+
+char *get_word_under_cursor(BW *bw)
+{
+	P *p = pdup(bw->cursor, "get_word_under_cursor");
+	P *q = pdup(p, "get_word_under_cursor");
+	char *s;
 	int c;
 
 	while (joe_isalnum_(bw->b->o.charmap,(c = prgetc(p))))
@@ -83,126 +183,306 @@ unsigned char *get_word_under_cursor(BW *bw)
 	return s;
 }
 
-int utag(BW *bw)
+char **tag_array;
+
+int utag(W *w, int k)
 {
-	unsigned char *s = get_word_under_cursor(bw);
+	char *buf;
+	FILE *f;
+	char *prefix = NULL;
+	char *t = NULL;
+	struct tag *ta;
+	char *s;
+	BW *bw;
+	WIND_BW(bw, w);
+	
+	/* Repeat previous search */
+	if (smode && !qempty(TAG, link, &tags)) {
+		if (notagsmenu)
+			return utagjump(w, 0);
+		if (mkmenu(bw->parent, bw->parent, tag_array, dotagmenu, NULL, NULL, last_cursor, tag_array)) // TODO
+			return 0;
+		else
+			return -1;
+	}
 
+	s = get_word_under_cursor(bw);
 	s = ask(bw->parent, joe_gettext(_("Tag search: ")), &taghist, NULL, tag_cmplt, locale_map, 0, 0, s);
-
-	if (s) {
-		unsigned char buf[512];
-		unsigned char buf1[512];
-		FILE *f;
-		unsigned char *t = NULL;
-
-		if (bw->b->name) {
-			t = vsncpy(t, 0, sz(bw->b->name));
-			t = vsncpy(sv(t), sc(":"));
-			t = vsncpy(sv(t), sv(s));
+	
+	if (!s)
+		return -1;
+	
+	if (bw->b->name) {
+		t = vsncpy(t, 0, sz(bw->b->name));
+		t = vsncpy(sv(t), sc(":"));
+		t = vsncpy(sv(t), sv(s));
+	}
+	/* first try to open the tags file in the current directory */
+	f = fopen("tags", "r");
+	if (!f) {
+		/* if there's no tags file in the current dir, then query
+		   for the environment variable TAGS.
+		*/
+		char *tagspath = getenv("TAGS");
+		if(tagspath) {
+			f = fopen(tagspath, "r");
+			prefix = dirprt(tagspath);
 		}
-		f = fopen("tags", "r");
-		if (!f) {
-			char *tagspath = getenv("TAGS");
-			if (tagspath)
-				f = fopen(tagspath, "r");
-			if (!f) {
-				msgnw(bw->parent, joe_gettext(_("Couldn't open tags file")));
-				return -1;
+		if(!f) {
+			msgnw(bw->parent, joe_gettext(_("Couldn't open tags file")));
+			return -1;
+		}
+	}
+	clrtags();
+	buf = vsmk(128);
+	while (vsgets(&buf, f)) {
+		ptrdiff_t x, y;
+		char c;
+		
+		for (x = 0; buf[x] && buf[x] != ' ' && buf[x] !='\t'; ++x) ;
+		c = buf[x];
+		buf[x] = 0;
+		/* We look for these things:
+		         string
+		         buffer-name:string
+		         .*::string */
+		if (!zmcmp(buf, s) || (t && !zcmp(t, buf))) {
+			char *key = vsdup(buf);
+			buf[x] = TO_CHAR_OK(c);
+			while (buf[x] == ' ' || buf[x] == '\t') {
+				++x;
 			}
-		}
-		while (fgets((char *)buf, 512, f)) {
-			int x, y, c, z;
-
-			for (x = 0; buf[x] && buf[x] != ' ' && buf[x] != '\t'; ++x) ;
-			c = buf[x];
-			buf[x] = 0;
-			if (!zcmp(s, buf) || (t && !zcmp(t, buf))) {
-				buf[x] = c;
-				while (buf[x] == ' ' || buf[x] == '\t') {
-					++x;
+			for (y = x; buf[y] && buf[y] != ' ' && buf[y] != '\t' && buf[y] != '\n'; ++y) ;
+			if (x != y) {
+				char *file = 0;
+				c = buf[y];
+				buf[y] = 0;
+				if (prefix)
+					file = vsncpy(NULL, 0, sv(prefix));
+				file = vsncpy(sv(file), sz(buf + x));
+				buf[y] = TO_CHAR_OK(c);
+				while (buf[y] == ' ' || buf[y] == '\t') {
+					++y;
 				}
-				for (y = x; buf[y] && buf[y] != ' ' && buf[y] != '\t' && buf[y] != '\n'; ++y) ;
+				for (x = y; buf[x] && buf[x] != '\n'; ++x) ;
+				buf[x] = 0;
 				if (x != y) {
-					c = buf[y];
-					buf[y] = 0;
-					if (doswitch(bw, vsncpy(NULL, 0, sz(buf + x)))) {
-						fclose(f);
-						return -1;
-					}
-					bw = (BW *) maint->curwin->object;
-					p_goto_bof(bw->cursor);
-					buf[y] = c;
-					while (buf[y] == ' ' || buf[y] == '\t') {
-						++y;
-					}
-					for (x = y; buf[x] && buf[x] != '\n'; ++x) ;
-					buf[x] = 0;
-					if (x != y) {
-						long line = 0;
-						if (buf[y] >= '0' && buf[y] <= '9') {
-							/* It's a line number */
-							sscanf((char *)(buf + y), "%ld", &line);
-							if (line >= 1) {
-								int omid = mid;
-
-								mid = 1;
-								pline(bw->cursor, line - 1), bw->cursor->xcol = piscol(bw->cursor);
-								dofollows();
-								mid = omid;
-							} else {
-								msgnw(bw->parent, joe_gettext(_("Invalid line number")));
+					if (buf[y] >= '0' && buf[y] <= '9')  {
+						/* It's a line number */
+						off_t line = 1;
+						line = ztoo(buf + y);
+						if (line >= 1) {
+							/* Comment */
+							ptrdiff_t q;
+							while (buf[y] >= '0' && buf[y] <= '9')
+								++y;
+							/* Comment (skip vi junk) */
+							while (buf[y] == ' ' || buf[y] == '\t' ||
+							       buf[y] == ';' || buf[y] == '"' ||
+							       (buf[y] && (buf[y + 1] == ' ' ||
+							                   buf[y + 1] == '\t' ||
+							                   buf[y + 1] == '\r' ||
+							                   buf[y + 1] == '\n' ||
+							                   !buf[y + 1])))
+								++y;
+							q = y + zlen(buf + y);
+							if (q > y && buf[q - 1] == '\n') {
+								buf[q - 1] = 0;
+								--q;
+								if (q > y && buf[q - 1] == '\r') {
+									buf[q - 1] = 0;
+									--q;
+								}
 							}
-						} else {
-							z = 0;
-							/* It's a search string.  New versions of
-							   ctags have real regex with vi command.  Old
-							   ones do not always quote / and depend on it
-							   being last char on line. */
-							if (buf[y] == '/' || buf[y] == '?') {
-								int ch = buf[y++];
-								/* Find terminating / or ? */
-								for (x = y + zlen(buf + y); x != y; --x)
-									if (buf[x] == ch)
-										break;
-								/* Copy characters, convert to JOE regex... */
-								if (buf[y] == '^') {
-									buf1[z++] = '\\';
-									buf1[z++] = '^';
+							addtag(key, file, NULL, line, q > y ? vsncpy(NULL, 0, buf + y, q - y) : 0);
+						}
+					} else {
+						char *buf1 = NULL;
+						/* It's a search string. New versions of
+						   ctags have real regex with vi command.  Old
+						   ones do not always quote / and depend on it
+						   being last char on line. */
+						if (buf[y] == '/' || buf[y] == '?') {
+							char ch = buf[y++];
+							/* Find last / or ? on line... */
+							for (x = y + zlen(buf + y); x != y; --x)
+								if (buf[x] == ch)
+									break;
+							/* Copy characters, convert to JOE regex... */
+							if (buf[y] == '^') {
+								buf1 = vscat(buf1, sc("\\^"));
+								++y;
+							}
+							
+							while (buf[y] && buf[y] != '\n' && !(buf[y] == ch && y == x)) {
+								if (buf[y] == '$' && buf[y+1] == ch) {
 									++y;
+									buf1 = vscat(buf1, sc("\\$"));
+								} else if (buf[y] == '\\' && buf[y+1]) {
+									/* This is going to cause problem...
+									   old ctags did not have escape */
+									++y;
+									if (buf[y] == '\\')
+										buf1 = vscat(buf1, sc("\\"));
+									buf1 = vsadd(buf1, buf[y++]);
+								} else {
+									buf1 = vsadd(buf1, buf[y++]);
 								}
-								while (buf[y] && buf[y] != '\n' && !(buf[y] == ch && y == x)) {
-									if (buf[y] == '$' && buf[y+1] == ch) {
-										++y;
-										buf1[z++] = '\\';
-										buf1[z++] = '$';
-									} else if (buf[y] == '\\' && buf[y+1]) {
-										/* This is going to cause problem...
-										   old ctags did not have escape */
-										++y;
-										if (buf[y] == '\\')
-											buf1[z++] = '\\';
-										buf1[z++] = buf[y++];
-									} else {
-										buf1[z++] = buf[y++];
-									}
-								}
-							}
-							if (z) {
-								fclose(f);
-								buf1[z] = 0;
-								return dopfnext(bw, mksrch(vsncpy(NULL, 0, sz(buf1)), NULL, 0, 0, -1, 0, 0, 0));
 							}
 						}
+						if (buf1 && vslen(buf1)) {
+							ptrdiff_t q;
+							char *srch = buf1;
+							if (buf[y]) ++y;
+							/* Comment (skip vi junk) */
+							while (buf[y] == ' ' || buf[y] == '\t' ||
+							       buf[y] == ';' || buf[y] == '"' ||
+							       (buf[y] && (buf[y + 1] == ' ' ||
+							                   buf[y + 1] == '\t' ||
+							                   buf[y + 1] == '\r' ||
+							                   buf[y + 1] == '\n' ||
+							                   !buf[y + 1])))
+								++y;
+							q = y + zlen(buf + y);
+							if (q > y && buf[q - 1] == '\n') {
+								buf[q - 1] = 0;
+								--q;
+								if (q > y && buf[q - 1] == '\r') {
+									buf[q - 1] = 0;
+									--q;
+								}
+							}
+							addtag(key, file, srch, 1, q > y ? vsncpy(NULL, 0, buf + y, q - y) : 0);
+						}
 					}
-					fclose(f);
-					return 0;
 				}
 			}
 		}
-		msgnw(bw->parent, joe_gettext(_("Not found")));
-		fclose(f);
-		return -1;
-	} else {
-		return -1;
 	}
+	fclose(f);
+	obj_free(buf);
+	if (!qempty(TAG, link, &tags)) {
+		tags.link.prev->last = 1;
+	}
+	/* Build menu */
+	varm(tag_array);
+	tag_array = vamk(10);
+	vaperm(tag_array);
+	for (ta = tags.link.next; ta != &tags; ta=ta->link.next) {
+		char *tbuf = NULL;
+		if (ta->srch) {
+			char *a;
+			tbuf = vsfmt(tbuf, 0, "%s%s", ta->file, ta->srch);
+			a = zstr(tbuf, "\\^");
+			if (a) {
+				a[0] = ':';
+				a[1] = '"';
+			}
+			a = zstr(tbuf, "\\$");
+			if (a) {
+				a[0] = '"';
+				a[1] = ' ';
+			}
+		} else
+#ifdef HAVE_LONG_LONG
+			tbuf = vsfmt(tbuf, 0, "%s:%lld", ta->file, (long long)ta->line);
+#else
+			tbuf = vsfmt(tbuf, 0, "%s:%ld",ta->file, (long)ta->line);
+#endif
+		tag_array = vaadd(tag_array, vsncpy(NULL, 0, sz(tbuf)));
+	}
+	last_cursor = 0;
+	/* Jump if only one result */
+	if (notagsmenu || valen(tag_array) == 1)
+		return dotagjump(bw, notagsmenu);
+	if (mkmenu(bw->parent, bw->parent, tag_array, dotagmenu, NULL, NULL, 0, tag_array))
+		return 0;
+	else
+		return -1;
+}
+
+static void get_tag_list()
+{
+	char *buf = NULL, *tag = NULL;
+	ptrdiff_t i,pos;
+	FILE *f;
+	HASH *ht; /* Used to prevent duplicates in list */
+	struct stat stat;
+
+	/* first try to open the tags file in the current directory */
+	f = fopen("tags", "r");
+	if (!f) {
+		/* if there's no tags file in the current dir, then query
+		   for the environment variable TAGS.
+		*/
+		char *tagspath = getenv("TAGS");
+		if(tagspath) {
+			f = fopen(tagspath, "r");    
+		}
+	}
+	if (f) {
+		if (!fstat(fileno(f), &stat)) {
+			if (last_update == stat.st_mtime) {
+				fclose(f);
+				return;
+			} else {
+				last_update = stat.st_mtime;
+			}
+		}
+		buf = vsmk(128);
+		ht = htmk(256);
+		varm(tag_word_list);
+		tag_word_list = vamk(16);
+		vaperm(tag_word_list);
+		while (vsgets(&buf, f)) {
+			pos = 0;
+			for (i=0; i<vslen(buf); i++) {
+				if (buf[i] == ' ' || buf[i] == '\t') {
+					pos = i;
+					i = vslen(buf);
+				}
+			}
+			if (pos > 0) {
+				tag = vsncpy(NULL, 0, buf, pos);
+				if (!htfind(ht, tag)) {
+					char *s = vsdup(tag);
+					/* Add class::member */
+					htadd(ht, s, s);
+					tag_word_list = vaadd(tag_word_list, s);
+					i = zlen(tag);
+					do {
+						if (tag[i] == ':' && tag[i + 1] == ':') {
+							/* Add ::member */
+							if (!htfind(ht, tag + i)) {
+								s = vsncpy(NULL, 0, sz(tag + i));
+								htadd(ht, s, s);
+								tag_word_list = vaadd(tag_word_list, s);
+							}
+							/* Add member */
+							if (!htfind(ht, tag + i + 2)) {
+								s = vsncpy(NULL, 0, sz(tag + i + 2));
+								htadd(ht, s, s);
+								tag_word_list = vaadd(tag_word_list, s);
+							}
+						}
+					} while(i--);
+				}
+			}
+		}
+		fclose(f);
+		htrm(ht);
+		obj_free(buf);
+	}
+}
+
+static int tag_cmplt(BW *bw, int k)
+{
+	get_tag_list();
+
+	if (!tag_word_list) {
+		ttputc(7);
+		return 0;
+	}
+
+	return simple_cmplt(bw,tag_word_list);
 }

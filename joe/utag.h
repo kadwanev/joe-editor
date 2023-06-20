@@ -5,9 +5,7 @@
  *
  *	This file is part of JOE (Joe's Own Editor)
  */
-#ifndef _JOE_UTAG_H
-#define _JOE_UTAG_H 1
 
-int utag PARAMS((BW *bw));
-
-#endif
+extern int notagsmenu;
+int utagjump(W *w, int k);
+int utag(W *w, int k);

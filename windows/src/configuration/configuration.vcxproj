@@ -30,9 +30,14 @@
   <Import Project="..\build\JoeWin.settings.targets" />
   <ItemGroup>
     <DocFile Include="$(JoeDocsDir)\license.txt" />
+    <MDDocFile Include="$(JoeRootDocsDir)\man.md" />
+    <MDDocFile Include="$(JoeRoot)\news.md" />
+    <MDDocFile Include="$(JoeRootDocsDir)\windows.md" />
+    <DocFile Include="markdown.css" />
     <ConfigFile Include="$(JoeConfDir)\ftyperc" />
     <ConfigFile Include="$(JoeConfDir)\jmacsrc" />
     <ConfigFile Include="$(JoeConfDir)\joerc" />
+    <ConfigFile Include="$(JoeConfDir)\joerc.zh_TW" />
     <ConfigFile Include="$(JoeConfDir)\jpicorc" />
     <ConfigFile Include="$(JoeConfDir)\jstarrc" />
     <ConfigFile Include="$(JoeConfDir)\jicerc" />
@@ -40,23 +45,30 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\ada.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\ant.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\asm.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\avr.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\awk.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\batch.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\c.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\clojure.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\cobol.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\coffee.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\comment_todo.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\conf.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\csh.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\csharp.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\css.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\d.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\debian.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\diff.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\dockerfile.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\elixir.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\erb.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\erlang.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\filename.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\fortran.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\git-commit.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\go.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\groovy.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\haml.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\haskell.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\html.jsf.in" />
@@ -86,8 +98,11 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\ps.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\puppet.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\python.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\r.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\rexx.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\ruby.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\rust.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\scala.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\sed.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\sh.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\sieve.jsf.in" />
@@ -95,6 +110,7 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\sml.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\spec.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\sql.jsf.in" />
+    <SyntaxFile Include="$(JoeSyntaxDir)\swift.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\tcl.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\tex.jsf.in" />
     <SyntaxFile Include="$(JoeSyntaxDir)\troff.jsf.in" />
@@ -183,71 +199,11 @@
     <LanguageFile Include="$(JoeLangDir)\fr.po" />
     <LanguageFile Include="$(JoeLangDir)\ru.po" />
     <LanguageFile Include="$(JoeLangDir)\uk.po" />
+    <LanguageFile Include="$(JoeLangDir)\zh.po" />
+    <VTFile Include="$(JoeRootConfDir)\shell.sh" />
+    <VTFile Include="$(JoeRootConfDir)\shell.csh" />
+    <VTFile Include="$(JoeConfDir)\vt.bat" />
   </ItemGroup>
   <Import Project="..\build\JoeWin.targets" />
-  <!-- Targets -->
-  <Target Name="Build" DependsOnTargets="CopyConfigFiles; CopySyntaxFiles; CopyColorGenFiles; CopyColorFiles; CopyDocFiles; CopyLanguageFiles" BeforeTargets="BeforeBuild" AfterTargets="AfterBuild" />
-  <Target Name="Clean" DependsOnTargets="CleanConfigFiles; CleanSyntaxFiles; CleanColorFiles; CleanDocFiles; CleanLanguageFiles" BeforeTargets="BeforeClean" AfterTargets="AfterClean" />
-  <Target Name="Rebuild" DependsOnTargets="BeforeRebuild; Clean; Build" AfterTargets="AfterRebuild" />
-  <!-- Config File Targets -->
-  <Target Name="CopyConfigFiles" Inputs="@(ConfigFile)" Outputs="@(ConfigFile->'$(ConfOutDir)\%(Filename)%(Extension)')">
-    <MakeDir Directories="$(ConfOutDir)" Condition="!Exists('$(ConfOutDir)')" />
-    <Copy SourceFiles="@(ConfigFile)" DestinationFolder="$(ConfOutDir)" />
-    <!-- Output minified files -->
-    <MakeDir Directories="$(IntDir)" Condition="!Exists('$(IntDir)')" />
-    <Exec Condition="'$(_Python)'!='' and Exists('$(_Python)')" Command="FOR %%f IN (@(ConfigFile)) DO (echo Minifying %%~nf%%~xf &amp; $(_Python) squeezerc.py &quot;%%f&quot; &quot;$(IntDir)\%%~nf%%~xf&quot;)" />
-  </Target>
-  <Target Name="CleanConfigFiles">
-    <RemoveDir Directories="$(ConfOutDir)" />
-    <RemoveDir Directories="$(IntDir)" />
-  </Target>
-  <!-- Syntax File Targets -->
-  <Target Name="CopySyntaxFiles" Inputs="@(SyntaxFile)" Outputs="@(SyntaxFile->'$(SyntaxOutDir)\%(Filename)')">
-    <MakeDir Directories="$(SyntaxOutDir)" Condition="!Exists('$(SyntaxOutDir)')" />
-    <Copy SourceFiles="@(SyntaxFile)" DestinationFiles="@(SyntaxFile->'$(SyntaxOutDir)\%(FileName)')" />
-    <!-- Output minified files -->
-    <MakeDir Directories="$(IntDir)" Condition="!Exists('$(IntDir)')" />
-    <Exec Condition="'$(_Python)'!='' and Exists('$(_Python)')" Command="FOR %%f IN (@(SyntaxFile->'$(SyntaxOutDir)\%(FileName)')) DO (echo Minifying %%~nf%%~xf &amp; $(_Python) squeezejsf.py &quot;%%f&quot; &quot;$(IntDir)\%%~nf%%~xf&quot;)" />
-  </Target>
-  <Target Name="CleanSyntaxFiles">
-    <RemoveDir Directories="$(SyntaxOutDir)" />
-    <RemoveDir Directories="$(IntDir)" />
-  </Target>
-  <!-- Color File Targets -->
-  <Target Name="CopyColorGenFiles" Inputs="@(ColorGenFile);@(ColorGenerator);@(ColorOverrideFile)" Outputs="@(ColorGenFile->'$(SchemesOutDir)\%(Filename).joecolor')">
-    <Warning Condition="'$(_Python)'=='' or !Exists('$(_Python)')" Text="Unable to find Python 2.x.  Skipping color scheme generation." />
-    <MakeDir Directories="$(SchemesOutDir)" Condition="!Exists('$(SchemesOutDir)')" />
-    <Exec Condition="'$(_Python)'!='' and Exists('$(_Python)')" WorkingDirectory="$(SchemeGenDir)" Command="FOR %%f IN (@(ColorGenFile->'%(RootDir)%(Directory)%(Filename)')) DO (echo Generating %%~nf.joecolor &amp; IF EXIST %%f.override ($(_Python) convertvimcolor.py &quot;%%f.vim&quot; &quot;$(SchemesOutDir)\%%~nf.joecolor&quot; &quot;%%f.override&quot;) ELSE ($(_Python) convertvimcolor.py &quot;%%f.vim&quot; &quot;$(SchemesOutDir)\%%~nf.joecolor&quot;))" />
-    <!-- Output minified files -->
-    <MakeDir Directories="$(IntDir)" Condition="!Exists('$(IntDir)')" />
-    <Exec Condition="'$(_Python)'!='' and Exists('$(_Python)')" Command="FOR %%f IN (@(ColorGenFile->'$(SchemesOutDir)\%(Filename).joecolor')) DO (echo Minifying %%~nf%%~xf &amp; $(_Python) squeezecolors.py &quot;%%f&quot; &quot;$(IntDir)\%%~nf%%~xf&quot;)" />
-  </Target>
-  <Target Name="CopyColorFiles" Inputs="@(ColorFile)" Outputs="@(ColorFile->'$(SchemesOutDir)\%(Filename)%(Extension)')">
-    <Copy SourceFiles="@(ColorFile)" DestinationFolder="$(SchemesOutDir)" />
-    <!-- Output minified files -->
-    <MakeDir Directories="$(IntDir)" Condition="!Exists('$(IntDir)')" />
-    <Exec Condition="'$(_Python)'!='' and Exists('$(_Python)')" Command="FOR %%f IN (@(ColorFile)) DO (echo Minifying %%~nf%%~xf &amp; $(_Python) squeezecolors.py &quot;%%f&quot; &quot;$(IntDir)\%%~nf%%~xf&quot;)" />
-  </Target>
-  <Target Name="CleanColorFiles">
-    <RemoveDir Directories="$(SchemesOutDir)" />
-    <RemoveDir Directories="$(IntDir)" />
-  </Target>
-  <!-- Doc File Targets -->
-  <Target Name="CopyDocFiles" Inputs="@(DocFile)" Outputs="@(DocFile->'$(OutDir)\doc\%(Filename)%(Extension)')">
-    <MakeDir Directories="$(OutDir)\doc" />
-    <Copy SourceFiles="@(DocFile)" DestinationFolder="$(OutDir)\doc" />
-    <Copy SourceFiles="@(DocFile)" DestinationFolder="$(IntDir)" />
-  </Target>
-  <Target Name="CleanDocFiles">
-    <RemoveDir Directories="$(OutDir)\doc" />
-  </Target>
-  <!-- Language File Targets -->
-  <Target Name="CopyLanguageFiles" Inputs="@(LanguageFile)" Outputs="@(LanguageFile->'$(OutDir)\po\%(Filename)%(Extension)')">
-    <MakeDir Directories="$(OutDir)\po" />
-    <Copy SourceFiles="@(LanguageFile)" DestinationFolder="$(OutDir)\po" />
-    <Exec Condition="'$(_Python)' != '' and Exists('$(_Python)')" Command="FOR %%f IN (@(LanguageFile)) DO (echo Minifying %%~nf%%~xf &amp; $(_Python) squeezepo.py &quot;%%f&quot; &quot;$(IntDir)\%%~nf%%~xf&quot;)" />
-  </Target>
-  <Target Name="CleanLanguageFiles">
-    <RemoveDir Directories="$(OutDir)\po" />
-  </Target>
+  <Import Project="configuration.targets" />
 </Project>

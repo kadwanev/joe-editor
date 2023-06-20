@@ -15,22 +15,34 @@ int menu_jump = 0;		/* Jump into menu */
 extern WATOM watommenu;
 
 struct tab {
-	int first_len;			/* Original size of path */
-	int ofst;			/* Starting offset to path */
-	unsigned char *path;		/* current directory */
-	unsigned char *pattern;		/* search pattern */
-	int len;		/* no. entries in files */
-	unsigned char **files;		/* array of file names */
-	unsigned char **list;
-	unsigned char *type;		/* file type array */
-	int prv;
-	unsigned char *orgpath;
-	unsigned char *orgnam;
+	ptrdiff_t first_len;			/* Original size of path */
+	off_t ofst;			/* Starting offset to path */
+	char *path;		/* current directory */
+	char *pattern;		/* search pattern */
+	ptrdiff_t len;		/* no. entries in files */
+	char **files;		/* array of file names */
+	char **list;
+	char *type;		/* file type array */
+	ino_t prv;
+	char *orgpath;
+	char *orgnam;
+	int quote;		/* If path should be quoted */
+	int cmd;		/* If we should search for a command */
 };
 
 #define F_DIR		1	/* type codes for file type array */
 #define F_NORMAL	2
 #define F_EXEC		4
+
+/* Passed in flags, but also returned: */
+#define PATH_QUOTE 1 /* Enable quoting of spaces */
+/* Only returned: */
+#define PATH_CMD 2 /* Try to complete command, not file */
+/* Only passed: */
+#define PATH_EDIT 4 /* If first character is '!', treat it as start of a command */
+#define PATH_SAVE 8 /* If first characters are '>>', skip over them */
+
+static int p_goto_start_of_path(P *p, int flags);
 
 /* Read matching files from a directory
  *  Directory is given in tab.path
@@ -42,14 +54,15 @@ struct tab {
  * type is set with the file types
  */
 
-static int get_entries(TAB *tab, int prv)
+static int get_entries(TAB *tab, ino_t prv)
 {
 	int a;
 	int which = 0;
-	unsigned char *oldpwd = pwd();
-	unsigned char **files;
-	unsigned char *tmp;
+	char *oldpwd = pwd();
+	char **files;
+	char *tmp;
 	int users_flg = 0;
+	int only_cmds = 0;
 
 	tmp = vsncpy(NULL,0,sv(tab->path));
 	tmp = canonical(tmp);
@@ -60,8 +73,16 @@ static int get_entries(TAB *tab, int prv)
 	if (!tab->path[0] && tab->pattern[0]=='~') {
 		files = rexpnd_users(tab->pattern);
 		users_flg = 1;
-	} else
+	} else if (tab->cmd) {
+		if (tab->path[0])
+			files = rexpnd_cmd_cd(tab->pattern);
+		else {
+			files = rexpnd_cmd_path(tab->pattern);
+			only_cmds = 1;
+		}
+	} else {
 		files = rexpnd(tab->pattern);
+	}
 	if (!files) {
 		chpwd(oldpwd);
 		return -1;
@@ -70,26 +91,30 @@ static int get_entries(TAB *tab, int prv)
 		chpwd(oldpwd);
 		return -1;
 	}
+#ifdef JOEWIN
+	vaisort(files, valen(files));
+#else
+	vasort(files, valen(files));
+#endif
+	if (only_cmds)
+		vauniq(files);
 	tab->len = valen(files);
 	varm(tab->files);
 	tab->files = files;
 	vaperm(tab->files);
-#ifdef JOEWIN
-	vaisort(files, tab->len);
-#else
-	vasort(files, tab->len);
-#endif
 	if (tab->type)
 		joe_free(tab->type);
-	tab->type = (unsigned char *) joe_malloc(tab->len);
+	tab->type = (char *)joe_malloc(tab->len);
 	for (a = 0; a != tab->len; a++)
 		if(users_flg) {
 			tab->type[a] = F_DIR;
+		} else if (only_cmds) {
+			tab->type[a] = 0;
 		} else {
 			struct stat buf;
-			mset(&buf, 0, sizeof(struct stat));
+			mset((char *)&buf, 0, SIZEOF(struct stat));
 
-			stat((char *)(files[a]), &buf);
+			stat((files[a]), &buf);
 			if (buf.st_ino == prv)
 				which = a;
 			if ((buf.st_mode & S_IFMT) == S_IFDIR)
@@ -103,34 +128,50 @@ static int get_entries(TAB *tab, int prv)
 	return which;
 }
 
-static void insnam(BW *bw, unsigned char *path, unsigned char *nam, int dir, int ofst)
+static void insnam(BW *bw, char *path, char *nam, int dir, off_t ofst, int quote)
 {
-	P *p = pdup(bw->cursor, USTR "insnam");
+	P *p = pdup(bw->cursor, "insnam");
+	char *fullpath = NULL;
 
 	pgoto(p, ofst);
 	p_goto_eol(bw->cursor);
 	bdel(p, bw->cursor);
-	if (vslen(path)) {
-		binsm(bw->cursor, sv(path));
-		p_goto_eol(bw->cursor);
 #ifndef JOEWIN
-		if (path[vslen(path) - 1] != '/') {
-			binsm(bw->cursor, sc("/"));
-#else
-		if (path[vslen(path) - 1] != '/' && path[vslen(path) - 1] != '\\') {
-			binsm(bw->cursor, sc("\\"));
-#endif
+	if (vslen(path)) {
+		if (quote) {
+			binsmq(bw->cursor, sv(path));
+		} else {
+			binsm(bw->cursor, sv(path));
+		}
+		p_goto_eol(bw->cursor);
+		if (!ISDIRSEP(path[vslen(path) - 1])) {
+			binsm(bw->cursor, sc(DIRSEPS));
 			p_goto_eol(bw->cursor);
 		}
 	}
-	binsm(bw->cursor, sv(nam));
+	if (quote) {
+		binsmq(bw->cursor, sv(nam));
+	} else {
+		binsm(bw->cursor, sv(nam));
+	}
+#else
+	if (vslen(path)) {
+		fullpath = vsncpy(fullpath, 0, sv(path));
+		if (!ISDIRSEP(path[vslen(path) - 1]))
+			fullpath = vscatz(fullpath, DIRSEPS);
+	}
+	fullpath = vsncpy(sv(fullpath), sv(nam));
+	p_goto_start_of_path(p, PATH_QUOTE);
+	bdel(p, bw->cursor);
+	if (quote) {
+		binsmq(p, sv(fullpath));
+	} else {
+		binsm(p, sv(fullpath));
+	}
+#endif
 	p_goto_eol(bw->cursor);
 	if (dir) {
-#ifndef JOEWIN
-		binsm(bw->cursor, sc("/"));
-#else
-		binsm(bw->cursor, sc("\\"));
-#endif
+		binsm(bw->cursor, sc(DIRSEPS));
 		p_goto_eol(bw->cursor);
 	}
 	prm(p);
@@ -149,7 +190,7 @@ static void insnam(BW *bw, unsigned char *path, unsigned char *nam, int dir, int
  * Returns with 0 for success
  */
 
-static unsigned char **treload(TAB *tab,MENU *m, BW *bw, int flg,int *defer)
+static char **treload(TAB *tab,MENU *m, BW *bw, int flg,int *defer)
 {
 	int x;
 	int which;
@@ -158,7 +199,7 @@ static unsigned char **treload(TAB *tab,MENU *m, BW *bw, int flg,int *defer)
 	if ((which = get_entries(tab, tab->prv)) < 0)
 		return 0;
 	if (tab->path && tab->path[0])
-		stat((char *)tab->path, &buf);
+		stat(tab->path, &buf);
 	else
 		stat(".", &buf);
 	tab->prv = buf.st_ino;
@@ -169,11 +210,11 @@ static unsigned char **treload(TAB *tab,MENU *m, BW *bw, int flg,int *defer)
 	vaperm(tab->list);
 
 	for (x = 0; tab->files[x]; ++x) {
-		unsigned char *s = vsncpy(NULL, 0, sv(tab->files[x]));
+		char *s = vsncpy(NULL, 0, sv(tab->files[x]));
 
 		tab->list = vaadd(tab->list, s);
 		if (tab->type[x] == F_DIR)
-			tab->list[x] = vsadd(tab->list[x], '/');
+			tab->list[x] = vsadd(tab->list[x], DIRSEPC);
 		else if (tab->type[x] == F_EXEC)
 			tab->list[x] = vsadd(tab->list[x], '*');
 	}
@@ -205,14 +246,15 @@ static void rmtab(TAB *tab)
 /*****************************************************************************/
 /****************** The user hit return **************************************/
 /*****************************************************************************/
-static int tabrtn(MENU *m, int cursor, TAB *tab)
+static int tabrtn(MENU *m, ptrdiff_t cursor, void *object, int op)
 {
+	TAB *tab = (TAB *)object;
 	if (menu_explorer && tab->type[cursor] == F_DIR) {	/* Switch directories */
-		unsigned char *orgpath = tab->path;
-		unsigned char *orgpattern = tab->pattern;
-		/* unsigned char *e = endprt(tab->path);
+		char *orgpath = tab->path;
+		char *orgpattern = tab->pattern;
+		/*char *e = endprt(tab->path);
 
-		if (!zcmp(tab->files[cursor], USTR "..") && sLEN(e)
+		if (!zcmp(tab->files[cursor], "..") && sLEN(e)
 		    && !(e[0] == '.' && e[1] == '.' && (!e[2] || e[2] == '/')))
 			tab->path = begprt(tab->path);
 		else */ {
@@ -222,7 +264,7 @@ static int tabrtn(MENU *m, int cursor, TAB *tab)
 		tab->pattern = vsncpy(NULL, 0, sc("*"));
 		obj_perm(tab->path);
 		obj_perm(tab->pattern);
-		if (!treload(m->object, m, m->parent->win->object, 0, NULL)) {
+		if (!treload((TAB *)m->object, m, (BW *)m->parent->win->object, 0, NULL)) {
 			msgnw(m->parent, joe_gettext(_("Couldn't read directory ")));
 			obj_free(tab->pattern);
 			tab->pattern = orgpattern;
@@ -235,9 +277,9 @@ static int tabrtn(MENU *m, int cursor, TAB *tab)
 			return 0;
 		}
 	} else {		/* Select name */
-		BW *bw = m->parent->win->object;
+		BW *bw = (BW *)m->parent->win->object;
 
-		insnam(bw, tab->path, tab->files[cursor], (tab->type[cursor]==F_DIR), tab->ofst);
+		insnam(bw, tab->path, tab->files[cursor], (tab->type[cursor]==F_DIR), tab->ofst, tab->quote);
 		rmtab(tab);
 		m->object = NULL;
 		m->abrt = NULL;
@@ -252,9 +294,9 @@ static int tabrtn(MENU *m, int cursor, TAB *tab)
 static int tabrtn1(MENU *m, int cursor, TAB *tab)
 {
 	/* New way: just add directory to path */
-	BW *bw = m->parent->win->object;
+	BW *bw = (BW *)m->parent->win->object;
 
-	insnam(bw, tab->path, tab->files[cursor], (tab->type[cursor]==F_DIR ? 1 : 0), tab->ofst);
+	insnam(bw, tab->path, tab->files[cursor], (tab->type[cursor]==F_DIR ? 1 : 0), tab->ofst, tab->quote);
 	rmtab(tab);
 	m->object = NULL;
 	m->abrt = NULL;
@@ -266,11 +308,12 @@ static int tabrtn1(MENU *m, int cursor, TAB *tab)
 /*****************************************************************************/
 /****************** The user hit backspace ***********************************/
 /*****************************************************************************/
-static int tabbacks(MENU *m, int cursor, TAB *tab)
+static int tabbacks(MENU *m, ptrdiff_t cursor, void *object)
 {
-	unsigned char *orgpath = tab->path;
-	unsigned char *orgpattern = tab->pattern;
-	unsigned char *e = endprt(tab->path);
+	TAB *tab = (TAB *)object;
+	char *orgpath = tab->path;
+	char *orgpattern = tab->pattern;
+	char *e = endprt(tab->path);
 
 	if (vslen(e) && vslen(tab->path)!=tab->first_len) {
 		tab->path = begprt(tab->path);
@@ -282,7 +325,7 @@ static int tabbacks(MENU *m, int cursor, TAB *tab)
 	tab->pattern = vsncpy(NULL, 0, sc("*"));
 	obj_perm(tab->pattern);
 
-	if (!treload(m->object, m, m->parent->win->object, 1, NULL)) {
+	if (!treload((TAB *)m->object, m, (BW *)m->parent->win->object, 1, NULL)) {
 		msgnw(m->parent, joe_gettext(_("Couldn't read directory ")));
 		obj_free(tab->pattern);
 		tab->pattern = orgpattern;
@@ -297,83 +340,131 @@ static int tabbacks(MENU *m, int cursor, TAB *tab)
 }
 /*****************************************************************************/
 /* This should verify that bw still exists... */
-static int tababrt(BW *bw, int cursor, TAB *tab)
+static int tababrt(W *w, ptrdiff_t cursor, void *object)
 {
+	TAB *tab = (TAB *)object;
 	/* bash */
 	/* insnam(bw, tab->orgpath, tab->orgnam, 0, tab->ofst); */
 	rmtab(tab);
 	return -1;
 }
 
-P *p_goto_start_of_path(P *p)
+/* Find start of path for tab completion
+ *
+ *
+ * At edit prompt: "!ls foo_"  It's at "f"
+ * At edit prompt: "!ls the file"  It's at "f"!
+ * At edit prompt: "the file"  It's at "t"
+ * At save prompt: ">>fred"    It's at "f"
+ * At build prompt: "make -C foo"  It's at "f"
+ *
+ * For commands, we should be quoting spaces: "!ls the\ file"
+ * Should quoting be optional?
+ *
+ * This should expand commands.
+ */
+
+/* Passed in flags, but also returned: */
+#define PATH_QUOTE 1 /* Enable quoting of spaces */
+/* Only returned: */
+#define PATH_CMD 2 /* Try to complete command, not file */
+/* Only passed: */
+#define PATH_EDIT 4 /* If first character is '!', treat it as start of a command */
+#define PATH_SAVE 8 /* If first characters are '>>', skip over them */
+
+static int p_goto_start_of_path(P *p, int flags)
 {
-	int c;
-	
-	do
-		c = prgetc(p);
-#ifndef JOEWIN
-	while (c != NO_MORE_DATA && c != ' ' && c != '\n');
-#else
-	while (c!=NO_MORE_DATA && c!='\n');
-#endif
-	
-	if (c == ' ') {
-		P *q = pdup(p, USTR "p_goto_start_of_path");
-		
-		do
-			c = prgetc(q);
-		while (c != NO_MORE_DATA && c != '\n');
-		
-		if (c != NO_MORE_DATA)
-			pgetc(q);
-		
-		if (brch(q) == '!') {
-			/* If piping from a command, then expand path starting past space */
-			prm(q);
+	int rtn = (flags & PATH_QUOTE);
+	off_t fin = p->byte;
+	off_t start;
+	P *q;
+	int c, d, qu;
+	int maybe_cmd = !!(flags & PATH_CMD);
+	p_goto_bol(p);
+	start = p->byte;
+
+	/* Skip over leading ! or >> */
+	if ((flags & PATH_EDIT) && p->byte < fin && brch(p) == '!') {
+		pgetc(p);
+		start = p->byte;
+		rtn |= PATH_QUOTE; /* Assume quoting */
+		maybe_cmd = 1; /* Command completion if we don't find an argument */
+	} else if ((flags & PATH_SAVE) && p->byte < fin && brch(p) == '>') {
+		pgetc(p);
+		if (p->byte < fin && brch(p) == '>') {
 			pgetc(p);
-			return p;
+			start = p->byte;
 		} else {
-			/* Otherwise, go to front of line. */
-			pset(p, q);
-			prm(q);
-			return p;
+			prgetc(p);
 		}
 	}
 
-	if (c != NO_MORE_DATA)
-		pgetc(p);
+	/* Find last space to non-space transition */
+	q = pdup(p, "p_goto_start_of_path");
+	c = NO_MORE_DATA;
+	qu = 0;
 
-	return p;
+	while (q->byte < fin) {
+		d = c;
+		c = brch(q);
+		if (!qu && (d == ' ' || d == '\t') && !(c == ' ' || c == '\t'))
+			pset(p, q);
+#ifndef JOEWIN
+		if ((rtn & PATH_QUOTE) && (d == '\\') && (c == ' ' || c == '\t'))
+			c = 'x';
+#else
+		if ((rtn & PATH_QUOTE) && c == '"')
+			qu = !qu;
+#endif
+		pgetc(q);
+	}
+
+	if  (maybe_cmd && p->byte == start)
+		rtn |= PATH_CMD; /* No argument found, command completion */
+
+	prm(q);
+
+	return rtn;
 }
 
 /*****************************************************************************/
 /****************** Create a tab window **************************************/
 /*****************************************************************************/
 
-int cmplt(BW *bw)
+static int cmplt(BW *bw, int k, int flags_in)
 {
-	MENU *new;
+	MENU *newmenu;
 	TAB *tab;
 	P *p, *q;
-	unsigned char *cline;
+	char *cline;
 	int which;
-	unsigned char **l;
-	int ofst;
+	char **l;
+	off_t ofst;
+	int flags;
 
-	tab = (TAB *) joe_malloc(sizeof(TAB));
+	tab = (TAB *) joe_malloc(SIZEOF(TAB));
 	tab->files = NULL;
 	tab->type = NULL;
 	tab->list = NULL;
 	tab->prv = 0;
 	tab->len = 0;
+	tab->quote = 0;
+	tab->cmd = 0;
 
-	q = pdup(bw->cursor, USTR "cmplt");
+	q = pdup(bw->cursor, "cmplt");
 	p_goto_eol(q);
-	p = pdup(q, USTR "cmplt");
-	p_goto_start_of_path(p);
+	p = pdup(q, "cmplt");
+	flags = p_goto_start_of_path(p, flags_in);
 	ofst = p->byte;
 
-	cline = brvs(NULL, p, (int) (q->byte - p->byte));
+	cline = brvs(NULL, p, q->byte - p->byte); /* Risky */
+	if (flags & PATH_QUOTE) {
+		cline = dequotevs(cline);
+		tab->quote = 1;
+	}
+	if (flags & PATH_CMD)
+		tab->cmd = 1;
+
 	/* Don't do it so soon... */
 	/* cline = canonical(cline); */
 	prm(p);
@@ -407,10 +498,10 @@ int cmplt(BW *bw)
 		}
 	}
 
-	if (l && (new = mkmenu((menu_above ? bw->parent->link.prev : bw->parent), bw->parent, l, tabrtn, tababrt, tabbacks, which, tab))) {
-		if (valen(tab->files) == 1)
+	if (l && (newmenu = mkmenu((menu_above ? bw->parent->link.prev : bw->parent), bw->parent, l, tabrtn, tababrt, tabbacks, which, tab))) {
+		if (valen(tab->files) == 1 && zcmp(tab->files[0], ".."))
 			/* Only one file found, so select it */
-			return tabrtn1(new, 0, tab);
+			return tabrtn1(newmenu, 0, tab);
 		else if (smode || isreg(tab->orgnam)) {
 			/* User tried to complete twice (see smode=2 below), so leave menu on */
 			/* bash */
@@ -419,14 +510,14 @@ int cmplt(BW *bw)
 			return 0;
 		} else {
 			/* Complete name as much as possible, turn menu off */
-			unsigned char *com = mcomplete(new);
+			char *com = mcomplete(newmenu);
 
 			obj_free(tab->orgnam);
 			tab->orgnam = com;
 			obj_perm(tab->orgnam);
 			/* wabort causes tab->orgnam to be copied to prompt */
-			insnam(bw, tab->orgpath, tab->orgnam, 0, tab->ofst);
-			wabort(new->parent);
+			insnam(bw, tab->orgpath, tab->orgnam, 0, tab->ofst, tab->quote);
+			wabort(newmenu->parent);
 			smode = 2;
 			/* if(joe_beep) */
 				ttputc(7);
@@ -438,4 +529,28 @@ int cmplt(BW *bw)
 		rmtab(tab);
 		return -1;
 	}
+}
+
+/* Path prompt */
+int cmplt_file(BW *bw, int k)
+{
+	return cmplt(bw, k, PATH_QUOTE);
+}
+
+/* File read prompt */
+int cmplt_file_in(BW *bw, int k)
+{
+	return cmplt(bw, k, PATH_EDIT|PATH_QUOTE);
+}
+
+/* File write prompt */
+int cmplt_file_out(BW *bw, int k)
+{
+	return cmplt(bw, k, PATH_EDIT|PATH_SAVE|PATH_QUOTE);
+}
+
+/* Shell command prompt */
+int cmplt_command(BW *bw, int k)
+{
+	return cmplt(bw, k, PATH_QUOTE|PATH_CMD);
 }

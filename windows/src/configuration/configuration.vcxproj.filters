@@ -32,9 +32,24 @@
       <UniqueIdentifier>{f91b405b-d99a-43cc-a20c-64e761c54b62}</UniqueIdentifier>
       <Extensions>po</Extensions>
     </Filter>
+    <Filter Include="VT Scripts">
+      <UniqueIdentifier>{7bb806ee-ada1-4612-b73c-1918b45ff8d1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <DocFile Include="$(JoeDocsDir)\license.txt">
+      <Filter>Docs</Filter>
+    </DocFile>
+    <MDDocFile Include="$(JoeRootDocsDir)\man.md">
+      <Filter>Docs</Filter>
+    </MDDocFile>
+    <MDDocFile Include="$(JoeRootDocsDir)\windows.md">
+      <Filter>Docs</Filter>
+    </MDDocFile>
+    <MDDocFile Include="$(JoeRoot)\news.md">
+      <Filter>Docs</Filter>
+    </MDDocFile>
+    <DocFile Include="markdown.css">
       <Filter>Docs</Filter>
     </DocFile>
     <ColorFile Include="$(SchemesDir)\putty-black.joecolor">
@@ -271,6 +286,9 @@
     <ConfigFile Include="$(JoeConfDir)\joerc">
       <Filter>Conf files</Filter>
     </ConfigFile>
+    <ConfigFile Include="$(JoeConfDir)\joerc.zh_TW">
+      <Filter>Conf files</Filter>
+    </ConfigFile>
     <ConfigFile Include="$(JoeConfDir)\jpicorc">
       <Filter>Conf files</Filter>
     </ConfigFile>
@@ -292,6 +310,9 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\asm.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\avr.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\awk.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
@@ -301,7 +322,13 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\c.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\clojure.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\cobol.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\coffee.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\comment_todo.jsf.in">
@@ -319,10 +346,16 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\css.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\d.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\debian.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\diff.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\dockerfile.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\elixir.jsf.in">
@@ -334,6 +367,9 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\erlang.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\filename.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\fortran.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
@@ -341,6 +377,9 @@
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\go.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\groovy.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\haml.jsf.in">
@@ -430,10 +469,19 @@
     <SyntaxFile Include="$(JoeSyntaxDir)\python.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\r.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\rexx.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\ruby.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\rust.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\scala.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\sed.jsf.in">
@@ -455,6 +503,9 @@
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\sql.jsf.in">
+      <Filter>Syntax files</Filter>
+    </SyntaxFile>
+    <SyntaxFile Include="$(JoeSyntaxDir)\swift.jsf.in">
       <Filter>Syntax files</Filter>
     </SyntaxFile>
     <SyntaxFile Include="$(JoeSyntaxDir)\tcl.jsf.in">
@@ -496,5 +547,17 @@
     <LanguageFile Include="$(JoeLangDir)\uk.po">
       <Filter>Translations</Filter>
     </LanguageFile>
+    <LanguageFile Include="$(JoeLangDir)\zh.po">
+      <Filter>Translations</Filter>
+    </LanguageFile>
+    <VTFile Include="$(JoeRootConfDir)\shell.sh">
+      <Filter>VT Scripts</Filter>
+    </VTFile>
+    <VTFile Include="$(JoeRootConfDir)\shell.csh">
+      <Filter>VT Scripts</Filter>
+    </VTFile>
+    <VTFile Include="$(JoeConfDir)\vt.bat">
+      <Filter>VT Scripts</Filter>
+    </VTFile>
   </ItemGroup>
 </Project>

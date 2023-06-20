@@ -29,23 +29,23 @@ int Baud = 38400;		/* Baud rate from joerc, cmd line or environment */
 
 /* Output buffer, index and size */
 
-unsigned char *obuf = NULL;
-int obufp = 0;
-int obufsiz;
+char *obuf = NULL;
+ptrdiff_t obufp = 0;
+ptrdiff_t obufsiz;
 
-unsigned char ibuf[UI_TO_EDITOR_IOSZ];
-int ibufp = 0;
-int ibufsiz = 0;
+char ibuf[UI_TO_EDITOR_IOSZ];
+ptrdiff_t ibufp = 0;
+ptrdiff_t ibufsiz = 0;
 
 /* The baud rate */
 
-unsigned baud;			/* Bits per second */
-unsigned long upc;		/* Microseconds per character */
+long tty_baud;			/* Bits per second */
+long upc;			/* Microseconds per character */
 
 /* Input buffer */
 
 int have = 0;			/* Set if we have pending input */
-static unsigned char havec;	/* Character read in during pending input check */
+char havec;			/* Character read in during pending input check */
 int leave = 0;			/* When set, typeahead checking is disabled */
 
 /* TTY mode flag.  1 for open, 0 for closed */
@@ -56,11 +56,6 @@ static int ttysig = 0;
 
 /* Current window size */
 static int winwidth = 0, winheight = 0;
-
-/* Stuff for shell windows */
-static int nmpx = 0;
-MPX asyncs[NPROC];
-static void mpxdied(MPX *m);
 
 /* Open terminal and set signals */
 
@@ -102,8 +97,8 @@ void ttopnn(void)
 	// Note: High baud rate turns off scroll.  Normally, yeah this would be fine,
 	// but it doesn't work very well over remote desktop without it.  baud ought
 	// to be 9600 per the putty termcap, so keep it rather than assigning from Baud.
-	baud = 9600;
-	upc = DIVIDEND / baud;
+	tty_baud = 9600;
+	upc = DIVIDEND / tty_baud;
 	
 	// Setup output buffer
 	if (obuf)
@@ -116,7 +111,7 @@ void ttopnn(void)
 	// keep up, but that logic is just a touch obsolete.  Use 4k...
 
 	obufsiz = 4096;
-	obuf = (unsigned char *) joe_malloc(obufsiz);
+	obuf = (char *) joe_malloc(obufsiz);
 
 	winwidth = jw_initialcols;
 	winheight = jw_initialrows;
@@ -156,7 +151,15 @@ int ttflsh(void)
 		obufp = 0;
 	}
 
-	/* Check for typeahead */
+	ttcheck();
+
+	return 0;
+}
+
+/* Check for typeahead */
+
+int ttcheck(void)
+{
 	if (!have && !leave) {
 		if (ibufp < ibufsiz)
 		{
@@ -165,7 +168,7 @@ int ttflsh(void)
 		}
 	}
 
-	return 0;
+	return have;
 }
 
 /* Read next character from input */
@@ -175,7 +178,7 @@ time_t last_time;
 int handlejwcontrol(struct CommMessage *m);
 extern MACRO *timer_play();
 
-int ttgetc(void)
+char ttgetc(void)
 {
 	MACRO *m;
 	time_t new_time;
@@ -285,7 +288,7 @@ int ttgetc(void)
 			if (m->msg == COMM_MPXDATA) {
 				jwSendComm0(mpx->ackfd, COMM_ACK);
 
-				mpx->func(mpx->object, USTR m->buffer->buffer, m->buffer->size);
+				mpx->func(mpx->object, m->buffer->buffer, m->buffer->size);
 				edupd(1);
 			} else if (m->msg == COMM_EXIT) {
 				mpxdied(mpx);
@@ -299,9 +302,31 @@ int ttgetc(void)
 	return havec;
 }
 
+/* Get character from input: convert whatever we get to Unicode */
+
+static struct utf8_sm main_utf8_sm;
+
+int ttgetch()
+{
+	if (locale_map->type) {
+		int utf8_char;
+		do {
+			char c = ttgetc();
+			utf8_char = utf8_decode(&main_utf8_sm, c);
+		} while (!leave && utf8_char < 0);
+		return leave ? -1 : utf8_char;
+	} else {
+		char c = ttgetc();
+		int utf8_char = to_uni(locale_map, c);
+		if (utf8_char == -1)
+			utf8_char = '?'; /* Maybe we should ignore it? */
+		return utf8_char;
+	}
+}
+
 /* Write string to output */
 
-void ttputs(unsigned char *s)
+void ttputs(const char *s)
 {
 	while (*s) {
 		obuf[obufp++] = *s++;
@@ -312,7 +337,7 @@ void ttputs(unsigned char *s)
 
 /* Get window size */
 
-void ttgtsz(int *x, int *y)
+void ttgtsz(ptrdiff_t *x, ptrdiff_t *y)
 {
 	*x = winwidth;
 	*y = winheight;
@@ -328,13 +353,13 @@ int handlejwcontrol(struct CommMessage *m)
 		}
 	} else if (m->msg == COMM_DROPFILES) {
 		struct CommMessage *n = m;
-		unsigned char **files = vamk(m->arg3);
+		char **files = vamk(m->arg3);
 		int x = m->arg1, y = m->arg2;
 		int qd = JW_TO_EDITOR;
 
 		/* We will be sent a packet with count=0 to denote no more files */
 		while (n && n->arg3 > 0) {
-			files = vaadd(files, vsdupz(USTR n->buffer->buffer));
+			files = vaadd(files, vsdupz(n->buffer->buffer));
 
 			if (n != m) {
 				jwReleaseComm(JW_TO_EDITOR, n);
@@ -362,7 +387,7 @@ int handlejwcontrol(struct CommMessage *m)
 
 		/* Redraw screen */
 		if (!retype) {
-			retype = findcmd(USTR "retype");
+			retype = findcmd("retype");
 		}
 
 		execmd(retype, 0);
@@ -388,8 +413,8 @@ int handlejwcontrol(struct CommMessage *m)
 		}
 
 		if (data) {
-			int sta;
-			MACRO *m = mparse(NULL, USTR data, &sta);
+			ptrdiff_t sta;
+			MACRO *m = mparse(NULL, data, &sta, 0);
 			co_call(exemac, m);
 			rmmacro(m);
 			if (dealloc) free(dealloc);
@@ -397,7 +422,7 @@ int handlejwcontrol(struct CommMessage *m)
 		}
 	} else if (m->msg == COMM_EXIT) {
 		/* Shut down and exit */
-		CMD *c = findcmd(USTR "killjoe");
+		CMD *c = findcmd("killjoe");
 		execmd(c, 0);
 
 		/* Recycle this message first because we're about to... */
@@ -427,6 +452,7 @@ static LONG WINAPI SehHandler(LPEXCEPTION_POINTERS lpe)
 		return EXCEPTION_EXECUTE_HANDLER;
 	
 	ttsig(lpe->ExceptionRecord->ExceptionCode);
+	return 0; /* Not reached */
 }
 
 /* Set signals for JOE */
@@ -457,324 +483,4 @@ void signrm(void)
 	joe_set_signal(SIGILL, SIG_DFL);
 
 	SetUnhandledExceptionFilter(NULL);
-}
-
-/* Subprocess stuff */
-
-static DWORD WINAPI mpxreadthread(LPVOID arg)
-{
-	char buf[MPX_BUFSZ];
-	int credits = 2;
-	MPX *m = (MPX*)arg;
-	DWORD amount;
-	struct CommMessage *msg;
-	int ackqd, dataqd;
-	HANDLE hReadPipe;
-
-	/* Can't assume this pointer will always be valid. */
-	ackqd = m->ackfd;
-	dataqd = m->dataqd;
-	hReadPipe = m->hReadPipe;
-
-	for (;;) {
-		while (!credits) {
-			msg = jwWaitForComm(&ackqd, 1, INFINITE, NULL);
-			if (msg->msg == COMM_ACK) {
-				credits++;
-			} else if (msg->msg == COMM_EXIT) {
-				CloseHandle(hReadPipe);
-				jwSendComm0p(dataqd, COMM_EXIT, m);
-				return 0;
-			} else {
-				assert(0);
-			}
-
-			jwReleaseComm(ackqd, msg);
-		}
-
-		if (!ReadFile(hReadPipe, (LPVOID)buf, MPX_BUFSZ, &amount, NULL)) {
-			/* Shut it down */
-			CloseHandle(hReadPipe);
-			jwSendComm0p(dataqd, COMM_EXIT, m);
-			return 0;
-		}
-
-		jwSendComm0pd(dataqd, COMM_MPXDATA, m, buf, amount);
-		--credits;
-	}
-}
-
-MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (void*, unsigned char*, int), void *object, void (*die) (void*), void *dieobj, int out_only)
-{
-	HANDLE prr, prw, pwr, pww, hthread, hconsole;
-	SECURITY_ATTRIBUTES sa;
-	PROCESS_INFORMATION pinf;
-	STARTUPINFOW si;
-	unsigned char *allargs = 0;
-	wchar_t *wargs = NULL, *wcmd = NULL;
-	MPX *m = NULL;
-	DWORD res;
-	int i;
-
-	if (!nmpx) {
-		ZeroMemory(asyncs, sizeof(asyncs));
-	}
-
-	for (i = 0; i < NPROC; i++) {
-		if (!asyncs[i].func) {
-			m = &asyncs[i];
-			break;
-		}
-	}
-
-	if (i == NPROC) {
-		return NULL;
-	}
-
-	nmpx++;
-
-	/* Remember callback function */
-	m->func = func;
-	m->object = object;
-	m->die = die;
-	m->dieobj = dieobj;
-
-	/* Setup arguments */
-	for (i = 0; i < valen(args); i++) {
-		if (allargs)
-			allargs = vscatz(allargs, USTR " ");
-
-		allargs = vscat(allargs, args[i], vslen(args[i]));
-	}
-
-	i = utf8towcslen(allargs);
-	wargs = (wchar_t*)joe_malloc((i + 1) * sizeof(wchar_t));
-
-	if (utf8towcs(wargs, allargs, i)) {
-		assert(0);
-		goto fail;
-	}
-
-	i = utf8towcslen(cmd);
-	wcmd = (wchar_t*)joe_malloc((i + 1) * sizeof(wchar_t));
-
-	if (utf8towcs(wcmd, cmd, i)) {
-		assert(0);
-		goto fail;
-	}
-
-	/* Setup pipes */
-	ZeroMemory(&sa, sizeof(SECURITY_ATTRIBUTES));
-	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-	sa.bInheritHandle = TRUE;
-	sa.lpSecurityDescriptor = NULL;
-
-	if (!CreatePipe(&prr, &prw, &sa, 0) || !SetHandleInformation(prw, HANDLE_FLAG_INHERIT, 0)) {
-		assert(0);
-		goto fail;
-	}
-
-	if (!CreatePipe(&pwr, &pww, &sa, 0) || !SetHandleInformation(pwr, HANDLE_FLAG_INHERIT, 0)) {
-		assert(0);
-		CloseHandle(prr);
-		CloseHandle(prw);
-		goto fail;
-	}
-
-	/* Create child */
-	ZeroMemory(&si, sizeof(STARTUPINFOW));
-	si.cb = sizeof(STARTUPINFOW);
-	si.hStdInput = prr;
-	si.hStdOutput = pww;
-	si.hStdError = pww;
-	si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-	si.wShowWindow = FALSE;
-
-	res = CreateProcessW(wcmd, wargs, NULL, NULL, TRUE, CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP, NULL, NULL, &si, &pinf);
-
-	CloseHandle(pww);
-	CloseHandle(prr);
-
-	joe_free(wcmd);
-	joe_free(wargs);
-	wcmd = wargs = NULL;
-
-	if (res) {
-		/* Finish setting up MPX */
-		m->ackfd = jwCreateQueue(32, jwCreateWake());
-		m->dataqd = jwCreateQueue(MPX_BUFSZ, JW_TO_EDITOR);
-		m->hReadPipe = pwr;
-		m->ptyfd = *ptyfd = _open_osfhandle((intptr_t)prw, 0);
-		m->hProcess = pinf.hProcess;
-		m->pid = pinf.dwProcessId;
-		m->droplf = 0;
-
-		m->linebuf = bmk(NULL);
-
-		/* Start reader thread */
-		m->hReadThread = CreateThread(NULL, 0, mpxreadthread, m, 0, 0);
-
-		CloseHandle(pinf.hThread);
-
-		return m;
-	} else {
-		CloseHandle(pwr);
-		CloseHandle(prw);
-	}
-
-fail:
-	if (wargs) free(wargs);
-	if (wcmd) free(wcmd);
-	--nmpx;
-	ZeroMemory(m, sizeof(MPX));
-	return NULL;
-}
-
-static void mpxdied(MPX *m)
-{
-	CloseHandle(m->hReadThread);
-	CloseHandle(m->hProcess);
-
-	if (m->die) {
-		/* This should close the process's stdin fd */
-		m->die(m->dieobj);
-	}
-
-	jwCloseQueue(m->ackfd);
-	jwCloseQueue(m->dataqd);
-
-	brm(m->linebuf);
-
-	ZeroMemory(m, sizeof(MPX));
-
-	edupd(1);
-}
-
-void killmpx(int pid, int sig)
-{
-	int i;
-
-	for (i = 0; i < NPROC; i++) {
-		MPX *mpx = &asyncs[i];
-
-		/* TODO: Investigate assigning subprocess to a job and killing the job instead */
-
-		if (mpx->pid == pid) {
-			const int defalloc = 64;
-			LPDWORD processes;
-			DWORD nprocesses, me;
-			int t;
-
-			/* Notify reader thread to get out */
-			jwSendComm0(mpx->ackfd, COMM_EXIT);
-
-			/* Get list of processes to kill */
-			AttachConsole(mpx->pid);
-			processes = (LPDWORD)joe_malloc(sizeof(DWORD) * defalloc);
-			nprocesses = GetConsoleProcessList(processes, defalloc);
-			if (nprocesses > defalloc) {
-				processes = (LPDWORD)realloc(processes, sizeof(DWORD) * nprocesses);
-				nprocesses = GetConsoleProcessList(processes, nprocesses);
-			}
-
-			me = GetCurrentProcessId();
-
-			for (t = 0; t < nprocesses; t++) {
-				if (processes[t] == pid) {
-					TerminateProcess(mpx->hProcess, 1);
-				} else if (processes[t] != me) {
-					HANDLE hproc = OpenProcess(PROCESS_TERMINATE, FALSE, processes[t]);
-					TerminateProcess(hproc, 1);
-					CloseHandle(hproc);
-				}
-			}
-
-			FreeConsole();
-			joe_free(processes);
-
-			return;
-		}
-	}
-}
-
-static void controlc(MPX *m)
-{
-	/* TODO: This doesn't work as expected.  Documentation suggests that cmd.exe might be swallowing
-	   these events, but it's worth some further investigation. */
-	AttachConsole(m->pid);
-	SetConsoleCtrlHandler(NULL, TRUE);
-	GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0); /* Or should this be CTRL_BREAK_EVENT? */
-	FreeConsole();
-}
-
-/* Pre-process data before sending it off to a subprocess */
-static void bakempx(MPX *m, unsigned char c, DWORD mode)
-{
-	int droplf = m->droplf;
-	m->droplf = (c == 13);
-
-	if (mode & ENABLE_LINE_INPUT) {
-		if (c == 13 || (c == 10 && !droplf)) {
-			/* Enter */
-			bsavefd(m->linebuf->bof, m->ptyfd, m->linebuf->eof->byte);
-			bdel(m->linebuf->bof, m->linebuf->eof);
-			joe_write(m->ptyfd, "\r\n", 2);
-			m->func(m->object, USTR "\r\n", 2);
-		} else if (c == 127) {
-			/* Backspace */
-			P *p;
-
-			p = pdup(m->linebuf->eof, USTR "bakempx");
-			prgetc(p);
-			bdel(p, m->linebuf->eof);
-			prm(p);
-
-			m->func(m->object, &c, 1);
-		} else if (c == 3) {
-			/* Control-C */
-			controlc(m);
-
-			/* Drop current line */
-			bdel(m->linebuf->bof, m->linebuf->eof);
-		} else if (c != 10) {
-			binsbyte(m->linebuf->eof, c);
-			m->func(m->object, &c, 1);
-		}
-	} else if (c == 13 || (c == 10 && !droplf)) {
-		/* Enter */
-		joe_write(m->ptyfd, "\r\n", 2);
-	} else if (c == 3) {
-		/* Control-C */
-		controlc(m);
-	} else if (c != 10) {
-		joe_write(m->ptyfd, &c, 1);
-	}
-}
-
-int writempx(int fd, void *data, size_t amt)
-{
-	int i;
-
-	/* See if we can find it, first */
-	for (i = 0; i < NPROC; i++) {
-		if (asyncs[i].func && asyncs[i].ptyfd == fd) {
-			/* This is one of our shell windows, process as necessary. */
-			unsigned char *str = USTR data;
-			MPX *mpx = &asyncs[i];
-			DWORD mode;
-			int t;
-
-			AttachConsole(mpx->pid);
-			GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode);
-			FreeConsole();
-
-			for (t = 0; t < amt; t++) {
-				bakempx(mpx, str[t], mode);
-			}
-
-			return amt;
-		}
-	}
-
-	return joe_write(fd, data, amt);
 }

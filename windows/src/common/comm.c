@@ -76,7 +76,7 @@ struct CommQueue
 	struct CommBuffer	*freebuffers;
 	struct CommMessage	*freemsgs;
 	
-	int			buffersize;
+	size_t			buffersize;
 	
 	Q			*queue;
 	Q			*returnqueue;
@@ -86,7 +86,7 @@ struct CommQueue
 	int			hwake;
 };
 
-static struct CommQueue *CreateCommQueue(int buffersize);
+static struct CommQueue *CreateCommQueue(int buffersize, int hwake);
 static void DeleteCommQueue(struct CommQueue *queue);
 static struct CommMessage *CreateCommMessage(struct CommQueue *queue, int buffer);
 static void EnqueueCommMessage(struct CommQueue *queue, struct CommMessage *m);
@@ -96,11 +96,13 @@ static void ReleaseCommMessage(struct CommQueue *queue, struct CommMessage *m);
 
 /************************* Queue globals */
 
-static struct CommQueue **queues = NULL;
-static int qlen = 0;
+static HANDLE commmutex;
 
-static HANDLE *qhandles = NULL;
-static int nqhandles = 0;
+#define NQUEUES		64
+#define NQHANDLES	64
+
+static struct CommQueue *queues[NQUEUES];
+static HANDLE qhandles[NQHANDLES];
 
 /*
 static struct CommQueue *editorToUi, *uiToEditor;
@@ -381,42 +383,52 @@ int jwCreateWake(void)
 	HANDLE ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	int i;
 
-	for (i = 0; i < nqhandles; i++) {
+	/* Acquire lock */
+	WaitForSingleObject(commmutex, INFINITE);
+
+	for (i = 0; i < NQHANDLES; i++) {
 		if (!qhandles[i]) {
 			qhandles[i] = ev;
+			ReleaseMutex(commmutex);
 			return i;
 		}
 	}
 
-	nqhandles = max(4, nqhandles * 2);
-	qhandles = (HANDLE*)realloc(qhandles, nqhandles * sizeof(HANDLE));
-	ZeroMemory(&qhandles[i], (nqhandles - i) * sizeof(HANDLE));
+	assert(0);
+	ReleaseMutex(commmutex);
+	return -1;
+}
 
-	qhandles[i] = ev;
-	return i;
+HANDLE jwGetWakeEvent(int hwake)
+{
+	return qhandles[hwake];
 }
 
 int jwCreateQueue(int bufsz, int hwake)
 {
 	int i;
 
-	for (i = 0; i < qlen; i++) {
+	/* Acquire lock */
+	WaitForSingleObject(commmutex, INFINITE);
+
+	for (i = 0; i < NQUEUES; i++) {
 		if (!queues[i]) {
 			queues[i] = CreateCommQueue(bufsz, hwake);
+			ReleaseMutex(commmutex);
 			return i;
 		}
 	}
 
-	qlen = max(4, qlen * 2);
-	queues = (struct CommQueue**)realloc(queues, qlen * sizeof(struct CommQueue*));
-	ZeroMemory(&queues[i], (qlen - i) * sizeof(struct CommQueue*));
-
-	queues[i] = CreateCommQueue(bufsz, hwake);
-	return i;
+	assert(0);
+	ReleaseMutex(commmutex);
+	return -1;
 }
 
 void jwCloseQueue(int qd)
 {
+	/* Acquire lock */
+	WaitForSingleObject(commmutex, INFINITE);
+
 	if (queues && queues[qd]) {
 		int hwake = queues[qd]->hwake;
 		int i;
@@ -424,21 +436,28 @@ void jwCloseQueue(int qd)
 		DeleteCommQueue(queues[qd]);
 		queues[qd] = NULL;
 
-		for (i = 0; i < qlen; i++) {
+		for (i = 0; i < NQUEUES; i++) {
 			if (queues[i] && queues[i]->hwake == hwake)
 				break;
 		}
 
-		if (i == qlen) {
+		if (i == NQUEUES) {
 			/* Handle no longer used. */
 			CloseHandle(qhandles[hwake]);
 			qhandles[hwake] = 0;
 		}
 	}
+
+	ReleaseMutex(commmutex);
 }
 
 HANDLE jwInitializeComm(void)
 {
+	commmutex = CreateMutex(NULL, FALSE, NULL);
+
+	ZeroMemory(queues, sizeof(void *) * NQUEUES);
+	ZeroMemory(qhandles, sizeof(HANDLE) * NQHANDLES);
+
 	jwCreateQueue(EDITOR_TO_UI_BUFSZ, jwCreateWake()); /* 0 */
 	jwCreateQueue(UI_TO_EDITOR_BUFSZ, jwCreateWake()); /* 1 */
 
@@ -451,20 +470,18 @@ void jwShutdownComm(void)
 {
 	int i;
 
-	for (i = 0; i < qlen; i++) {
+	for (i = 0; i < NQUEUES; i++) {
 		if (queues[i])
 			DeleteCommQueue(queues[i]);
 	}
 
-	for (i = 0; i < nqhandles; i++) {
+	for (i = 0; i < NQHANDLES; i++) {
 		if (qhandles[i])
 			CloseHandle(qhandles[i]);
 	}
 
-	qhandles = NULL;
-	queues = NULL;
-	qlen = 0;
-	nqhandles = 0;
+	ZeroMemory(queues, sizeof(void *) * NQUEUES);
+	ZeroMemory(qhandles, sizeof(HANDLE) * NQHANDLES);
 }
 
 struct CommMessage *jwWaitForComm(int *qds, int nqds, int timeout, int *outqueue)
@@ -543,7 +560,7 @@ struct CommMessage *jwRecvComm(int qd)
 	return queues ? DequeueCommMessage(queues[qd]) : NULL;
 }
 
-void jwSendComm(int qd, int msg, int arg1, int arg2, int arg3, int arg4, void *ptr, int sz, const char *data)
+void jwSendComm(int qd, int msg, int arg1, int arg2, int arg3, int arg4, void *ptr, size_t sz, const char *data)
 {
 	struct CommMessage *m;
 	struct CommQueue *q;
@@ -624,17 +641,17 @@ int jwRendezvous(int readqd, int writeqd)
 ////////////////////////////////////////   JoeWin IO   /////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-void jwWriteIO(int qd, const char *data, int size)
+void jwWriteIO(int qd, const char *data, size_t size)
 {
-	int i;
-	int maxdata = JW_PACKIOSZ + queues[qd]->buffersize;
+	size_t i;
+	size_t maxdata = JW_PACKIOSZ + queues[qd]->buffersize;
 
 	for (i = 0; i < size; i += maxdata)
 	{
 		int arg1 = 0, arg2 = 0, arg3 = 0, arg4 = 0;
-		int pktsz = min(size - i, maxdata);
-		int packsz = min(JW_PACKIOSZ, pktsz);
-		int bufsz = pktsz - packsz;
+		size_t pktsz = min(size - i, maxdata);
+		size_t packsz = min(JW_PACKIOSZ, pktsz);
+		size_t bufsz = pktsz - packsz;
 
 		switch (packsz)
 		{
@@ -658,7 +675,7 @@ void jwWriteIO(int qd, const char *data, int size)
 
 		if (!bufsz)
 		{
-			jwSendComm(qd, COMM_IO_1 + packsz - 1, arg1, arg2, arg3, arg4, NULL, 0, NULL);
+			jwSendComm(qd, COMM_IO_1 + (int)packsz - 1, arg1, arg2, arg3, arg4, NULL, 0, NULL);
 		}
 		else
 		{
@@ -667,7 +684,7 @@ void jwWriteIO(int qd, const char *data, int size)
 	}
 }
 
-int jwReadIO(struct CommMessage *m, char *output)
+size_t jwReadIO(struct CommMessage *m, char *output)
 {
 	int msg = m->msg;
 

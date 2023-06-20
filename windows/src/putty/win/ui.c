@@ -22,8 +22,10 @@
 
 #include "jwbuiltin.h"
 #include "jwres.h"
+#include "jwutils.h"
+#include "jwglobals.h"
 
-static int CALLBACK AboutProc(HWND, UINT, WPARAM, LPARAM);
+static INT_PTR CALLBACK AboutProc(HWND, UINT, WPARAM, LPARAM);
 
 void jwAboutBox(HWND hwnd)
 {
@@ -40,7 +42,7 @@ static char *getLicenseText()
 
 	fp = jwfopen(L"*license.txt", L"r");
 	if (fp && fp->p) {
-		result = (char *)malloc(fp->sz * 2); // Baseless assumption
+		result = (char *)malloc(fp->sz + 1);
 		strncpy(result, (char *)fp->p, fp->sz);
 		result[fp->sz] = 0;
 	}
@@ -50,11 +52,9 @@ static char *getLicenseText()
 	return result;
 }
 
-static int CALLBACK AboutProc(HWND hwnd, UINT msg,
+static INT_PTR CALLBACK AboutProc(HWND hwnd, UINT msg,
 			      WPARAM wParam, LPARAM lParam)
 {
-	char *str;
-
 	switch (msg) {
 	case WM_INITDIALOG:
 		/* Load license */
@@ -79,7 +79,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 		if (LOWORD(wParam) == IDWEBSITE) {
 			/* Load web browser */
 			ShellExecuteA(hwnd, "open",
-				"http://joe-editor.sourceforge.net/",
+				"http://sourceforge.net/p/joe-editor",
 				0, 0, SW_SHOWDEFAULT);
 		}
 		break;
@@ -93,7 +93,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 }
 
 /* Originally from windlg.c */
-static int CALLBACK NullDlgProc(HWND hwnd, UINT msg,
+static INT_PTR CALLBACK NullDlgProc(HWND hwnd, UINT msg,
 				WPARAM wParam, LPARAM lParam)
 {
     return 0;
@@ -114,4 +114,26 @@ void defuse_showwindow(void)
 	SetActiveWindow(hwnd);
 	DestroyWindow(hwnd);
     }
+}
+
+void jwHelp(HWND hwnd, wchar_t *helpfile)
+{
+    wchar_t path[MAX_PATH];
+
+    /* Try local file */
+    if (!utf8towcs(path, jw_joedata, MAX_PATH)) {
+	wcscat(path, L"\\doc\\");
+	wcscat(path, helpfile);
+	wcscat(path, L".html");
+	if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) {
+	    ShellExecuteW(hwnd, L"open", path, 0, 0, SW_SHOWDEFAULT);
+	    return;
+	}
+    }
+
+    /* Try web site */
+    wcscpy(path, L"https://sourceforge.net/p/joe-editor/mercurial/ci/windows/tree/docs/");
+    wcscat(path, helpfile);
+    wcscat(path, L".md");
+    ShellExecuteW(hwnd, L"open", path, 0, 0, SW_SHOWDEFAULT);
 }

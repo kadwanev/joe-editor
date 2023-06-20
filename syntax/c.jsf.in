@@ -32,7 +32,7 @@
 # jump has the form: <character-list> <target-state> [<option>s]
 
 # There are three ways to specify <character-list>s, either * for any
-# character not otherwise specified, & to match the character in the
+# character not otherwise specified, % or & to match the character in the
 # delimiter match buffer or a literal list of characters within quotes
 # (ranges and escape sequences allowed).  When the next character matches
 # any in the list, a jump to the target-state is taken and the character is
@@ -266,11 +266,11 @@ done
 :predef_ws Preproc
 	*		prebad		recolor=-1
 	" \t"		predef_ws
-	"a-zA-Z0-9_"	predef_ident	recolor=-1
+	"\c"		predef_ident	recolor=-1
 
 :predef_ident Define
 	*		idle		noeat
-	"a-zA-Z0-9_"	predef_ident
+	"\c"		predef_ident
 
 
 :preproc Preproc
@@ -299,7 +299,7 @@ done
 	"."		maybe_float
 	"\""		string		recolor=-1
 	"'"		char		recolor=-1
-	"a-zA-Z_"	ident		buffer
+	"\i"		ident		buffer
 	"\\"		outside_escape	recolor=-1
 	"{}"		brace		recolor=-1
 	",:;=()><[]*&|!~+\-%^"	control		recolor=-1
@@ -502,7 +502,7 @@ done
 # Non-Standard
 	"typeof"		cppkw
 done
-	"a-zA-Z0-9_"	ident
+	"\c"		ident
 
 :type Type
 	*	idle	noeat

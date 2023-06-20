@@ -31,6 +31,9 @@
 #define getenv glue_getenv
 #define _exit jwexit
 #define exit jwexit
+#define lseek _lseeki64
+#define fseek _fseeki64
+#define fseeko _fseeki64
 
 #define open glue_open
 #define fopen glue_fopen
@@ -40,17 +43,32 @@
 #define chddir glue_chdir
 #define unlink glue_unlink
 #define mkdir glue_mkdir
+#define access glue_access
 
-/* TODO: long is 32 bits on 64 bit Windows and JOE does not use time_t or off_t (it uses longs to
-   store these internally).  time_t is 64 bits on both platforms, but off_t is 32 bits.  This needs
-   to be fixed but it is an extensive change that touches all platforms.  For now, we will just live
-   with 32-bit types for both values. */
+/* Types flags */
+
+/* https://msdn.microsoft.com/en-us/library/1w06ktdy.aspx */
+#define R_OK	4
+#define W_OK	2
+#define X_OK	1
+
+#define S_ISREG(x)	(((x) & S_IFMT) == S_IFREG)
+#define S_ISDIR(x)	(((x) & S_IFMT) == S_IFDIR)
 
 #define lstat glue_stat
-#define stat _stat32
-#define _stat32(x,y) glue_stat((x),(y))		/* simultaneously ugly and clever :-) */
-#define jwstatfunc _wstat32
-#define fstat _fstat32
+#ifdef _M_X64
+// 64 bit will have 64 bit off_t
+#define stat _stat64
+#define _stat64(x,y) glue_stat((x),(y))		/* simultaneously ugly and clever :-) */
+#define jwstatfunc _wstat64
+#define fstat _fstat64
+#else
+// 32 bit will have 32 bit off_t
+#define stat _stat64i32
+#define _stat64i32(x,y) glue_stat((x),(y))		/* simultaneously ugly and clever :-) */
+#define jwstatfunc _wstat
+#define fstat _fstat
+#endif
 
 /* UTF-8 encoding = ~3x MAX_PATH */
 #define PATH_MAX (MAX_PATH*3)
@@ -63,7 +81,9 @@ struct dirent {
     HANDLE  find_handle;
 };
 
-void *opendir(unsigned char*);
+typedef struct dirent DIR;
+
+DIR *opendir(const char*);
 void closedir(void*);
 struct dirent *readdir(void*);
 
@@ -79,5 +99,10 @@ int glue_chdir(const char *path);
 int glue_fprintf(FILE *, const char *, ...);
 int glue_unlink(const char *path);
 int glue_mkdir(const char *path, int);
+int glue_access(const char *path, int);
+
+/* Types that need definition */
+
+typedef int mode_t;
 
 #endif // _JOEWIN_GLUE_H

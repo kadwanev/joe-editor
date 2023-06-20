@@ -63,6 +63,8 @@
 #define IDM_CURSHORZ  0x0230
 #define IDM_CURSBLOK  0x0240
 #define IDM_COPY      0x0250
+#define IDM_MANUAL    0x0300
+#define IDM_WINTIPS   0x0310
 #endif
 #define IDM_COPYALL   0x0170
 #define IDM_FULLSCREEN	0x0180
@@ -179,6 +181,7 @@ static HMENU savedsess_menu;
 #ifdef JOEWIN
 static HMENU schemes_menu = NULL;
 static HMENU cursor_menu = NULL;
+static HMENU help_menu = NULL;
 
 static HANDLE commQueueEvent;
 #endif
@@ -846,6 +849,10 @@ int PuttyWinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	AppendMenu(cursor_menu, MF_ENABLED, IDM_CURSBLOK, "Block");
 	update_cursor_check();
 
+	help_menu = CreateMenu();
+	AppendMenu(help_menu, MF_ENABLED, IDM_MANUAL, "User manual");
+	AppendMenu(help_menu, MF_ENABLED, IDM_WINTIPS, "JOE for Windows tips");
+
 #endif
 
 	for (j = 0; j < lenof(popup_menus); j++) {
@@ -881,6 +888,7 @@ int PuttyWinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) schemes_menu, "Color Schemes"); 
 	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) cursor_menu, "Cursor Type");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) help_menu, "Documentation");
 	    AppendMenu(m, MF_ENABLED, IDM_ABOUT, "About...");
 #endif
 	}
@@ -2288,7 +2296,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    show_mouseptr(1);
 #ifdef JOEWIN
 	    str = "Exit Confirmation";
-	    if (!jwAnyModified() || MessageBox(hwnd, "Some open files have not been saved.  Are you sure you want to quit?", str, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) == IDYES)
+	    if (jwCanExit() || MessageBox(hwnd, "Some open files have not been saved.  Are you sure you want to quit?", str, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) == IDYES)
 	    {
 		jwSaveWindowCoords(hwnd, term->rows, term->cols);
 		jwUIExit();
@@ -2715,6 +2723,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    jwSendComm0p(JW_FROM_UI, COMM_EXEC, "wincopy");
 	    break;
 
+	case IDM_MANUAL:
+	    jwHelp(hwnd, L"man");
+	    break;
+
+	case IDM_WINTIPS:
+	    jwHelp(hwnd, L"windows");
+	    break;
 #endif
 	  case IDM_ABOUT:
 	    jwAboutBox(hwnd);

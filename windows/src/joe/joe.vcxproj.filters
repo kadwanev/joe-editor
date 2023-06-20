@@ -28,9 +28,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\builtin.h">
-      <Filter>Source Files</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\bw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(JoeExternalSrcDir)\cclass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\charmap.h">
@@ -45,6 +48,9 @@
     <ClInclude Include="$(JoeExternalSrcDir)\coroutine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="$(JoeExternalSrcDir)\frag.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\gettext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -52,9 +58,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\help.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="$(JoeExternalSrcDir)\i18n.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\kbd.h">
@@ -75,10 +78,16 @@
     <ClInclude Include="$(JoeExternalSrcDir)\menu.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="$(JoeExternalSrcDir)\mmenu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\mouse.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\obj.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(JoeExternalSrcDir)\options.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\path.h">
@@ -103,6 +112,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\scrn.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(JoeExternalSrcDir)\state.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\syntax.h">
@@ -165,6 +177,9 @@
     <ClInclude Include="$(JoeExternalSrcDir)\vfile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="$(JoeExternalSrcDir)\vt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="$(JoeExternalSrcDir)\w.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -180,8 +195,8 @@
     <ClInclude Include="$(JoeSrcDir)\joedata.h">
       <Filter>JoeWin Files</Filter>
     </ClInclude>
-    <ClInclude Include="$(JoeSrcDir)\builtin.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(JoeSrcDir)\subproc.h">
+      <Filter>JoeWin Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -197,6 +212,9 @@
     <ClCompile Include="$(JoeExternalSrcDir)\bw.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\cclass.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\charmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -204,6 +222,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\coroutine.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\frag.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\gettext.c">
@@ -230,6 +251,9 @@
     <ClCompile Include="$(JoeExternalSrcDir)\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\mmenu.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\menu.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -237,6 +261,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\obj.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\options.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\path.c">
@@ -261,6 +288,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\scrn.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\state.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\syntax.c">
@@ -299,6 +329,12 @@
     <ClCompile Include="$(JoeExternalSrcDir)\undo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\unicat.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\unicode.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\usearch.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -317,6 +353,9 @@
     <ClCompile Include="$(JoeExternalSrcDir)\vfile.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(JoeExternalSrcDir)\vt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(JoeExternalSrcDir)\w.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -324,9 +363,6 @@
       <Filter>JoeWin Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeSrcDir)\bupdates.c">
-      <Filter>JoeWin Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(JoeSrcDir)\i18n.c">
       <Filter>JoeWin Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeSrcDir)\uwindows.c">
@@ -339,6 +375,9 @@
       <Filter>JoeWin Files</Filter>
     </ClCompile>
     <ClCompile Include="$(JoeSrcDir)\tty.c">
+      <Filter>JoeWin Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(JoeSrcDir)\subproc.c">
       <Filter>JoeWin Files</Filter>
     </ClCompile>
   </ItemGroup>

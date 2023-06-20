@@ -23,13 +23,12 @@
 #include <assert.h>
 
 #include "jwbuiltin.h"
-#include "lzf.h"
 
 static HMODULE modules[8];
 static int nmodules = 0;
 
-static int iscompressed(const unsigned char* p);
-static int decompress(const unsigned char* p, int len, unsigned char **result, int *resultlen);
+static int iscompressed(const char* p);
+static int decompress(const char* p, size_t len, char **result, size_t *resultlen);
 
 void jwAddResourceHandle(HMODULE module)
 {
@@ -49,18 +48,18 @@ JFILE *jwfopen(wchar_t *name, wchar_t *mode)
 			HRSRC res = FindResource(modules[i], resname, RT_RCDATA);
 			if (res) {
 				HGLOBAL resptr = LoadResource(modules[i], res);
-				unsigned char *ptr = (unsigned char *)LockResource(resptr);
+				char *ptr = (char *)LockResource(resptr);
 				JFILE *j = (JFILE *)malloc(sizeof(JFILE));
 
 				j->f = 0;
 				j->sz = SizeofResource(modules[i], res);
 
-				/* Courtesy of liblzf (wrappers below) */
-				if (iscompressed((unsigned char *)ptr)) {
-					unsigned char *newptr;
-					int newlen;
+				/* Courtesy of miniz (wrappers below) */
+				if (iscompressed(ptr)) {
+					char *newptr;
+					size_t newlen;
 
-					if (!decompress((unsigned char *)ptr, j->sz, &newptr, &newlen)) {
+					if (!decompress(ptr, j->sz, &newptr, &newlen)) {
 						/* Success */
 						j->dealloc = newptr;
 						j->p = newptr;
@@ -99,11 +98,11 @@ JFILE *jwfopen(wchar_t *name, wchar_t *mode)
 	}
 }
 
-unsigned char *jwfgets(unsigned char *buf, int size, JFILE *f)
+char *jwfgets(char *buf, size_t size, JFILE *f)
 {
-	int x;
+	size_t x;
 
-	if (f->f) return (unsigned char *)fgets((char*)buf, size, f->f);
+	if (f->f) return fgets(buf, (int)size, f->f);
 	if (!f->sz) {
 		buf[0] = 0;
 		return NULL;
@@ -151,7 +150,7 @@ const wchar_t *jwnextbuiltin(const wchar_t* prev, const wchar_t* suffix)
 {
 	static wchar_t *allbuiltins = NULL;
 	const wchar_t *next;
-	int slen;
+	size_t slen;
 
 	if (!allbuiltins) {
 		wchar_t tmp[4096];
@@ -186,7 +185,7 @@ const wchar_t *jwnextbuiltin(const wchar_t* prev, const wchar_t* suffix)
 		if (!suffix) {
 			return next;
 		} else {
-			int nlen = wcslen(next);
+			size_t nlen = wcslen(next);
 
 			if (slen <= nlen && !wcsicmp(suffix, &next[nlen - slen])) {
 				return next;
@@ -209,75 +208,21 @@ int jwfclose(JFILE *f)
 }
 
 
-/**** Wrappers for liblzf ****/
+/**** Wrappers for tinfl ****/
 
-static int iscompressed(const unsigned char* p)
+void *tinfl_decompress_mem_to_heap(const void *pSrc_buf, size_t src_buf_len, size_t *pOut_len, int flags);
+
+static int iscompressed(const char* p)
 {
-	return p[0] == 'Z' && p[1] == 'V' && (p[2] == 0 || p[2] == 1);
+	return p[0] == 5 && p[1] == 1;
 }
 
-#define READ_SHORT(x) ((p[i + x] << 8) | p[i + x + 1])
-
-static int decompress(const unsigned char* p, int len, unsigned char **result, int *resultlen)
+static int decompress(const char* p, size_t len, char **result, size_t *resultlen)
 {
-	int i = 0, t = 0;
-	size_t sz = 0;
-	unsigned char *data;
+	size_t outsz;
 
-	/* Extract the length */
-	while (i < len) {
-		if (p[i] == 'Z' && p[i + 1] == 'V') {
-			if (p[i + 2] == 0) {
-				/* Uncompressed block */
-				int blocksz = READ_SHORT(3);
+	*result = (char *)tinfl_decompress_mem_to_heap(&p[2], len, &outsz, 0);
+	*resultlen = outsz;
 
-				i += blocksz + 5;
-				sz += blocksz;
-			} else if (p[i + 2] == 1) {
-				/* Compressed block */
-				sz += READ_SHORT(5);
-				i += READ_SHORT(3) + 7;
-			} else {
-				assert(0);
-				return 1;
-			}
-		} else {
-			/* Out of sync. error */
-			assert(0);
-			return 1;
-		}
-	}
-
-	data = (unsigned char *)malloc(sz);
-	
-	/* Process each block */
-	for (i = 0, t = 0; i < len;) {
-		if (p[i + 2] == 0) {
-			/* Uncompressed block */
-			int blocksz = READ_SHORT(3);
-
-			memcpy(&data[t], &p[i + 5], blocksz);
-			i += blocksz + 5;
-			t += blocksz;
-		} else if (p[i + 2] == 1) {
-			/* Compressed block */
-			int cmpsz = READ_SHORT(3);
-			int ucmpsz = READ_SHORT(5);
-
-			if (!lzf_decompress(&p[i + 7], cmpsz, &data[t], ucmpsz)) {
-				/* Error */
-				assert(0);
-				free(data);
-				return 1;
-			}
-
-			i += cmpsz + 7;
-			t += ucmpsz;
-		}
-	}
-
-	*result = data;
-	*resultlen = (int)sz;
 	return 0;
 }
-

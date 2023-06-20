@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 3.8)
+AC_INIT(joe, 4.1)
 AC_CONFIG_SRCDIR([joe/b.c])
 
 AC_CANONICAL_BUILD
@@ -72,7 +72,8 @@ AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
 AC_CHECK_HEADERS([sys/dirent.h time.h pwd.h paths.h pty.h libutil.h])
 AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
-AC_CHECK_HEADERS([curses.h term.h utmp.h sys/utime.h ucontext.h setjmp.h])
+AC_CHECK_HEADERS([curses.h term.h utmp.h sys/utime.h ucontext.h stddef.h])
+AC_CHECK_HEADERS([setjmp.h])
 
 AC_CHECK_HEADERS([selinux/selinux.h selinux/context.h])
 if test "$ac_cv_header_selinux_selinux_h" = "yes" -a "$ac_cv_header_selinux_context_h" = "yes" ; then
@@ -183,8 +184,8 @@ AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 # Check for programs..
 AC_CHECK_PROG(SPELL,aspell,aspell,ispell)
 
-AC_CONFIG_FILES([Makefile joe/Makefile rc/Makefile man/Makefile man/ru/Makefile
-syntax/Makefile po/Makefile charmaps/klingon
+AC_CONFIG_FILES([Makefile joe/Makefile joe/util/Makefile rc/Makefile
+man/Makefile man/ru/Makefile syntax/Makefile po/Makefile charmaps/klingon
 syntax/4gl.jsf syntax/ada.jsf syntax/ant.jsf syntax/asm.jsf syntax/awk.jsf
 syntax/batch.jsf syntax/c.jsf syntax/cobol.jsf syntax/comment_todo.jsf
 syntax/conf.jsf syntax/csharp.jsf syntax/csh.jsf syntax/css.jsf
@@ -201,5 +202,8 @@ syntax/python.jsf syntax/rexx.jsf syntax/ruby.jsf syntax/sed.jsf
 syntax/sh.jsf syntax/sieve.jsf syntax/skill.jsf syntax/sml.jsf
 syntax/spec.jsf syntax/sql.jsf syntax/tcl.jsf syntax/tex.jsf
 syntax/troff.jsf syntax/typescript.jsf syntax/verilog.jsf syntax/vhdl.jsf
-syntax/whitespace.jsf syntax/xml.jsf syntax/yaml.jsf])
+syntax/whitespace.jsf syntax/xml.jsf syntax/yaml.jsf syntax/filename.jsf
+syntax/avr.jsf syntax/r.jsf syntax/groovy.jsf syntax/clojure.jsf
+syntax/rust.jsf syntax/coffee.jsf syntax/scala.jsf syntax/swift.jsf
+syntax/d.jsf])
 AC_OUTPUT
