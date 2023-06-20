@@ -304,7 +304,7 @@ SCHEME *load_scheme(const char *name)
 	char *buf = vsmk(256);
 	char *bf = vsmk(64);
 	char *b = NULL;
-	JFILE *f;
+	JFILE *f = NULL;
 	int line, i;
 	
 	/* Find existing */
@@ -317,7 +317,11 @@ SCHEME *load_scheme(const char *name)
 	/* Find file */
 	p = getenv("HOME");
 	if (p) {
+#ifndef JOEWIN
 		buf = vsfmt(buf, 0, "%s/.joe/colors/%s.jcf", p, name);
+#else
+		buf = vsfmt(buf, 0, "%s\\colors\\%s.jcf", p, name);
+#endif
 		f = jfopen(buf, "r");
 	}
 	
