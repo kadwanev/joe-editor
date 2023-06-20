@@ -80,7 +80,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-bin_PROGRAMS = joe$(EXEEXT) termidx$(EXEEXT)
+bin_PROGRAMS = joe$(EXEEXT) termidx$(EXEEXT) stringify$(EXEEXT)
 subdir = joe
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(srcdir)/autoconf.h.in $(top_srcdir)/depcomp \
@@ -109,9 +109,12 @@ am_joe_OBJECTS = b.$(OBJEXT) blocks.$(OBJEXT) bw.$(OBJEXT) \
 	w.$(OBJEXT) utils.$(OBJEXT) syntax.$(OBJEXT) utf8.$(OBJEXT) \
 	selinux.$(OBJEXT) i18n.$(OBJEXT) charmap.$(OBJEXT) \
 	mouse.$(OBJEXT) lattr.$(OBJEXT) gettext.$(OBJEXT) \
-	builtin.$(OBJEXT) builtins.$(OBJEXT)
+	builtin.$(OBJEXT) builtins.$(OBJEXT) vt.$(OBJEXT)
 joe_OBJECTS = $(am_joe_OBJECTS)
 joe_LDADD = $(LDADD)
+am_stringify_OBJECTS = stringify.$(OBJEXT)
+stringify_OBJECTS = $(am_stringify_OBJECTS)
+stringify_LDADD = $(LDADD)
 am_termidx_OBJECTS = termidx.$(OBJEXT)
 termidx_OBJECTS = $(am_termidx_OBJECTS)
 termidx_LDADD = $(LDADD)
@@ -143,8 +146,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(joe_SOURCES) $(termidx_SOURCES)
-DIST_SOURCES = $(joe_SOURCES) $(termidx_SOURCES)
+SOURCES = $(joe_SOURCES) $(stringify_SOURCES) $(termidx_SOURCES)
+DIST_SOURCES = $(joe_SOURCES) $(stringify_SOURCES) $(termidx_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -283,7 +286,7 @@ noinst_HEADERS = b.h blocks.h bw.h cmd.h config.h hash.h help.h kbd.h \
 	scrn.h tab.h termcapj.h tty.h tw.h types.h ublock.h uedit.h uerror.h \
 	ufile.h uformat.h uisrch.h umath.h undo.h usearch.h ushell.h utag.h \
 	utils.h va.h vfile.h vs.h w.h utf8.h syntax.h i18n.h charmap.h mouse.h \
-	lattr.h gettext.h builtin.h
+	lattr.h gettext.h builtin.h vt.h
 
 INCLUDES = -DJOERC="\"$(sysconf_joedir)/\"" -DJOEDATA="\"$(data_joedir)/\""
 
@@ -293,9 +296,10 @@ joe_SOURCES = b.c blocks.c bw.c cmd.c hash.c help.c kbd.c macro.c main.c menu.c 
 	tty.c tw.c ublock.c uedit.c uerror.c ufile.c uformat.c uisrch.c umath.c \
 	undo.c usearch.c ushell.c utag.c va.c vfile.c vs.c w.c utils.c syntax.c \
 	utf8.c selinux.c i18n.c charmap.c mouse.c lattr.c gettext.c builtin.c \
-	builtins.c
+	builtins.c vt.c
 
 termidx_SOURCES = termidx.c
+stringify_SOURCES = stringify.c
 all: autoconf.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -393,6 +397,10 @@ joe$(EXEEXT): $(joe_OBJECTS) $(joe_DEPENDENCIES) $(EXTRA_joe_DEPENDENCIES)
 	@rm -f joe$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(joe_OBJECTS) $(joe_LDADD) $(LIBS)
 
+stringify$(EXEEXT): $(stringify_OBJECTS) $(stringify_DEPENDENCIES) $(EXTRA_stringify_DEPENDENCIES) 
+	@rm -f stringify$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(stringify_OBJECTS) $(stringify_LDADD) $(LIBS)
+
 termidx$(EXEEXT): $(termidx_OBJECTS) $(termidx_DEPENDENCIES) $(EXTRA_termidx_DEPENDENCIES) 
 	@rm -f termidx$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(termidx_OBJECTS) $(termidx_LDADD) $(LIBS)
@@ -429,6 +437,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regex.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/scrn.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/selinux.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stringify.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/syntax.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tab.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/termcap.Po@am__quote@
@@ -451,6 +460,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/va.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vfile.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vt.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/w.Po@am__quote@
 
 .c.o:

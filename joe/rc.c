@@ -78,20 +78,56 @@ KMAP *ngetcontext(unsigned char *name)
 	return 0;
 }
 
+/* True if KMAP is empty */
+
+int kmap_empty(KMAP *k)
+{
+	int x;
+	for (x = 0; x != KEYS; ++x)
+		if  (k->keys[x].value.bind)
+			return 0;
+	return 1;
+}
+
 /* Validate joerc file */
 
 int validate_rc()
 {
-	KMAP *k = ngetcontext(USTR "main");
-	int x;
-	/* Make sure main exists */
-	if (!k)
+	KMAP *k;
+	if (!(k = ngetcontext(USTR "main")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :main keymap\n")));
 		return -1;
-	/* Make sure there is at least one key binding */
-	for (x = 0; x != KEYS; ++x)
-		if (k->keys[x].value.bind)
-			return 0;
-	return -1;
+	}
+
+	if (!(k = ngetcontext(USTR "prompt")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :prompt keymap\n")));
+		return -1;
+	}
+
+	if (!(k = ngetcontext(USTR "query")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :query keymap\n")));
+		return -1;
+	}
+
+	if (!(k = ngetcontext(USTR "querya")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :querya keymap\n")));
+		return -1;
+	}
+
+	if (!(k = ngetcontext(USTR "querysr")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :querysr keymap\n")));
+		return -1;
+	}
+
+	if (!(k = ngetcontext(USTR "shell")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :shell keymap\n")));
+	}
+
+	if (!(k = ngetcontext(USTR "vtshell")) || kmap_empty(k)) {
+		logerror_0(joe_gettext(_("Missing or empty :vtshell keymap\n")));
+	}
+
+	return 0;
 }
 
 unsigned char **get_keymap_list()
@@ -127,6 +163,8 @@ OPTIONS pdefault = {
 	NULL,		/* *context */
 	NULL,		/* *lmsg */
 	NULL,		/* *rmsg */
+	NULL,		/* *smsg */
+	NULL,		/* *zmsg */
 	0,		/* line numbers */
 	0,		/* read only */
 	0,		/* french spacing */
@@ -158,8 +196,10 @@ OPTIONS pdefault = {
 	0,		/* semi_comment */
 	0,		/* tex_comment */
 	0,		/* hex */
+	0,		/* hide ansi */
 	NULL,		/* text_delimiters */
 	NULL,		/* Characters which can indent paragraphs */
+	NULL,		/* Characters which begin non-paragraph lines */
 	NULL,		/* macro to execute for new files */
 	NULL,		/* macro to execute for existing files */
 	NULL,		/* macro to execute before saving new files */
@@ -185,6 +225,8 @@ OPTIONS fdefault = {
 	USTR "main",		/* *context */
 	USTR "\\i%n %m %M",	/* *lmsg */
 	USTR " %S Ctrl-K H for help",	/* *rmsg */
+	NULL,		/* *smsg */
+	NULL,		/* *zmsg */
 	0,		/* line numbers */
 	0,		/* read only */
 	0,		/* french spacing */
@@ -216,8 +258,10 @@ OPTIONS fdefault = {
 	0,		/* semi_comment */
 	0,		/* tex_comment */
 	0,		/* hex */
+	0,		/* hide ansi */
 	NULL,		/* text_delimiters */
 	USTR ">;!#%/",	/* Characters which can indent paragraphs */
+	USTR ".",	/* Characters which begin non-paragraph lines */
 	NULL, NULL, NULL, NULL, NULL	/* macros (see above) */
 };
 
@@ -321,6 +365,7 @@ struct glopts {
 } glopts[] = {
 	{USTR "overwrite",4, NULL, (unsigned char *) &fdefault.overtype, USTR _("Overtype mode"), USTR _("Insert mode"), USTR _("T Overtype ") },
 	{USTR "hex",4, NULL, (unsigned char *) &fdefault.hex, USTR _("Hex edit mode"), USTR _("Text edit mode"), USTR _("  Hex edit mode ") },
+	{USTR "ansi",4, NULL, (unsigned char *) &fdefault.ansi, USTR _("Hide ANSI sequences"), USTR _("Reveal ANSI sequences"), USTR _("  Hide ANSI mode ") },
 	{USTR "autoindent",	4, NULL, (unsigned char *) &fdefault.autoindent, USTR _("Autoindent enabled"), USTR _("Autoindent disabled"), USTR _("I Autoindent ") },
 	{USTR "wordwrap",	4, NULL, (unsigned char *) &fdefault.wordwrap, USTR _("Wordwrap enabled"), USTR _("Wordwrap disabled"), USTR _("W Word wrap ") },
 	{USTR "tab",	5, NULL, (unsigned char *) &fdefault.tab, USTR _("Tab width (%d): "), 0, USTR _("D Tab width "), 0, 1, 64 },
@@ -332,6 +377,7 @@ struct glopts {
 	{USTR "wrap",	0, &wrap, NULL, USTR _("Search wraps"), USTR _("Search doesn't wrap"), USTR _("  Search wraps ") },
 	{USTR "menu_explorer",	0, &menu_explorer, NULL, USTR _("Menu explorer mode"), USTR _("Simple completion mode"), USTR _("  Menu explorer ") },
 	{USTR "menu_above",	0, &menu_above, NULL, USTR _("Menu above prompt"), USTR _("Menu below prompt"), USTR _("  Menu position ") },
+	{USTR "notagsmenu",	0, &notagsmenu, NULL, USTR _("Tags menu disabled"), USTR _("Tags menu enabled"), USTR _("  Disable tags menu ") },
 	{USTR "search_prompting",	0, &pico, NULL, USTR _("Search prompting on"), USTR _("Search prompting off"), USTR _("  Search prompting ") },
 	{USTR "menu_jump",	0, &menu_jump, NULL, USTR _("Jump into menu is on"), USTR _("Jump into menu is off"), USTR _("  Jump into menu ") },
 	{USTR "autoswap",	0, &autoswap, NULL, USTR _("Autoswap ^KB and ^KK"), USTR _("Autoswap off "), USTR _("  Autoswap mode ") },
@@ -390,6 +436,7 @@ struct glopts {
 	{USTR "text_delimiters",	6, NULL, (unsigned char *) &fdefault.text_delimiters, USTR _("Text delimiters (%s): "), 0, USTR _("  Text delimiters ") },
 	{USTR "language",	6, NULL, (unsigned char *) &fdefault.language, USTR _("Language (%s): "), 0, USTR _("V Language ") },
 	{USTR "cpara",		6, NULL, (unsigned char *) &fdefault.cpara, USTR _("Characters which can indent paragraphs (%s): "), 0, USTR _("  Paragraph indent chars ") },
+	{USTR "cnotpara",	6, NULL, (unsigned char *) &fdefault.cnotpara, USTR _("Characters which begin non-paragraph lines (%s): "), 0, USTR _("  Non-paragraph chars ") },
 	{USTR "floatmouse",	0, &floatmouse, 0, USTR _("Clicking can move the cursor past end of line"), USTR _("Clicking past end of line moves cursor to the end"), USTR _("  Click past end ") },
 	{USTR "rtbutton",	0, &rtbutton, 0, USTR _("Mouse action is done with the right button"), USTR _("Mouse action is done with the left button"), USTR _("  Right button ") },
 	{USTR "nonotice",	0, &nonotice, NULL, 0, 0, 0 },
@@ -573,6 +620,20 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 				ret = 2;
 			} else
 				ret = 1;
+		} else if (!zcmp(s, USTR "smsg")) {
+			if (arg) {
+				if (options)
+					options->smsg = zdup(arg);
+				ret = 2;
+			} else
+				ret = 1;
+		} else if (!zcmp(s, USTR "zmsg")) {
+			if (arg) {
+				if (options)
+					options->zmsg = zdup(arg);
+				ret = 2;
+			} else
+				ret = 1;
 		} else if (!zcmp(s, USTR "keymap")) {
 			if (arg) {
 				int y;
@@ -590,7 +651,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 				int sta;
 
 				if (options)
-					options->mnew = mparse(NULL, arg, &sta);
+					options->mnew = mparse(NULL, arg, &sta, 0);
 				ret = 2;
 			} else
 				ret = 1;
@@ -599,7 +660,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 				int sta;
 
 				if (options)
-					options->mfirst = mparse(NULL, arg, &sta);
+					options->mfirst = mparse(NULL, arg, &sta, 0);
 				ret = 2;
 			} else
 				ret = 1;
@@ -608,7 +669,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 				int sta;
 
 				if (options)
-					options->mold = mparse(NULL, arg, &sta);
+					options->mold = mparse(NULL, arg, &sta, 0);
 				ret = 2;
 			} else
 				ret = 1;
@@ -617,7 +678,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 				int sta;
 
 				if (options)
-					options->msnew = mparse(NULL, arg, &sta);
+					options->msnew = mparse(NULL, arg, &sta, 0);
 				ret = 2;
 			} else
 				ret = 1;
@@ -626,7 +687,7 @@ int glopt(unsigned char *s, unsigned char *arg, OPTIONS *options, int set)
 				int sta;
 
 				if (options)
-					options->msold = mparse(NULL, arg, &sta);
+					options->msold = mparse(NULL, arg, &sta, 0);
 				ret = 2;
 			} else
 				ret = 1;
@@ -694,7 +755,7 @@ static int doopt1(BW *bw, unsigned char *s, int *xx, int *notify)
 	joe_free(xx);
 	switch (glopts[x].type) {
 	case 1:
-		v = calc(bw, s);
+		v = calc(bw, s, 0);
 		if (merr) {
 			msgnw(bw->parent, merr);
 			ret = -1;
@@ -713,7 +774,7 @@ static int doopt1(BW *bw, unsigned char *s, int *xx, int *notify)
 		*(unsigned char **)((unsigned char *)&bw->o+glopts[x].ofst) = zdup(s);
 		break;
 	case 5:
-		v = calc(bw, s);
+		v = calc(bw, s, 0);
 		if (merr) {
 			msgnw(bw->parent, merr);
 			ret = -1;
@@ -725,7 +786,7 @@ static int doopt1(BW *bw, unsigned char *s, int *xx, int *notify)
 		}
 		break;
 	case 7:
-		v = calc(bw, s) - 1.0;
+		v = calc(bw, s, 0) - 1.0;
 		if (merr) {
 			msgnw(bw->parent, merr);
 			ret = -1;
@@ -1406,7 +1467,7 @@ int procrc(CAP *cap, unsigned char *name)
 							MACRO *m;
 
 							if (joe_isblank(locale_map,c)
-							    && (m = mparse(NULL, buf + y + 1, &sta)))
+							    && (m = mparse(NULL, buf + y + 1, &sta, 0)))
 								addcmd(buf + x, m);
 							else {
 								err = 1;
@@ -1526,7 +1587,7 @@ int procrc(CAP *cap, unsigned char *name)
 
 				m = 0;
 			      macroloop:
-				m = mparse(m, buf, &x);
+				m = mparse(m, buf, &x, 0);
 				if (x == -1) {
 					err = 1;
 					logerror_2((char *)joe_gettext(_("%s %d: Unknown command in macro\n")), name, line);

@@ -246,8 +246,8 @@ sysconf_joedir = $(sysconfdir)/joe
 data_joedir = $(datadir)/joe
 data_docdir = $(docdir)
 sysconf_joe_built = joerc jicerc.ru jmacsrc jstarrc rjoerc jpicorc
-sysconf_joe_DATA = $(sysconf_joe_built) ftyperc
-EXTRA_DIST = joerc.in jicerc.ru.in jmacsrc.in jstarrc.in jpicorc.in rjoerc.in ftyperc
+sysconf_joe_DATA = $(sysconf_joe_built) ftyperc shell.sh shell.csh
+EXTRA_DIST = joerc.in jicerc.ru.in jmacsrc.in jstarrc.in jpicorc.in rjoerc.in ftyperc shell.sh shell.csh
 MOSTLYCLEANFILES = $(sysconf_joe_built)
 all: all-am
 
