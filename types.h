@@ -39,7 +39,7 @@ typedef int pid_t;
 #include <time.h>
 #endif
 
-#define joe_gettext(s) my_gettext((char *)(s))
+#define joe_gettext(s) my_gettext((unsigned char *)(s))
 
 /*
 #ifdef ENABLE_NLS
@@ -56,7 +56,7 @@ typedef int pid_t;
 /* Global Defines */
 
 /* Prefix to make string constants unsigned */
-#define US (unsigned char *)
+#define USTR (unsigned char *)
 
 /* Doubly-linked list node */
 #define LINK(type) struct { type *next; type *prev; }
@@ -75,6 +75,12 @@ typedef int pid_t;
 #define joe_snprintf_9(buf,len,fmt,a,b,c,d,e,f,g,h,i) snprintf((char *)(buf),(len),(char *)(fmt),(a),(b),(c),(d),(e),(f),(g),(h),(i))
 #define joe_snprintf_10(buf,len,fmt,a,b,c,d,e,f,g,h,i,j) snprintf((char *)(buf),(len),(char *)(fmt),(a),(b),(c),(d),(e),(f),(g),(h),(i),(j))
 
+#define i_printf_0(fmt) (snprintf((char *)(i_msg),sizeof(i_msg),(char *)(fmt)), internal_msg(i_msg))
+#define i_printf_1(fmt,a) (snprintf((char *)(i_msg),sizeof(i_msg),(char *)(fmt),(a)), internal_msg(i_msg))
+#define i_printf_2(fmt,a,b) (snprintf((char *)(i_msg),sizeof(i_msg),(char *)(fmt),(a),(b)), internal_msg(i_msg))
+#define i_printf_3(fmt,a,b,c) (snprintf((char *)(i_msg),sizeof(i_msg),(char *)(fmt),(a),(b),(c)), internal_msg(i_msg))
+#define i_printf_4(fmt,a,b,c,d) (snprintf((char *)(i_msg),sizeof(i_msg),(char *)(fmt),(a),(b),(c),(d)), internal_msg(i_msg))
+
 #else
 
 #define joe_snprintf_0(buf,len,fmt) sprintf((char *)(buf),(char *)(fmt))
@@ -89,6 +95,12 @@ typedef int pid_t;
 #define joe_snprintf_9(buf,len,fmt,a,b,c,d,e,f,g,h,i) sprintf((char *)(buf),(char *)(fmt),(a),(b),(c),(d),(e),(f),(g),(h),(i))
 #define joe_snprintf_10(buf,len,fmt,a,b,c,d,e,f,g,h,i,j) sprintf((char *)(buf),(char *)(fmt),(a),(b),(c),(d),(e),(f),(g),(h),(i),(j))
 
+#define i_printf_0(fmt) (sprintf((char *)(i_msg),(char *)(fmt)), internal_msg(i_msg))
+#define i_printf_1(fmt,a) (sprintf((char *)(i_msg),(char *)(fmt),(a)), internal_msg(i_msg))
+#define i_printf_2(fmt,a,b) (sprintf((char *)(i_msg),(char *)(fmt),(a),(b)), internal_msg(i_msg))
+#define i_printf_3(fmt,a,b,c) (sprintf((char *)(i_msg),(char *)(fmt),(a),(b),(c)), internal_msg(i_msg))
+#define i_printf_4(fmt,a,b,c,d) (sprintf((char *)(i_msg),(char *)(fmt),(a),(b),(c),(d)), internal_msg(i_msg))
+
 #endif
 
 /* Largest signed integer */
@@ -96,6 +108,22 @@ typedef int pid_t;
 
 /* Largest signed long */
 #define MAXLONG ((((unsigned long)-1L)/2)-1)
+
+/* Largest signed long long */
+#define MAXLONGLONG ((((unsigned long long)-1L)/2)-1)
+
+/* Largest off_t */
+/* BSD provides a correct OFF_MAX macro, but AIX provides a broken one,
+   so do it ourselves. */
+#if (SIZEOF_OFF_T == SIZEOF_INT)
+#define MAXOFF MAXINT
+#elif (SIZEOF_OFF_T == SIZEOF_LONG)
+#define MAXOFF MAXLONG
+#elif (SIZEOF_OFF_T == SIZEOF_LONG_LONG)
+#define MAXOFF MAXLONGLONG
+#else
+#error off_t is not an int, long, or long long?
+#endif
 
 #include <stdio.h>
 #ifndef EOF
@@ -161,7 +189,6 @@ typedef int pid_t;
 #define FITHEIGHT	4		/* Minimum text window height */
 #define LINCOLS		10
 #define NPROC		8		/* Number of processes we keep track of */
-#define UNDOKEEP	100
 #define INC		16		/* Pages to allocate each time */
 
 #define TYPETW		0x0100
@@ -202,6 +229,7 @@ typedef struct vpage VPAGE;
 typedef struct vfile VFILE;
 typedef struct highlight_state HIGHLIGHT_STATE;
 typedef struct mpx MPX;
+typedef struct jfile JFILE;
 
 /* Structure which are passed by value */
 
@@ -236,7 +264,7 @@ struct highlight_state {
 #include "scrn.h"
 #include "syntax.h"
 #include "tab.h"
-#include "termcap.h"
+#include "termcapj.h"
 #include "tty.h"
 #include "tw.h"
 #include "ublock.h"
@@ -257,3 +285,4 @@ struct highlight_state {
 #include "vs.h"
 #include "w.h"
 #include "gettext.h"
+#include "builtin.h"

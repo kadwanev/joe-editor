@@ -32,15 +32,16 @@ B *errbuf = NULL;		/* Buffer with error messages */
 B *beafter(B *b)
 {
 	struct error *e;
-	int er;
+	unsigned char *name = b->name;
+	if (!name) name = USTR "";
 	for (e = errors.link.next; e != &errors; e = e->link.next)
-		if (!zcmp(b->name, e->file))
+		if (!zcmp(name, e->file))
 			break;
 	if (e == &errors) {
 		/* Given buffer is not in list?  Return first buffer in list. */
 		e = errors.link.next;
 	}
-	while (e != &errors && !zcmp(b->name, e->file))
+	while (e != &errors && !zcmp(name, e->file))
 		e = e->link.next;
 	berror = 0;
 	if (e != &errors) {
@@ -50,7 +51,6 @@ B *beafter(B *b)
 			b->orphan = 1; /* Oops */
 		else
 			--b->count;
-		er = berror;
 		return b;
 	}
 	return 0;
@@ -270,8 +270,8 @@ static int parseit(struct charmap *map,unsigned char *s, long int row,
 
 static long parserr(B *b)
 {
-	P *p = pdup(b->bof, US "parserr");
-	P *q = pdup(p, US "parserr");
+	P *p = pdup(b->bof, USTR "parserr");
+	P *q = pdup(p, USTR "parserr");
 	long nerrs = 0;
 
 	freeall();
@@ -394,8 +394,8 @@ ERROR *srcherr(BW *bw,unsigned char *file,long line)
 int ujump(BW *bw)
 {
 	int rtn = -1;
-	P *p = pdup(bw->cursor, US "ujump");
-	P *q = pdup(p, US "ujump");
+	P *p = pdup(bw->cursor, USTR "ujump");
+	P *q = pdup(p, USTR "ujump");
 	unsigned char *s;
 	p_goto_bol(p);
 	p_goto_eol(q);

@@ -34,6 +34,9 @@
 /* Define to 1 if you have the `isblank' function. */
 #undef HAVE_ISBLANK
 
+/* Define to 1 if you have the <libutil.h> header file. */
+#undef HAVE_LIBUTIL_H
+
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 
@@ -194,6 +197,9 @@
 /* Define to 1 if you have the <utime.h> header file. */
 #undef HAVE_UTIME_H
 
+/* Define to 1 if you have the <utmp.h> header file. */
+#undef HAVE_UTMP_H
+
 /* Define to 1 if you have the `vfork' function. */
 #undef HAVE_VFORK
 
@@ -252,6 +258,12 @@
 /* The size of a `long', as computed by sizeof. */
 #undef SIZEOF_LONG
 
+/* The size of a `long long', as computed by sizeof. */
+#undef SIZEOF_LONG_LONG
+
+/* The size of a `off_t', as computed by sizeof. */
+#undef SIZEOF_OFF_T
+
 /* The size of a `short', as computed by sizeof. */
 #undef SIZEOF_SHORT
 
@@ -267,6 +279,12 @@
 /* Version number of package */
 #undef VERSION
 
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES
+
 /* Check to see if we can use strict prototypes */
 #ifndef PARAMS
 #  ifdef PROTOTYPES
@@ -281,6 +299,9 @@
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
+
+/* Define to `long' if <sys/types.h> does not define. */
+#undef off_t
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t

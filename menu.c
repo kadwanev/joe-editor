@@ -289,8 +289,13 @@ int umltarw(MENU *m)
 		m->cursor -= m->lines;
 		return 0;
 	} else if (transpose && m->cursor) {
+		int cut = m->nitems % m->lines;
+		if (!cut) cut = m->lines;
 		--m->cursor;
-		m->cursor += (m->perline - 1) * m->lines;
+		if (m->cursor >= cut)
+			m->cursor += (m->perline - 2) * m->lines;
+		else
+			m->cursor += (m->perline - 1) * m->lines;
 		return 0;
 	} else if (!transpose && m->cursor) {
 		--m->cursor;
@@ -566,7 +571,7 @@ static int menuabort(MENU *m)
 }
 
 WATOM watommenu = {
-	US "menu",
+	USTR "menu",
 	menudisp,
 	menufllw,
 	menuabort,

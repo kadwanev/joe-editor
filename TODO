@@ -1,3 +1,17 @@
+Immediate:
+
+ full path needs to go in line number restore code?
+
+ reload
+
+ ^C breaks in Cygwin when piping into joe
+
+ empty syntax file crashes?
+
+startup log should pop up whenever syntax files are loaded.
+
+joerc file messages are funny because of the :include
+
 autodetect xterm?  it doesn't give enough information.
 
 did shell window in joe-3.2 3.2 create a new window?
@@ -17,22 +31,6 @@ Improvements for regular text
 mode where wordwrap wraps rest of paragraph?
 
 mode where all editing wraps rest of paragraph?
-
-=-=-=-=-=
-
-Load status window...
-
- Show path to joerc file.
-
- syntax file errors should go to a pop-up error window.
-
-=-=-=-=-=
-
-We need a built-in joerc file: then joe will work on a boot disk.
-
-=-=-=-=-=
-
-long prompts for qw.c (locking message) should spill onto multiple lines.
 
 =-=-=-=-=
 
@@ -91,9 +89,6 @@ gdb inteface?
 
 allow options after string and istring? -just note it for now.
 
-sh highlighter: $(   ) onle one level of parenthasis.
-  inside of $( ) and ` ` should be parsed as commands.
-
 Makefile.in and Makefile.am need to be the same as Makefile.
 
 820497   reload files which have changes (for example after cvs update)
@@ -118,8 +113,6 @@ Makefile.in and Makefile.am need to be the same as Makefile.
 
 1323285  joe does not repeatedly wrap searches (add an option for this?)
 
-1218717  lock message is confusing.  we need multi-line query windows
-
 1218686  syntax hightlight in hex mode (sheesh!)
 
 1211243  long $HOME causes joe to crash
@@ -127,9 +120,6 @@ Makefile.in and Makefile.am need to be the same as Makefile.
 531899   joe +23 is weird: cursor on startup line
 
 1413863  sigwinch breaks tcsetsw which messes up keyboard?  I haven't seen this
-
-
-get rid of /bin/cat: mpxmk should just have a copy process and not run cat.
 
 Garbage collect line attribute databases.
 
@@ -159,8 +149,6 @@ Short (infinite) list for 3.4:
 
 - when lock is stolen under us, we don't tell anyone.
 
-
-- test i18n in cygwin
 - reformat/reindent function on ^KJ
 - insert last word (last word typed/copied/etc.).
 - orthogonal jump
@@ -213,8 +201,6 @@ Dangerous situations:
 
 - - - - - - - -
 
-- - - - - - - -
-
 - update man page
 
 - - - - - - - -
@@ -250,10 +236,6 @@ Dangerous situations:
 
 - - - - - - - -
 
-- empty .joerc file causes lockup
-
-- - - - - - - -
-
 - highlight all words which match during search?
 
 - - - - - - - -
@@ -265,9 +247,6 @@ Dangerous situations:
     (just run tail -f in shell window)
 
 - - - - - - - -
-
-Problems with parsing joerc file: comments are getting included in all
-string options.  Switch to unix standard config file format?
 
 Make joerc file so we load system and local customizations.
 
@@ -408,11 +387,7 @@ Emulate other editors?  Brief, EDT?  CUA?
 
 Prompts:
 
- Sort should be column wise, not row wise?
-
  HTML-style thing for option selection?
-
-
 
 Terminal handling:
 

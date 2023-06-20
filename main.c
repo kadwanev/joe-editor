@@ -139,6 +139,19 @@ extern int breakflg;
 
 unsigned char **mainenv;
 
+B *startup_log;
+
+unsigned char i_msg[128];
+
+void internal_msg(unsigned char *s)
+{
+	P *t = pdup(startup_log->eof, USTR "internal_msg");
+	binss(t, s);
+	prm(t);
+}
+
+
+
 int main(int argc, char **real_argv, char **envv)
 {
 	CAP *cap;
@@ -190,7 +203,7 @@ int main(int argc, char **real_argv, char **envv)
 		joeterm = s;
 
 #ifndef __MSDOS__
-	if (!(cap = getcap(NULL, 9600, NULL, NULL))) {
+	if (!(cap = my_getcap(NULL, 9600, NULL, NULL))) {
 		fprintf(stderr, (char *)joe_gettext(_("Couldn't load termcap/terminfo entry\n")));
 		return 1;
 	}
@@ -209,7 +222,7 @@ int main(int argc, char **real_argv, char **envv)
 		fprintf(stderr, (char *)joe_gettext(_("There were errors in '%s'.  Use it anyway?")), s);
 		fflush(stderr);
 		fgets(buf, 8, stdin);
-		if (buf[0] == 'y' || buf[0] == 'Y')
+		if (yn_checks(yes_key, buf))
 			goto donerc;
 	}
 
@@ -226,7 +239,7 @@ int main(int argc, char **real_argv, char **envv)
 		fprintf(stderr, (char *)joe_gettext(_("There were errors in '%s'.  Use it anyway?")), s);
 		fflush(stderr);
 		fgets(buf, 8, stdin);
-		if (buf[0] == 'y' || buf[0] == 'Y')
+		if (yn_checks(yes_key, buf))
 			goto donerc;
 	}
 #else
@@ -296,7 +309,7 @@ int main(int argc, char **real_argv, char **envv)
 			fprintf(stderr,(char *)joe_gettext(_("There were errors in '%s'.  Use it anyway (y,n)? ")), s);
 			fflush(stderr);
 			fgets((char *)buf, 8, stdin);
-			if (buf[0] == 'y' || buf[0] == 'Y') {
+			if (ynchecks(yes_key, buf)) {
 				vsrm(t);
 				goto donerc;
 			}
@@ -315,7 +328,24 @@ int main(int argc, char **real_argv, char **envv)
 		fprintf(stderr,(char *)joe_gettext(_("There were errors in '%s'.  Use it anyway (y,n)? ")), s);
 		fflush(stderr);
 		fgets((char *)buf, 8, stdin);
-		if (buf[0] == 'y' || buf[0] == 'Y')
+		if (ynchecks(yes_key, buf))
+			goto donerc;
+	}
+
+	/* Try built-in joerc */
+	s = vsncpy(NULL, 0, sc("*"));
+	s = vsncpy(sv(s), sv(run));
+	s = vsncpy(sv(s), sc("rc"));
+	c = procrc(cap, s);
+	if (c == 0)
+		goto donerc;
+	if (c == 1) {
+		unsigned char buf[8];
+
+		fprintf(stderr,(char *)joe_gettext(_("There were errors in '%s'.  Use it anyway (y,n)? ")), s);
+		fflush(stderr);
+		fgets((char *)buf, 8, stdin);
+		if (ynchecks(yes_key, buf))
 			goto donerc;
 	}
 #endif
@@ -360,6 +390,8 @@ int main(int argc, char **real_argv, char **envv)
 	maint = screate(n);
 	vmem = vtmp();
 
+	startup_log = bfind_scratch(USTR "* Startup Log *");
+
 	load_state();
 
 	/* It would be better if this ran uedit() to load files */
@@ -396,12 +428,12 @@ int main(int argc, char **real_argv, char **envv)
 			} else {
 				long line;
 				b->orphan = 1;
-				b->oldcur = pdup(b->bof, US "main");
+				b->oldcur = pdup(b->bof, USTR "main");
 				pline(b->oldcur, get_file_pos(b->name));
 				line = b->oldcur->line - (maint->h - 1) / 2;
 				if (line < 0)
 					line = 0;
-				b->oldtop = pdup(b->oldcur, US "main");
+				b->oldtop = pdup(b->oldcur, USTR "main");
 				pline(b->oldtop, line);
 			}
 			if (bw) {
@@ -454,12 +486,20 @@ int main(int argc, char **real_argv, char **envv)
 		dofollows();
 		mid = omid;
 	} else {
-		BW *bw = wmktw(maint, bfind(US ""));
+		BW *bw = wmktw(maint, bfind(USTR ""));
 
 		if (bw->o.mnew)
 			exmacro(bw->o.mnew,1);
 	}
 	maint->curwin = maint->topwin;
+
+	if (startup_log->eof->byte) {
+		BW *bw = wmktw(maint, startup_log);
+		startup_log = 0;
+		maint->curwin = bw->parent;
+		wshowall(maint);
+		uparserr(bw);
+	}
 
 	if (help) {
 		help_on(maint);
@@ -484,7 +524,7 @@ int main(int argc, char **real_argv, char **envv)
 			cmd = vsncpy(NULL, 0, sc("/bin/cat"));
 			a = vaadd(a, cmd);
 			
-			cstart (maint->curwin->object, US "/bin/sh", a, NULL, NULL, 0, 1);
+			cstart (maint->curwin->object, USTR "/bin/sh", a, NULL, NULL, 0, 1);
 		}
 	}
 

@@ -20,8 +20,20 @@
 #endif
 
 #ifdef HAVE_OPENPTY
+
 #ifdef HAVE_PTY_H
 #include <pty.h>
+#endif
+
+#ifdef HAVE_LIBUTIL_H
+#include <libutil.h>
+#endif
+
+#endif
+
+#ifdef HAVE_LOGIN_TTY
+#ifdef HAVE_UTMP_H
+#include <utmp.h>
 #endif
 #endif
 
@@ -37,7 +49,6 @@ int idleout = 1;
  */
 #ifdef HAVE_POSIX_TERMIOS
 #  include <termios.h>
-#  include <sys/termios.h>
 #else
 #  ifdef HAVE_SYSV_TERMIO
 #    include <termio.h>
@@ -707,7 +718,7 @@ int ttshell(unsigned char *cmd)
 	unsigned char *s = (unsigned char *)getenv("SHELL");
 
 	if (!s) {
-		s = US "/bin/sh";
+		s = USTR "/bin/sh";
 		/* return; */
 	}
 	ttclsn();
@@ -866,8 +877,6 @@ extern char *ptsname();
 static unsigned char *getpty(int *ptyfd)
 {
 	int fdm;
-	unsigned char *name;
-
 	*ptyfd = fdm = open("/dev/ptmx", O_RDWR);
 	grantpt(fdm);
 	unlockpt(fdm);
@@ -913,13 +922,13 @@ static unsigned char *getpty(int *ptyfd)
 	static unsigned char ttyname[32];
 
 	if (!ptys) {
-		ttydir = US "/dev/pty/";
-		ptydir = US "/dev/ptym/";	/* HPUX systems */
-		if (chpwd(ptydir) || !(ptys = rexpnd(US "pty*")))
+		ttydir = USTR "/dev/pty/";
+		ptydir = USTR "/dev/ptym/";	/* HPUX systems */
+		if (chpwd(ptydir) || !(ptys = rexpnd(USTR "pty*")))
 			if (!ptys) {
-				ttydir = ptydir = US "/dev/";	/* Everyone else */
+				ttydir = ptydir = USTR "/dev/";	/* Everyone else */
 				if (!chpwd(ptydir))
-					ptys = rexpnd(US "pty*");
+					ptys = rexpnd(USTR "pty*");
 			}
 	}
 	chpwd(orgpwd);
@@ -1009,7 +1018,7 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 	int comm[2];
 	pid_t pid;
 	int x;
-	MPX *m;
+	MPX *m = 0;
 	unsigned char *name;
 
 	/* Get pty/tty pair */
@@ -1104,7 +1113,7 @@ MPX *mpxmk(int *ptyfd, unsigned char *cmd, unsigned char **args, void (*func) (/
 
 			/* Open the TTY */
 			if ((x = open((char *)name, O_RDWR)) != -1) {	/* Standard input */
-				unsigned char **env = newenv(mainenv, US "TERM=");
+				unsigned char **env = newenv(mainenv, USTR "TERM=");
 
 
 				if (!out_only) {

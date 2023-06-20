@@ -184,8 +184,12 @@ int utf8_decode_fwrd(unsigned char **p,int *plen)
 {
 	struct utf8_sm sm;
 	unsigned char *s = *p;
-	int len = *plen;
+	int len;
 	int c = -2; /* Return this on no more input. */
+	if (plen)
+		len = *plen;
+	else
+		len = -1;
 
 	utf8_init(&sm);
 
@@ -212,7 +216,8 @@ int utf8_decode_fwrd(unsigned char **p,int *plen)
 		}
 	}
 
-	*plen = len;
+	if (plen)
+		*plen = len;
 	*p = s;
 
 	return c;
@@ -263,14 +268,14 @@ unsigned char *joe_getcodeset(unsigned char *l)
       ((l = (unsigned char *)getenv("LANG"))     && *l)) {
 
     /* check standardized locales */
-    if (!zcmp(l, US "C") || !zcmp(l, US "POSIX"))
-      return US "ascii";
+    if (!zcmp(l, USTR "C") || !zcmp(l, USTR "POSIX"))
+      return USTR "ascii";
 
     /* check for encoding name fragment */
-    if (zstr(l, US "UTF") || zstr(l, US "utf"))
-      return US "UTF-8";
+    if (zstr(l, USTR "UTF") || zstr(l, USTR "utf"))
+      return USTR "UTF-8";
 
-    if ((p = zstr(l, US "8859-"))) {
+    if ((p = zstr(l, USTR "8859-"))) {
       memcpy((char *)buf, "ISO-8859-\0\0", 12);
       p += 5;
       if (*p >= '0' && *p <= '9') {
@@ -280,43 +285,43 @@ unsigned char *joe_getcodeset(unsigned char *l)
       }
     }
 
-    if (zstr(l, US "KOI8-R")) return US "KOI8-R";
-    if (zstr(l, US "KOI8-U")) return US "KOI8-U";
-    if (zstr(l, US "620")) return US "TIS-620";
-    if (zstr(l, US "2312")) return US "GB2312";
-    if (zstr(l, US "HKSCS")) return US "Big5HKSCS";   /* no MIME charset */
-    if (zstr(l, US "Big5") || zstr(l, US "BIG5")) return US "Big5";
-    if (zstr(l, US "GBK")) return US "GBK";           /* no MIME charset */
-    if (zstr(l, US "18030")) return US "GB18030";     /* no MIME charset */
-    if (zstr(l, US "Shift_JIS") || zstr(l, US "SJIS")) return US "Shift_JIS";
+    if (zstr(l, USTR "KOI8-R")) return USTR "KOI8-R";
+    if (zstr(l, USTR "KOI8-U")) return USTR "KOI8-U";
+    if (zstr(l, USTR "620")) return USTR "TIS-620";
+    if (zstr(l, USTR "2312")) return USTR "GB2312";
+    if (zstr(l, USTR "HKSCS")) return USTR "Big5HKSCS";   /* no MIME charset */
+    if (zstr(l, USTR "Big5") || zstr(l, USTR "BIG5")) return USTR "Big5";
+    if (zstr(l, USTR "GBK")) return USTR "GBK";           /* no MIME charset */
+    if (zstr(l, USTR "18030")) return USTR "GB18030";     /* no MIME charset */
+    if (zstr(l, USTR "Shift_JIS") || zstr(l, USTR "SJIS")) return USTR "Shift_JIS";
     /* check for conclusive modifier */
-    if (zstr(l, US "euro")) return US "ISO-8859-15";
+    if (zstr(l, USTR "euro")) return USTR "ISO-8859-15";
     /* check for language (and perhaps country) codes */
-    if (zstr(l, US "zh_TW")) return US "Big5";
-    if (zstr(l, US "zh_HK")) return US "Big5HKSCS";   /* no MIME charset */
-    if (zstr(l, US "zh")) return US "GB2312";
-    if (zstr(l, US "ja")) return US "EUC-JP";
-    if (zstr(l, US "ko")) return US "EUC-KR";
-    if (zstr(l, US "ru")) return US "KOI8-R";
-    if (zstr(l, US "uk")) return US "KOI8-U";
-    if (zstr(l, US "pl") || zstr(l, US "hr") ||
-	zstr(l, US "hu") || zstr(l, US "cs") ||
-	zstr(l, US "sk") || zstr(l, US "sl")) return US "ISO-8859-2";
-    if (zstr(l, US "eo") || zstr(l, US "mt")) return US "ISO-8859-3";
-    if (zstr(l, US "el")) return US "ISO-8859-7";
-    if (zstr(l, US "he")) return US "ISO-8859-8";
-    if (zstr(l, US "tr")) return US "ISO-8859-9";
-    if (zstr(l, US "th")) return US "TIS-620";      /* or ISO-8859-11 */
-    if (zstr(l, US "lt")) return US "ISO-8859-13";
-    if (zstr(l, US "cy")) return US "ISO-8859-14";
-    if (zstr(l, US "ro")) return US "ISO-8859-2";   /* or ISO-8859-16 */
-    if (zstr(l, US "am") || zstr(l, US "vi")) return US "UTF-8";
+    if (zstr(l, USTR "zh_TW")) return USTR "Big5";
+    if (zstr(l, USTR "zh_HK")) return USTR "Big5HKSCS";   /* no MIME charset */
+    if (zstr(l, USTR "zh")) return USTR "GB2312";
+    if (zstr(l, USTR "ja")) return USTR "EUC-JP";
+    if (zstr(l, USTR "ko")) return USTR "EUC-KR";
+    if (zstr(l, USTR "ru")) return USTR "KOI8-R";
+    if (zstr(l, USTR "uk")) return USTR "KOI8-U";
+    if (zstr(l, USTR "pl") || zstr(l, USTR "hr") ||
+	zstr(l, USTR "hu") || zstr(l, USTR "cs") ||
+	zstr(l, USTR "sk") || zstr(l, USTR "sl")) return USTR "ISO-8859-2";
+    if (zstr(l, USTR "eo") || zstr(l, USTR "mt")) return USTR "ISO-8859-3";
+    if (zstr(l, USTR "el")) return USTR "ISO-8859-7";
+    if (zstr(l, USTR "he")) return USTR "ISO-8859-8";
+    if (zstr(l, USTR "tr")) return USTR "ISO-8859-9";
+    if (zstr(l, USTR "th")) return USTR "TIS-620";      /* or ISO-8859-11 */
+    if (zstr(l, USTR "lt")) return USTR "ISO-8859-13";
+    if (zstr(l, USTR "cy")) return USTR "ISO-8859-14";
+    if (zstr(l, USTR "ro")) return USTR "ISO-8859-2";   /* or ISO-8859-16 */
+    if (zstr(l, USTR "am") || zstr(l, USTR "vi")) return USTR "UTF-8";
     /* Send me further rules if you like, but don't forget that we are
      * *only* interested in locale naming conventions on platforms
      * that do not already provide an nl_langinfo(CODESET) implementation. */
-    return US "ISO-8859-1"; /* should perhaps be "UTF-8" instead */
+    return USTR "ISO-8859-1"; /* should perhaps be "UTF-8" instead */
   }
-  return US "ascii";
+  return USTR "ascii";
 }
 
 /* Initialize locale for JOE */
@@ -350,7 +355,7 @@ void joe_locale()
 	if (s)
 		s=zdup(s);
 	else
-		s=US "ascii";
+		s=USTR "ascii";
 
 	u = zdup(s);
 
@@ -384,11 +389,11 @@ void joe_locale()
 
 	locale_map = find_charmap(codeset);
 	if (!locale_map)
-		locale_map = find_charmap(US "ascii");
+		locale_map = find_charmap(USTR "ascii");
 
 	locale_map_non_utf8 = find_charmap(non_utf8_codeset);
 	if (!locale_map_non_utf8)
-		locale_map_non_utf8 = find_charmap(US "ascii");
+		locale_map_non_utf8 = find_charmap(USTR "ascii");
 
 	fdefault.charmap = locale_map;
 	pdefault.charmap = locale_map;
@@ -569,7 +574,7 @@ struct charmap *guess_map(unsigned char *buf, int len)
 		if (locale_map->type || !guess_utf8)
 			return locale_map;
 		else
-			return find_charmap(US "utf-8");
+			return find_charmap(USTR "utf-8");
 	}
 
 	if (!flag || !guess_non_utf8) {

@@ -9,12 +9,9 @@
 
 #ifdef TERMINFO
 
-/* Fixes for itanium */
-
 #ifdef HAVE_CURSES_H
 #include <curses.h>
 #endif
-
 /* curses has to come before term.h on SGI */
 #ifdef HAVE_TERM_H
 /* term.h is a disaster: it #defines 'tab' */
@@ -142,7 +139,7 @@ static long findidx(FILE *file, unsigned char *name)
 
 /* Load termcap entry */
 
-CAP *getcap(unsigned char *name, unsigned int baud, void (*out) (unsigned char *, unsigned char), void *outptr)
+CAP *my_getcap(unsigned char *name, unsigned int baud, void (*out) (unsigned char *, unsigned char), void *outptr)
 {
 	CAP *cap;
 	FILE *f, *f1;
@@ -346,7 +343,7 @@ CAP *getcap(unsigned char *name, unsigned int baud, void (*out) (unsigned char *
 	varm(npbuf);
 	vsrm(name);
 
-	cap->pad = jgetstr(cap, US "pc");
+	cap->pad = jgetstr(cap, USTR "pc");
 	if (dopadding)
 		cap->dopadding = 1;
 	else
@@ -726,7 +723,7 @@ unsigned char c;
 int tgetent(buf, name)
 unsigned char *buf, *name;
 {
-	latest = getcap(name, 9600, stupid, NULL);
+	latest = my_getcap(name, 9600, stupid, NULL);
 	if (latest)
 		return 1;
 	else

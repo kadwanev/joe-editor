@@ -45,11 +45,11 @@ DIST_COMMON = $(srcdir)/4gl.jsf.in $(srcdir)/Makefile.am \
 	$(srcdir)/csh.jsf.in $(srcdir)/css.jsf.in \
 	$(srcdir)/diff.jsf.in $(srcdir)/fortran.jsf.in \
 	$(srcdir)/haskell.jsf.in $(srcdir)/html.jsf.in \
-	$(srcdir)/java.jsf.in $(srcdir)/lisp.jsf.in \
-	$(srcdir)/lua.jsf.in $(srcdir)/mail.jsf.in \
-	$(srcdir)/mason.jsf.in $(srcdir)/ocaml.jsf.in \
-	$(srcdir)/pascal.jsf.in $(srcdir)/perl.jsf.in \
-	$(srcdir)/php.jsf.in $(srcdir)/ps.jsf.in \
+	$(srcdir)/java.jsf.in $(srcdir)/joerc.jsf.in \
+	$(srcdir)/lisp.jsf.in $(srcdir)/lua.jsf.in $(srcdir)/m4.jsf.in \
+	$(srcdir)/mail.jsf.in $(srcdir)/mason.jsf.in \
+	$(srcdir)/ocaml.jsf.in $(srcdir)/pascal.jsf.in \
+	$(srcdir)/perl.jsf.in $(srcdir)/php.jsf.in $(srcdir)/ps.jsf.in \
 	$(srcdir)/python.jsf.in $(srcdir)/rexx.jsf.in \
 	$(srcdir)/ruby.jsf.in $(srcdir)/sed.jsf.in $(srcdir)/sh.jsf.in \
 	$(srcdir)/skill.jsf.in $(srcdir)/sml.jsf.in \
@@ -61,14 +61,15 @@ am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
-mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/autoconf.h
 CONFIG_CLEAN_FILES = c.jsf perl.jsf verilog.jsf sh.jsf python.jsf \
 	conf.jsf php.jsf mail.jsf pascal.jsf html.jsf vhdl.jsf \
 	fortran.jsf java.jsf xml.jsf tcl.jsf lisp.jsf csh.jsf \
 	mason.jsf diff.jsf asm.jsf css.jsf tex.jsf ocaml.jsf 4gl.jsf \
 	sml.jsf sql.jsf awk.jsf cobol.jsf sed.jsf ps.jsf ada.jsf \
-	troff.jsf haskell.jsf rexx.jsf skill.jsf lua.jsf ruby.jsf
+	troff.jsf haskell.jsf rexx.jsf skill.jsf lua.jsf ruby.jsf \
+	m4.jsf joerc.jsf
 SOURCES =
 DIST_SOURCES =
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
@@ -175,7 +176,7 @@ sysconf_syntax_DATA = c.jsf perl.jsf verilog.jsf conf.jsf python.jsf php.jsf sh.
 	mail.jsf pascal.jsf html.jsf vhdl.jsf fortran.jsf java.jsf xml.jsf tcl.jsf \
 	lisp.jsf csh.jsf mason.jsf diff.jsf asm.jsf tex.jsf css.jsf ocaml.jsf \
 	4gl.jsf sml.jsf sql.jsf awk.jsf cobol.jsf sed.jsf ps.jsf ada.jsf \
-	troff.jsf haskell.jsf rexx.jsf skill.jsf lua.jsf ruby.jsf
+	troff.jsf haskell.jsf rexx.jsf skill.jsf lua.jsf ruby.jsf m4.jsf joerc.jsf
 
 EXTRA_DIST = $(sysconf_syntax_DATA)
 all: all-am
@@ -283,6 +284,10 @@ skill.jsf: $(top_builddir)/config.status $(srcdir)/skill.jsf.in
 lua.jsf: $(top_builddir)/config.status $(srcdir)/lua.jsf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 ruby.jsf: $(top_builddir)/config.status $(srcdir)/ruby.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+m4.jsf: $(top_builddir)/config.status $(srcdir)/m4.jsf.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+joerc.jsf: $(top_builddir)/config.status $(srcdir)/joerc.jsf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 uninstall-info-am:
 install-sysconf_syntaxDATA: $(sysconf_syntax_DATA)

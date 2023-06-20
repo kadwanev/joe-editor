@@ -29,7 +29,7 @@ static P *getto(P *p, P *cur, P *top, long int line)
 			dist = d;
 			best = top;
 		}
-		p = pdup(best, US "getto");
+		p = pdup(best, USTR "getto");
 		p_goto_bol(p);
 	}
 	while (line > p->line)
@@ -109,7 +109,7 @@ void bwfllwt(BW *w)
 	}
 
 	if (w->cursor->line < w->top->line) {
-		newtop = pdup(w->cursor, US "bwfllwt");
+		newtop = pdup(w->cursor, USTR "bwfllwt");
 		p_goto_bol(newtop);
 		if (mid) {
 			if (newtop->line >= w->h / 2)
@@ -191,7 +191,7 @@ HIGHLIGHT_STATE get_highlight_state(BW *w, P *p, int line)
 	lattr_get(w->db, &ln, &state);
 
 	if (ln != line) {
-		tmp = pdup(p, US "get_highlight_state");
+		tmp = pdup(p, USTR "get_highlight_state");
 		pline(tmp, ln);
 		while (tmp->line < line && !piseof(tmp)) {
 			state = parse(w->o.syntax, tmp, state);
@@ -227,7 +227,7 @@ HIGHLIGHT_STATE get_highlight_state(BW *w, P *p, int line)
 	if (w->parent->t->t->syntab[y].state<0) {
 		/* We must be on the top line */
 		clear_state(&state);
-		tmp = pdup(w->top, US "get_highlight_state");
+		tmp = pdup(w->top, USTR "get_highlight_state");
 		if(w->o.syntax->sync_lines >= 0 && tmp->line > w->o.syntax->sync_lines)
 			pline(tmp, tmp->line-w->o.syntax->sync_lines);
 		else
@@ -240,7 +240,7 @@ HIGHLIGHT_STATE get_highlight_state(BW *w, P *p, int line)
 	}
 
 	/* Color to end of screen */
-	tmp = pdup(w->top, US "get_highlight_state");
+	tmp = pdup(w->top, USTR "get_highlight_state");
 	pline(tmp, y-w->y+w->top->line);
 	state = w->parent->t->t->syntab[y];
 	while(tmp->line!=w->top->line+w->h-1 && !piseof(tmp)) {
@@ -380,7 +380,7 @@ static int lgen(SCRN *t, int y, int *screen, int *attr, int x, int w, P *p, long
 	utf8_init(&utf8_sm);
 
 	if(st.state!=-1) {
-		tmp=pdup(p, US "lgen");
+		tmp=pdup(p, USTR "lgen");
 		p_goto_bol(tmp);
 		parse(bw->o.syntax,tmp,st);
 		syn = attr_buf;
@@ -860,7 +860,7 @@ void bwgenh(BW *w)
 {
 	int *screen;
 	int *attr;
-	P *q = pdup(w->top, US "bwgenh");
+	P *q = pdup(w->top, USTR "bwgenh");
 	int bot = w->h + w->y;
 	int y;
 	SCRN *t = w->t->t;
@@ -880,7 +880,7 @@ void bwgenh(BW *w)
 			from = markb->byte;
 			to = markk->byte;
 		}
-	else if (marking && w==maint->curwin->object && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
+	else if (marking && w == (BW *)maint->curwin->object && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
 		if (square) {
 			from = long_min(w->cursor->xcol, markb->xcol);
 			to = long_max(w->cursor->xcol, markb->xcol);
@@ -891,7 +891,7 @@ void bwgenh(BW *w)
 		}
 	}
 
-	if (marking && w==maint->curwin->object)
+	if (marking && w == (BW *)maint->curwin->object)
 		msetI(t->updtab + w->y, 1, w->h);
 
 	if (dosquare) {
@@ -910,7 +910,11 @@ void bwgenh(BW *w)
 		msetI(fmt,BG_COLOR(bg_text),76);
 		txt[76]=0;
 		if (!flg) {
+#if SIZEOF_LONG_LONG && SIZEOF_LONG_LONG == SIZEOF_OFF_T
+			sprintf((char *)bf,"%8llx ",q->byte);
+#else
 			sprintf((char *)bf,"%8lx ",q->byte);
+#endif
 			memcpy(txt,bf,9);
 			for (x=0; x!=8; ++x) {
 				int c;
@@ -984,7 +988,7 @@ void bwgen(BW *w, int linums)
 	fromline = toline = from = to = 0;
 
 	if (w->b == errbuf) {
-		P *tmp = pdup(w->cursor, US "bwgen");
+		P *tmp = pdup(w->cursor, USTR "bwgen");
 		p_goto_bol(tmp);
 		from = tmp->byte;
 		pnextl(tmp);
@@ -1001,7 +1005,7 @@ void bwgen(BW *w, int linums)
 			from = markb->byte;
 			to = markk->byte;
 		}
-	else if (marking && w==maint->curwin->object && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
+	else if (marking && w == (BW *)maint->curwin->object && markb && markb->b == w->b && w->cursor->byte != markb->byte && !from) {
 		if (square) {
 			from = long_min(w->cursor->xcol, markb->xcol);
 			to = long_max(w->cursor->xcol, markb->xcol);
@@ -1014,10 +1018,10 @@ void bwgen(BW *w, int linums)
 		}
 	}
 
-	if (marking && w==maint->curwin->object)
+	if (marking && w == (BW *)maint->curwin->object)
 		msetI(t->updtab + w->y, 1, w->h);
 
-	q = pdup(w->cursor, US "bwgen");
+	q = pdup(w->cursor, USTR "bwgen");
 
 	y = w->cursor->line - w->top->line + w->y;
 	attr = t->attr + y*w->t->w;
@@ -1119,8 +1123,8 @@ BW *bwmk(W *window, B *b, int prompt)
 		b->oldcur = NULL;
 		w->cursor->owner = NULL;
 	} else {
-		w->top = pdup(b->bof, US "bwmk");
-		w->cursor = pdup(b->bof, US "bwmk");
+		w->top = pdup(b->bof, USTR "bwmk");
+		w->cursor = pdup(b->bof, USTR "bwmk");
 	}
 	w->t = window->t;
 	w->object = NULL;
@@ -1139,6 +1143,7 @@ BW *bwmk(W *window, B *b, int prompt)
 	}
 	w->top->xcol = 0;
 	w->cursor->xcol = 0;
+	w->linums = 0;
 	w->top_changed = 1;
 	w->linums = 0;
 	w->db = 0;
@@ -1210,7 +1215,7 @@ void save_file_pos(FILE *f)
 void load_file_pos(FILE *f)
 {
 	unsigned char buf[1024];
-	while (fgets((char *)buf,sizeof(buf)-1,f) && zcmp(buf,US "done\n")) {
+	while (fgets((char *)buf,sizeof(buf)-1,f) && zcmp(buf,USTR "done\n")) {
 		unsigned char *p = buf;
 		long pos;
 		unsigned char name[1024];
@@ -1256,13 +1261,23 @@ void bwrm(BW *w)
 
 int ustat(BW *bw)
 {
-	static unsigned char buf[80];
+	static unsigned char buf[160];
+	unsigned char bf1[100];
+	unsigned char bf2[100];
 	int c = brch(bw->cursor);
 
+#if SIZEOF_LONG_LONG && SIZEOF_LONG_LONG == SIZEOF_OFF_T
+		joe_snprintf_1(bf1, sizeof(bf1), "%lld", bw->cursor->byte);
+		joe_snprintf_1(bf2, sizeof(bf2), "%llx", bw->cursor->byte);
+#else
+		joe_snprintf_1(bf1, sizeof(bf1), "%ld", bw->cursor->byte);
+		joe_snprintf_1(bf2, sizeof(bf2), "%lx", bw->cursor->byte);
+#endif
+
 	if (c == NO_MORE_DATA)
-		joe_snprintf_4(buf, sizeof(buf), joe_gettext(_("** Line %ld  Col %ld  Offset %ld(0x%lx) **")), bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte);
+		joe_snprintf_4(buf, sizeof(buf), joe_gettext(_("** Line %ld  Col %ld  Offset %s(0x%s) **")), bw->cursor->line + 1, piscol(bw->cursor) + 1, bf1, bf2);
 	else
-		joe_snprintf_9(buf, sizeof(buf), joe_gettext(_("** Line %ld  Col %ld  Offset %ld(0x%lx)  %s %d(0%o/0x%X) Width %d **")), bw->cursor->line + 1, piscol(bw->cursor) + 1, bw->cursor->byte, bw->cursor->byte, bw->b->o.charmap->name, c, c, c, joe_wcwidth(bw->o.charmap->type,c));
+		joe_snprintf_9(buf, sizeof(buf), joe_gettext(_("** Line %ld  Col %ld  Offset %s(0x%s)  %s %d(0%o/0x%X) Width %d **")), bw->cursor->line + 1, piscol(bw->cursor) + 1, bf1, bf2, bw->b->o.charmap->name, c, c, c, joe_wcwidth(bw->o.charmap->type,c));
 	msgnw(bw->parent, buf);
 	return 0;
 }
@@ -1305,6 +1320,6 @@ void orphit(BW *bw)
 {
 	++bw->b->count; /* Assumes bwrm() is abour to be called */
 	bw->b->orphan = 1;
-	pdupown(bw->cursor, &bw->b->oldcur, US "orphit");
-	pdupown(bw->top, &bw->b->oldtop, US "orphit");
+	pdupown(bw->cursor, &bw->b->oldcur, USTR "orphit");
+	pdupown(bw->top, &bw->b->oldtop, USTR "orphit");
 }

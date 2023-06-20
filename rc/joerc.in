@@ -84,6 +84,8 @@
 
  -pg nnn	No. lines to keep for PgUp/PgDn
 
+ -undo_keep nnn	Number of undo records to keep.  0 for infinite.
+
  -csmode	^KF after a pervious search does a ^L instead
 
  -backpath path
@@ -400,7 +402,7 @@
 \i \i\|^K[ 0-9 Record \|^K SPACE status \|^[W Up    \|^K' Window  \|^[B To ^KB \|^[R Backwards\|\i \i
 \i \i\|^K]     Stop   \|^K\\ Repeat      \|^[Z Down  \|^[! Command \|^[K To ^KK \|^[S Forwards \|\i \i
 \i \i\|^K 0-9  Play   \|\uINSERT\u          \|^K< Left  \|\uQUOTE\u       \|\uDELETE\u     \|\uBOOKMARKS\u    \|\i \i
-\i \i\|^K?     Query  \|^] split line   \|^K> Right \|`  Ctrl-    \|^[Y yank   \|^[ 0-9 Goto  \|\i \i
+\i \i\|^K?     Query  \|^] split line   \|^K> Right \|^[' Ctrl-   \|^[Y yank   \|^[ 0-9 Goto  \|\i \i
 \i \i\|^[D     Dump   \|^SPACE ins space\|          \|^\\ Meta-    \|^[O line<  \|^[^[   Set   \|\i \i
 }
 
@@ -473,8 +475,8 @@
 \i   Help Screen    \|turn off with ^KH    prev. screen ^[,                        \i
 \i \i Send bug reports to: http://sourceforge.net/projects/joe-editor \|\i \i
 \i \i \|\i \i
-\i \i  default joerc file is here /home/Joe/etc/joe/joerc \|\i \i
-\i \i  additional documentation can be found here /home/Joe/etc/joe/doc \|\i \i
+\i \i  default joerc file is here @JOERC@/joerc \|\i \i
+\i \i  additional documentation can be found here @JOERC@/doc \|\i \i
 }
 
  FOURTH SECTION: Key bindings:
@@ -608,8 +610,9 @@ if,"char==65",then,"it's an A",else,"it's not an a",endif	^[ q
 :def ispellword psh,nextword,markk,prevword,markb,filt,"cat >ispell.tmp;ispell ispell.tmp </dev/tty >/dev/tty;tr -d <ispell.tmp '\\012';/bin/rm ispell.tmp",rtn,retype,nextword
 
  Aspell
-:def aspellfile filt,"SPLTMP=ispell.tmp;cat >$SPLTMP;aspell -x -c $SPLTMP </dev/tty >/dev/tty;cat $SPLTMP;/bin/rm $SPLTMP",rtn,retype
-:def aspellword psh,nextword,markk,prevword,markb,filt,"SPLTMP=ispell.tmp;cat >$SPLTMP;aspell -x -c $SPLTMP </dev/tty >/dev/tty;tr -d <$SPLTMP '\\012';/bin/rm $SPLTMP",rtn,retype,nextword
+:def aspellfile filt,"SPLTMP=ispell.tmp;cat >$SPLTMP;aspell --lang=",language,".",charset," -x -c $SPLTMP </dev/tty >/dev/tty;cat $SPLTMP;/bin/rm $SPLTMP",rtn,retype
+:def aspellword psh,nextword,markk,prevword,markb,filt,"SPLTMP=ispell.tmp;cat >$SPLTMP;aspell --lang=",language,".",charset," -x -c $SPLTMP </dev/tty >/dev/tty;tr -d <$SPLTMP '\\012';/bin/rm $SPLTMP",rtn,retype,nextword
+
 
 aspellfile	^[ l
 aspellword	^[ n
@@ -620,7 +623,7 @@ aspellword	^[ n
 
  Grep
 
-:def grep_find mwind!,mfit!,scratch,"*Grep-Log*",rtn,bof,markb,eof," ",markk,blkdel,grep
+:def grep_find mwind!,mfit!,scratch,"* Grep Log *",rtn,bof,markb,eof," ",markk,blkdel,grep
 
  Man page
 
@@ -765,7 +768,9 @@ pbuf		^[ ^U		Prev buffer
  Standard JOE user interface
 
 quote8		^\		Enter Meta chars
-quote		`		Enter Ctrl chars
+ quote		`		Enter Ctrl chars
+quote		^[ '		Enter Ctrl chars
+quote		^Q
 
 backs		^?		Backspace
 backs		^H

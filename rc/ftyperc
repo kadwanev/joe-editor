@@ -25,6 +25,10 @@
 -wordwrap
 -syntax troff
 
+*.1.in
+-wordwrap
+-syntax troff
+
  TeX
 *.tex
 -wordwrap
@@ -327,6 +331,18 @@
 -text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
 -cpara >#!;*/%
 
+*.h.in
+-autoindent
+-syntax c
+-smarthome
+-smartbacks
+-purify
+-single_quoted
+-c_comment
+-cpp_comment
+-text_delimiters #if|#ifdef|#ifndef=#elif=#else=#endif
+-cpara >#!;*/%
+
 *.hpp
 -autoindent
 -syntax c
@@ -565,6 +581,11 @@
 -syntax conf
 -pound_comment
 
+*akefile.in
+-autoindent
+-syntax conf
+-pound_comment
+
 *AKEFILE
 -autoindent
 -syntax conf
@@ -626,10 +647,14 @@
 -autoindent
 -syntax conf
 
+*.jsf.in
+-autoindent
+-syntax conf
+
  Autoconfig file
 *.ac
 -autoindent
--syntax conf
+-syntax m4
 
  M4 file
 *.m4
@@ -645,3 +670,42 @@
 *tmp/mutt-*
 -wordwrap
 -syntax mail
+
+ System RC file
+*rc
+-syntax conf
+
+ JOERC file
+*ftyperc
+-syntax joerc
+
+*joerc
+-syntax joerc
+
+*jmacsrc
+-syntax joerc
+
+*jstarrc
+-syntax joerc
+
+*rjoerc
+-syntax joerc
+
+*jpicorc
+-syntax joerc
+
+*joerc.in
+-syntax joerc
+
+*jmacsrc.in
+-syntax joerc
+
+*jstarrc.in
+-syntax joerc
+
+*rjoerc.in
+-syntax joerc
+
+*jpicorc.in
+-syntax joerc
+

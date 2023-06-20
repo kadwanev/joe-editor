@@ -7,6 +7,8 @@
  */
 #include "types.h"
 
+int undo_keep = 100; /* Number of undo records to keep */
+
 #define SMALL 1024
 
 #define MAX_YANK 100
@@ -15,7 +17,7 @@ static UNDO undos = { {&undos, &undos} };
 static UNDO frdos = { {&frdos, &frdos} };
 
 int inundo = 0;
-int inredo = 0;
+int inredo = 0;	/* Turns off recording of undo records */
 
 UNDOREC yanked = { {&yanked, &yanked} };
 int nyanked = 0;
@@ -89,7 +91,7 @@ static void doundo(BW *bw, UNDOREC *ptr)
 			boffline(b);
 		}
 	} else {
-		P *q = pdup(bw->cursor, US "doundo");
+		P *q = pdup(bw->cursor, USTR "doundo");
 
 		pfwrd(q, ptr->len);
 		bdel(bw->cursor, q);
@@ -120,14 +122,13 @@ int uundo(BW *bw)
 	if (undo->ptr->link.prev == &undo->recs)
 		return -1;
 	upto = undo->ptr->link.prev->unit;
-      loop:
-	undo->ptr = undo->ptr->link.prev;
-	pgoto(bw->cursor, undo->ptr->where);
-	inundo = 1;
-	doundo(bw, undo->ptr);
-	inundo = 0;
-	if (upto && upto != undo->ptr)
-		goto loop;
+	do {
+		undo->ptr = undo->ptr->link.prev;
+		pgoto(bw->cursor, undo->ptr->where);
+		inundo = 1;
+		doundo(bw, undo->ptr);
+		inundo = 0;
+	} while (upto && upto != undo->ptr);
 	return 0;
 }
 
@@ -150,9 +151,11 @@ int uredo(BW *bw)
 		inredo = 1;
 		doundo(bw, ptr);
 		inredo = 0;
-		frrec(deque_f(UNDOREC, link, ptr));
+		frrec(deque_f(UNDOREC, link, ptr)); /* Delete record created by undo command */
 		undo->ptr = undo->ptr->link.next;
 	} while (upto && upto != ptr);
+	/* We just deleted one undo record */
+	--undo->nrecs;
 	return 0;
 }
 
@@ -175,11 +178,14 @@ static void undogc(UNDO *undo)
 	UNDOREC *unit = undo->recs.link.next->unit;
 	int flg = 0;
 
-	if (undo->ptr && undo->ptr->link.prev == &undo->recs)
-		flg = 1;
 	if (unit)
-		while (unit != undo->recs.link.next)
+		while (unit != undo->recs.link.next) {
+			if (undo->recs.link.next == undo->ptr)
+				flg = 1;
 			frrec(deque_f(UNDOREC, link, undo->recs.link.next));
+		}
+	if (undo->recs.link.next == undo->ptr)
+		flg = 1;
 	frrec(deque_f(UNDOREC, link, undo->recs.link.next));
 	--undo->nrecs;
 	if (flg)
@@ -190,19 +196,24 @@ void undomark(void)
 {
 	UNDO *undo;
 
+	/* Force undo_keep to be a multiple of 2.  Redo needs pairs of undo records. */
+	if (undo_keep & 1)
+		++undo_keep;
+
 	for (undo = undos.link.next; undo != &undos; undo = undo->link.next)
 		if (undo->first) {
 			undo->first->unit = undo->last;
 			undo->last->unit = undo->first;
 			undo->first = undo->last = 0;
-			if (++undo->nrecs == UNDOKEEP)
-				undogc(undo);
+			++undo->nrecs;
+			if (undo_keep)
+				while (undo->nrecs > undo_keep)
+					undogc(undo);
 		}
 }
 
-/* Delete the alternate time-line after the user has resumed editing after
- * undoing some number of changes
- */
+/* Forget pointer to latest "undone" record.  This is called when the first non-undo
+ * command is executed after a bunch of undo commands, which then prevents redo. */
 
 static void undoover(UNDO *undo)
 {
@@ -418,7 +429,7 @@ int uyankpop(BW *bw)
 
 		deque(UNDOREC, link, &yanked);
 		enqueb(UNDOREC, link, ptr, &yanked);
-		q = pdup(bw->cursor, US "uyankpop");
+		q = pdup(bw->cursor, USTR "uyankpop");
 		pbkwd(q, ptr->len);
 		inyank = 1;
 		bdel(q, bw->cursor);
@@ -479,7 +490,7 @@ void load_yank(FILE *f)
 	UNDOREC *rec;
 	unsigned char buf[SMALL*4+80];
 	unsigned char bf[SMALL+1];
-	while(fgets((char *)buf,sizeof(buf)-1,f) && zcmp(buf,US "done\n")) {
+	while(fgets((char *)buf,sizeof(buf)-1,f) && zcmp(buf,USTR "done\n")) {
 		unsigned char *p = buf;
 		int len;
 		parse_ws(&p,'#');

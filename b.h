@@ -33,7 +33,7 @@ struct point {
 	unsigned char	*ptr;	/* Gap buffer address */
 	H	*hdr;		/* Gap buffer header */
 
-	long	byte;		/* Buffer byte offset */
+	off_t	byte;		/* Buffer byte offset */
 	long	line;		/* Line number */
 	long	col;		/* current column */
 	long	xcol;		/* cursor column (can be different from actual column) */
@@ -71,6 +71,7 @@ struct options {
 	struct high_syntax *syntax;	/* Syntax for highlighting (load_dfa() from syntax_name happens in setopt()) */
 	unsigned char *map_name;	/* Name of character set */
 	struct charmap *charmap;	/* Character set */
+	unsigned char *language;	/* Language of this buffer (for spell) */
 	int	smarthome;	/* Set for smart home key */
 	int	indentfirst;	/* Smart home goes to indentation point first */
 	int	smartbacks;	/* Set for smart backspace key */
@@ -244,10 +245,10 @@ B *bfind PARAMS((unsigned char *s));
 B *borphan PARAMS((void));
 
 /* Save 'size' bytes beginning at 'p' into file with name in 's' */
-int bsave PARAMS((P *p, unsigned char *s, long int size,int flag));
-int bsavefd PARAMS((P *p, int fd, long int size));
+int bsave PARAMS((P *p, unsigned char *s, off_t size,int flag));
+int bsavefd PARAMS((P *p, int fd, off_t size));
 
-unsigned char *parsens PARAMS((unsigned char *s, long int *skip, long int *amnt));
+unsigned char *parsens PARAMS((unsigned char *s, off_t *skip, off_t *amnt));
 unsigned char *canonical PARAMS((unsigned char *s));
 
 /* Get byte at pointer or return NO_MORE_DATA if pointer is at end of buffer */

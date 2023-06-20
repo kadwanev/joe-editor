@@ -1,3 +1,82 @@
+Thu Jul 20 15:23:23 EDT 2006
+
+	Fix $# in shell highlighter.
+
+	Fix .in files in ftype
+
+Tue Jul 18 14:20:39 EDT 2006
+
+	Tags file patch: allows you to put a path in TAGS environment
+	variable.
+
+Thu Jul 13 09:53:31 EDT 2006
+
+	Fix possible querysave bug.
+
+	Fix query window bug: cursor was not left in original windows for
+	new multi-line query window thing.
+
+	Fix bug where we could not find ^@
+
+	Accept ,start,size notation only if it is correct.
+
+Mon Jul 10 13:38:04 EDT 2006
+
+	Fix bug from undo_keep: undo_keep has to be a multiple of 2 for redo
+	to work properly.
+
+Wed Jun 21 09:16:49 EDT 2006
+
+	New undo_keep option.
+
+Thu Jun 15 14:17:03 EDT 2006
+
+	Add built-in joerc file.
+
+Sat Jun 10 10:06:41 EST 2006
+
+	Fix menu bug: coredump on left arrow.
+
+Tue Jun  6 22:58:41 EDT 2006
+
+	allow |comments| in gettext strings.
+
+	dnelson's patches for large files,
+	tty.c include file problems and $(srcdir).
+
+Sat Jun  3 09:48:41 EDT 2006
+
+	new syntax files: m4 joerc
+
+	use hash table in rc file parser.
+
+	use hash table in syntax parser.
+
+	add auto-expanding hash table.
+
+	i18n of other single-key prompts.  add joe_gettext to yncheck.
+
+	fix bug coredump when doing multi-file search and replace
+
+Fri Jun  2 10:49:21 EDT 2006
+
+	internationalized y/n handling.
+
+	new spell check macro which uses 'language'
+
+	fix sh highlight bug: do not try to highlight $( )
+
+Wed May 31 22:37:56 EDT 2006
+
+	query windows can now be multi-line.  Also they should handle wide
+	characters properly.
+
+	you can now type a macro right into the ESC X prompt.
+
+	New * Startup Log * window catches .jsf file errors.
+
+JOE 3.4 --->
+
 Tue May 30 09:26:59 EDT 2006
 
 	Wordwrap improvements.
@@ -5,6 +84,12 @@ Tue May 30 09:26:59 EDT 2006
 	Fix gettext() bug foudn by egmont.
 
 	Change tag ^K ; to jump to beginning of file before doing a search.
+
+	Cygwin fixes
+
+	Missing @JOERC@ in joerc.in
+
+
 
 Fri May 26 11:13:10 EDT 2006
 
