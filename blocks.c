@@ -70,13 +70,61 @@ int *msetI(void *dest, int c, int sz)
 	return orgd;
 }
 
+/* Set 'sz' 'int's beginning at 'd' to the value 'c' */
+/* Returns address of block.  Does nothing if 'sz' equals zero */
+
+void **msetP(void **d, void *c, int sz)
+{
+	void	**orgd = d;
+
+	while (sz >= 16) {
+		d[0] = c;
+		d[1] = c;
+		d[2] = c;
+		d[3] = c;
+		d[4] = c;
+		d[5] = c;
+		d[6] = c;
+		d[7] = c;
+		d[8] = c;
+		d[9] = c;
+		d[10] = c;
+		d[11] = c;
+		d[12] = c;
+		d[13] = c;
+		d[14] = c;
+		d[15] = c;
+		d += 16;
+		sz -= 16;
+	}
+	switch (sz) {
+	case 15:	d[14] = c;
+	case 14:	d[13] = c;
+	case 13:	d[12] = c;
+	case 12:	d[11] = c;
+	case 11:	d[10] = c;
+	case 10:	d[9] = c;
+	case 9:		d[8] = c;
+	case 8:		d[7] = c;
+	case 7:		d[6] = c;
+	case 6:		d[5] = c;
+	case 5:		d[4] = c;
+	case 4:		d[3] = c;
+	case 3:		d[2] = c;
+	case 2:		d[1] = c;
+	case 1:		d[0] = c;
+	case 0:		/* do nothing */;
+	}
+	return orgd;
+}
+
 /* Set 'sz' 'char's beginning at 'd' to the value 'c' */
 /* Returns address of block.  Does nothing if 'sz' equals zero */
 
-char *mset(void *dest, unsigned char c, int sz)
+unsigned char *mset(void *dest, unsigned char c, int sz)
 {
-	char	*d = dest;
-	char	*orgd = dest;
+	unsigned char	*d = dest;
+	unsigned char	*orgd = dest;
 
 	if (sz < 16) {
 		switch (sz) {
@@ -255,7 +303,7 @@ static int *mfwrdI(void *dest, void *src, int sz)
  * are copied before the ones at the lowest ('s') are.
  */
 
-static char *mbkwd(register char *d, register char *s, register int sz)
+static unsigned char *mbkwd(register unsigned char *d, register unsigned char *s, register int sz)
 {
 	if (s == d)
 		return d;
@@ -346,9 +394,9 @@ static char *mbkwd(register char *d, register char *s, register int sz)
  * are copied before the ones at the highest ('s'+'sz'-1) are.
  */
 
-static char *mfwrd(register char *d, register char *s, register int sz)
+static unsigned char *mfwrd(register unsigned char *d, register unsigned char *s, register int sz)
 {
-	char *od = d;
+	unsigned char *od = d;
 
 	if (d == s)
 		return d;
@@ -475,7 +523,7 @@ void *mmove(void *d, void *s, int sz)
 
 /* Utility to count number of lines within a segment */
 
-int mcnt(register char *blk, register char c, int size)
+int mcnt(register unsigned char *blk, register unsigned char c, int size)
 {
 	register int nlines = 0;
 
@@ -522,8 +570,8 @@ int mcnt(register char *blk, register char c, int size)
 
 #ifdef junk
 
-char *mchr(blk, c)
-register char *blk, c;
+unsigned char *mchr(blk, c)
+register unsigned char *blk, c;
 {
     loop:
 	if (blk[0] == c) return blk + 0;

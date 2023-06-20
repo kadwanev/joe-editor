@@ -37,12 +37,20 @@ int isspace_eof(int c)
  *	!!! code which uses isblank() assumes tested char is evaluated
  *	only once, so it musn't be a macro
  */
-#ifndef HAVE_WORKING_ISBLANK
-int isblank(int c)
+/* GNU is blank does not work properly for wide characters */
+
+int joe_isblank(int c)
 {
 	return((c == 32) || (c == 9));
 }
-#endif
+
+unsigned char *lowerize(unsigned char *s)
+{
+	unsigned char *t;
+	for (t=s;*t;t++)
+		*t = (unsigned char)tolower((char)*t);
+	return s;
+}
 
 /*
  * return minimum/maximum of two numbers
@@ -72,9 +80,12 @@ signed long int long_min(signed long int a, signed long int b)
  * 	_ is considered as word character because is often used 
  *	in the names of C/C++ functions
  */
-int isalnum_(int c)
+int isalnum_(int wide,int c)
 {
-	return (isalnum(c) || (c == 95));
+	if (wide)
+		return (iswalnum(c) || (c == 95));
+	else
+		return (isalnum(c) || (c == 95));
 }
 
 /* Versions of 'read' and 'write' which automatically retry when interrupted */
@@ -153,4 +164,164 @@ int joe_set_signal(int signum, sighandler_t handler)
 #endif
 #endif
 	return(retval);
+}
+
+/* Helpful little parsing utilities */
+
+/* Skip whitespace and return first non-whitespace character */
+
+int parse_ws(unsigned char **pp)
+{
+	unsigned char *p = *pp;
+	while (*p==' ' || *p=='\t')
+		++p;
+	if (*p=='\r' || *p=='\n' || *p=='#')
+		*p = 0;
+	*pp = p;
+	return *p;
+}
+
+/* Parse an identifier into a buffer.  Identifier is truncated to a maximum of len chars. */
+
+int parse_ident(unsigned char **pp, unsigned char *buf, int len)
+{
+	unsigned char *p = *pp;
+	if(isalpha(*p) || *p=='_') {
+		while(len && isalnum_(0,*p))
+			*buf++= *p++, --len;
+		*buf=0;
+		while(isalnum_(0,*p))
+			++p;
+		*pp = p;
+		return 0;
+	} else
+		return -1;
+}
+
+/* Parse a keyword */
+
+int parse_kw(unsigned char **pp, unsigned char *kw)
+{
+	unsigned char *p = *pp;
+	while(*kw && *kw==*p)
+		++kw, ++p;
+	if(!*kw && !isalnum_(0,*p)) {
+		*pp = p;
+		return 0;
+	} else
+		return -1;
+}
+
+/* Parse a field */
+
+int parse_field(unsigned char **pp, unsigned char *kw)
+{
+	unsigned char *p = *pp;
+	while(*kw && *kw==*p)
+		++kw, ++p;
+	if(!*kw && (!*p || *p==' ' || *p=='\t' || *p=='#' || *p=='\n' || *p=='\r')) {
+		*pp = p;
+		return 0;
+	} else
+		return -1;
+}
+
+/* Parse a character */
+
+int parse_char(unsigned char **pp, unsigned char c)
+{
+	unsigned char *p = *pp;
+	if (*p == c) {
+		*pp = p+1;
+		return 0;
+	} else
+		return -1;
+}
+
+/* Parse an integer.  Returns 0 for success. */
+
+int parse_int(unsigned char **pp, int *buf)
+{
+	unsigned char *p = *pp;
+	if (isdigit(*p) || *p=='-') {
+		*buf = atoi((char *)p);
+		if(*p=='-')
+			++p;
+		while(isdigit(*p))
+			++p;
+		*pp = p;
+		return 0;
+	} else
+		return -1;
+}
+
+/* Parse a string into a buffer.  Returns 0 for success.
+   Leaves escape sequences in string. */
+
+int parse_string(unsigned char **pp, unsigned char *buf, int len)
+{
+	unsigned char *p= *pp;
+	if(*p=='\"') {
+		++p;
+		while(len && *p && *p!='\"')
+			if(*p=='\\' && p[1] && len>2) {
+				*buf++ = *p++;
+				*buf++ = *p++;
+				len-=2;
+			} else {
+				*buf++ = *p++;
+				--len;
+			}
+		*buf = 0;
+		while(*p && *p!='\"')
+			if(*p=='\\' && p[1])
+				p+=2;
+			else
+				p++;
+		if(*p=='\"') {
+			*pp= p+1;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+/* Parse a character range: a-z */
+
+int parse_range(unsigned char **pp, int *first, int *second)
+{
+	unsigned char *p= *pp;
+	int a, b;
+	if(!*p)
+		return -1;
+	if(*p=='\\' && p[1]) {
+		++p;
+		if(*p=='n')
+			a = '\n';
+		else if(*p=='t')
+			a = '\t';
+		else
+			a = *p;
+		++p;
+	} else
+		a = *p++;
+	if(*p=='-' && p[1]) {
+		++p;
+		if(*p=='\\' && p[1]) {
+			++p;
+			if(*p=='n')
+				b = '\n';
+			else if(*p=='t')
+				b = '\t';
+			else
+				b = *p;
+			++p;
+		} else
+			b = *p++;
+	} else
+		b = a;
+	*first = a;
+	*second = b;
+	*pp = p;
+	return 0;
 }

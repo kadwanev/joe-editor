@@ -15,8 +15,20 @@
              int (*tab)(),void *object,int *notify);
  * Create a prompt window for the given window
  */
-BW *wmkpw PARAMS((W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify));
+BW *wmkpw PARAMS((W *w, unsigned char *prompt, B **history, int (*func) (), unsigned char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify, int wide));
 
 int ucmplt PARAMS((BW *bw, int k));
+
+/* Function for TAB completion */
+
+unsigned char **regsub PARAMS((unsigned char **z, int len, unsigned char *s));
+
+void cmplt_ins PARAMS((BW *bw,unsigned char *line));
+
+int cmplt_abrt PARAMS((BW *bw,int x, unsigned char *line));
+
+int cmplt_rtn PARAMS((MENU *m,int x,unsigned char *line));
+
+int simple_cmplt PARAMS((BW *bw,unsigned char **list));
 
 #endif

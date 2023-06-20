@@ -24,7 +24,7 @@
  * 	_ is considered as word character because is often used 
  *	in the names of C/C++ functions
  */
-int isalnum_ PARAMS((int c));
+int isalnum_ PARAMS((int wide,int c));
 
 /* 
  * Whitespace characters are characters like tab, space, ...
@@ -41,7 +41,9 @@ int isspace_eof PARAMS((int c));
  *	even #including <ctype.h> without additional hackery doesn't import
  *	the prototype, so we define it here unconditionaly
  */
-int isblank PARAMS((int c));
+int joe_isblank PARAMS((int c));
+
+unsigned char *lowerize PARAMS((unsigned char *s));
 
 /*
  * Functions which return minimum/maximum of two numbers  
@@ -74,5 +76,15 @@ typedef RETSIGTYPE (*sighandler_t)(int);
 
 /* wrapper to hide signal interface differrencies */
 int joe_set_signal PARAMS((int signum, sighandler_t handler));
+
+int parse_ws PARAMS((unsigned char **p));
+int parse_ident PARAMS((unsigned char **p,unsigned char *buf,int len));
+int parse_kw PARAMS((unsigned char **p,unsigned char *kw));
+int parse_field PARAMS((unsigned char **p,unsigned char *field));
+int parse_char PARAMS((unsigned char  **p,unsigned char c));
+int parse_int PARAMS((unsigned char **p,int *buf));
+int parse_string PARAMS((unsigned char **p,unsigned char *buf,int len));
+int parse_range PARAMS((unsigned char **p,int *first,int *second));
+
 
 #endif

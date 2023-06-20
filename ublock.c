@@ -9,6 +9,9 @@
 #include "types.h"
 
 #include <unistd.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -190,7 +193,7 @@ int ptabrect(P *org, long int height, long int right)
 		while ((c = pgetc(p)) != NO_MORE_DATA && c != '\n') {
 			if (c == '\t') {
 				prm(p);
-				return 1;
+				return '\t';
 			} else if (piscol(p) > right)
 				break;
 		}
@@ -198,7 +201,7 @@ int ptabrect(P *org, long int height, long int right)
 			pnextl(p);
 	}
 	prm(p);
-	return 0;
+	return ' ';
 }
 
 /* Insert rectangle */
@@ -351,7 +354,7 @@ int ublkdel(BW *bw)
 		if (lightoff)
 			unmark(bw);
 	} else {
-		msgnw(bw->parent, "No block");
+		msgnw(bw->parent, US "No block");
 		return -1;
 	}
 	return 0;
@@ -388,7 +391,7 @@ int ublkmove(BW *bw)
 {
 	if (markv(1)) {
 		if (markb->b->rdonly) {
-			msgnw(bw->parent, "Read only");
+			msgnw(bw->parent, US "Read only");
 			return -1;
 		}
 		if (square) {
@@ -406,7 +409,7 @@ int ublkmove(BW *bw)
 				/* If cursor was in block, blkdel moves it to left edge of block, so fix it
 				 * back to its original place here */
 				pcol(bw->cursor, ocol);
-				pfill(bw->cursor, ocol, 0);
+				pfill(bw->cursor, ocol, ' ');
 				pdelrect(bw->cursor, height, piscol(bw->cursor) + width);
 			} else if (update_xcol)
 				/* If cursor was to right of block, xcol was not properly updated */
@@ -439,7 +442,7 @@ int ublkmove(BW *bw)
 			return 0;
 		}
 	}
-	msgnw(bw->parent, "No block");
+	msgnw(bw->parent, US "No block");
 	return -1;
 }
 
@@ -483,7 +486,7 @@ int ublkcpy(BW *bw)
 			return 0;
 		}
 	} else {
-		msgnw(bw->parent, "No block");
+		msgnw(bw->parent, US "No block");
 		return -1;
 	}
 }
@@ -491,7 +494,7 @@ int ublkcpy(BW *bw)
 /* Write highlighted block to a file */
 /* This is called by ublksave in ufile.c */
 
-int dowrite(BW *bw, char *s, void *object, int *notify)
+int dowrite(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
@@ -527,7 +530,7 @@ int dowrite(BW *bw, char *s, void *object, int *notify)
 		}
 	} else {
 		vsrm(s);
-		msgnw(bw->parent, "No block");
+		msgnw(bw->parent, US "No block");
 		return -1;
 	}
 }
@@ -551,8 +554,9 @@ void setindent(BW *bw)
 			goto done;
 		else
 			p_goto_bol(p);
-	} while (pisindent(p) >= indent && !pisblank(p));
+	} while (pisindent(p) >= indent || pisblank(p));
 	pnextl(p);
+	/* Maybe skip blank lines at beginning */
       done:
 	p_goto_bol(p);
 	p->xcol = piscol(p);
@@ -564,8 +568,8 @@ void setindent(BW *bw)
 	do {
 		if (!pnextl(q))
 			break;
-	} while (pisindent(q) >= indent && !pisblank(q));
-
+	} while (pisindent(q) >= indent || pisblank(q));
+	/* Maybe skip blank lines at end */
 	if (markk)
 		prm(markk);
 	q->xcol = piscol(q);
@@ -573,6 +577,55 @@ void setindent(BW *bw)
 	q->owner = &markk;
 
 	updall();
+}
+
+/* Purity check */
+/* Verifies that at least n indentation characters (for non-blank lines) match c */
+/* If n is 0 (for urindent), this fails if c is space but indentation begins with tab */
+
+int purity_check(int c, int n)
+{
+	P *p = pdup(markb);
+	while (p->byte < markk->byte) {
+		int x;
+		p_goto_bol(p);
+		if (!n && c==' ' && brc(p)=='\t') {
+			prm(p);
+			return 0;
+		} else if (!piseol(p))
+			for (x=0; x!=n; ++x)
+				if (pgetc(p)!=c) {
+					prm(p);
+					return 0;
+				}
+		pnextl(p);
+	}
+	prm(p);
+	return 1;
+}
+
+/* Left indent check */
+/* Verify that there is enough whitespace to do the left indent */
+
+int lindent_check(int c, int n)
+{
+	P *p = pdup(markb);
+	int indwid;
+	if (c=='\t')
+		indwid = n * p->b->o.tab;
+	else
+		indwid = n;
+	while (p->byte < markk->byte) {
+		int x;
+		p_goto_bol(p);
+		if (!piseol(p) && pisindent(p)<indwid) {
+			prm(p);
+			return 0;
+		}
+		pnextl(p);
+	}
+	prm(p);
+	return 1;
 }
 
 /* Indent more */
@@ -585,14 +638,38 @@ int urindent(BW *bw)
 
 			do {
 				pcol(p, markb->xcol);
-				pfill(p, markb->xcol + bw->o.istep, bw->o.indentc == '\t' ? 1 : 0);
+				pfill(p, markb->xcol + bw->o.istep, bw->o.indentc);
 			} while (pnextl(p) && p->line <= markk->line);
 			prm(p);
 		}
 	} else {
-		if (!markb || !markk || markb->b != markk->b || bw->cursor->byte < markb->byte || bw->cursor->byte > markk->byte || markb->byte == markk->byte)
+		if (!markb || !markk || markb->b != markk->b || bw->cursor->byte < markb->byte || bw->cursor->byte > markk->byte || markb->byte == markk->byte) {
 			setindent(bw);
-		else {
+		} else if (bw->o.purify) {
+			P *p = pdup(markb);
+			P *q = pdup(markb);
+			int indwid;
+
+			if (bw->o.indentc=='\t')
+				indwid = bw->o.tab * bw->o.istep;
+			else
+				indwid = bw->o.istep;
+
+			while (p->byte < markk->byte) {
+				p_goto_bol(p);
+				if (!piseol(p)) {
+					int col;
+					pset(q, p);
+					p_goto_indent(q, bw->o.indentc);
+					col = piscol(q);
+					bdel(p,q);
+					pfill(p,col+indwid,bw->o.indentc);
+				}
+				pnextl(p);
+			}
+			prm(p);
+			prm(q);
+		} else if (purity_check(bw->o.indentc,0)) {
 			P *p = pdup(markb);
 
 			while (p->byte < markk->byte) {
@@ -605,6 +682,10 @@ int urindent(BW *bw)
 				pnextl(p);
 			}
 			prm(p);
+		} else {
+			/* Purity failure */
+			msgnw(bw->parent,"Selected lines not properly indented");
+			return 1;
 		}
 	}
 	return 0;
@@ -642,27 +723,36 @@ int ulindent(BW *bw)
 			prm(q);
 		}
 	} else {
-		if (!markb || !markk || markb->b != markk->b || bw->cursor->byte < markb->byte || bw->cursor->byte > markk->byte || markb->byte == markk->byte)
+		if (!markb || !markk || markb->b != markk->b || bw->cursor->byte < markb->byte || bw->cursor->byte > markk->byte || markb->byte == markk->byte) {
 			setindent(bw);
-		else {
+		} else if (bw->o.purify && lindent_check(bw->o.indentc,bw->o.istep)) {
+			P *p = pdup(markb);
+			P *q = pdup(markb);
+			int indwid;
+
+			if (bw->o.indentc=='\t')
+				indwid = bw->o.tab * bw->o.istep;
+			else
+				indwid = bw->o.istep;
+
+			while (p->byte < markk->byte) {
+				p_goto_bol(p);
+				if (!piseol(p)) {
+					int col;
+					pset(q, p);
+					p_goto_indent(q, bw->o.indentc);
+					col = piscol(q);
+					bdel(p,q);
+					pfill(p,col-indwid,bw->o.indentc);
+				}
+				pnextl(p);
+			}
+			prm(p);
+			prm(q);
+		} else if (purity_check(bw->o.indentc,bw->o.istep)) {
 			P *p = pdup(markb);
 			P *q = pdup(p);
 
-			p_goto_bol(p);
-			while (p->byte < markk->byte) {
-				if (!piseol(p))
-					while (piscol(p) < bw->o.istep) {
-						int c = pgetc(p);
-
-						if (c != ' ' && c != '\t' && c != bw->o.indentc) {
-							prm(p);
-							prm(q);
-							return -1;
-						}
-					}
-				pnextl(p);
-			}
-			pset(p, markb);
 			p_goto_bol(p);
 			while (p->byte < markk->byte) {
 				if (!piseol(p)) {
@@ -675,6 +765,10 @@ int ulindent(BW *bw)
 			}
 			prm(p);
 			prm(q);
+		} else {
+			/* Purity failure */
+			msgnw(bw->parent,"Selected lines not properly indented");
+			return 1;
 		}
 	}
 	return 0;
@@ -682,7 +776,7 @@ int ulindent(BW *bw)
 
 /* Insert a file */
 
-int doinsf(BW *bw, char *s, void *object, int *notify)
+int doinsf(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
@@ -721,7 +815,7 @@ int doinsf(BW *bw, char *s, void *object, int *notify)
 			updall();
 			return 0;
 		} else {
-			msgnw(bw->parent, "No block");
+			msgnw(bw->parent, US "No block");
 			return -1;
 	} else {
 		int ret = 0;
@@ -743,7 +837,7 @@ int doinsf(BW *bw, char *s, void *object, int *notify)
 
 static int filtflg = 0;
 
-static int dofilt(BW *bw, char *s, void *object, int *notify)
+static int dofilt(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	int fr[2];
 	int fw[2];
@@ -753,7 +847,7 @@ static int dofilt(BW *bw, char *s, void *object, int *notify)
 	if (markb && markk && !square && markb->b == bw->b && markk->b == bw->b && markb->byte == markk->byte)
 		goto ok;
 	if (!markv(1)) {
-		msgnw(bw->parent, "No block");
+		msgnw(bw->parent, US "No block");
 		return -1;
 	}
       ok:
@@ -763,6 +857,10 @@ static int dofilt(BW *bw, char *s, void *object, int *notify)
 	npartial(bw->parent->t->t);
 	ttclsn();
 	if (!fork()) {
+#ifdef HAVE_PUTENV
+		unsigned char		*fname, *name;
+		unsigned	len;
+#endif
 		signrm();
 		close(0);
 		close(1);
@@ -774,6 +872,15 @@ static int dofilt(BW *bw, char *s, void *object, int *notify)
 		close(fr[1]);
 		close(fw[1]);
 		close(fr[0]);
+#ifdef HAVE_PUTENV
+		fname = vsncpy(NULL, 0, sc("JOE_FILENAME="));
+		name = bw->b->name ? bw->b->name : (unsigned char *)"Unnamed";
+		if((len = slen(name)) >= 512)	/* limit filename length */
+			len = 512;
+		fname = vsncpy(sv(fname), name, len);
+		putenv((char *)fname);
+		vsrm(fname);
+#endif
 		execl("/bin/sh", "/bin/sh", "-c", s, NULL);
 		_exit(0);
 	}
@@ -878,18 +985,18 @@ int ufilt(BW *bw)
 #else
 	switch (checkmark(bw)) {
 	case 0:
-		if (wmkpw(bw->parent, "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL))
+		if (wmkpw(bw->parent, US "Command to filter block through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, -1))
 			return 0;
 		else
 			return -1;
 	case 1:
-		if (wmkpw(bw->parent, "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL))
+		if (wmkpw(bw->parent, US "Command to filter file through (^C to abort): ", &filthist, dofilt, NULL, NULL, utypebw, NULL, NULL, -1))
 			return 0;
 		else
 			return -1;
 	case 2:
 	default:
-		msgnw(bw->parent, "No block");
+		msgnw(bw->parent, US "No block");
 		return -1;
 	}
 #endif

@@ -19,6 +19,7 @@
 #include "vs.h"
 
 extern int smode;
+extern int beep;
 struct isrch *lastisrch = NULL;	/* Previous search */
 
 unsigned char *lastpat = NULL;	/* Previous pattern */
@@ -63,12 +64,14 @@ static void iappend(BW *bw, struct isrch *isrch, unsigned char *s, int len)
 	}
 	i->start = bw->cursor->byte;
 	if (dopfnext(bw, mksrch(vsncpy(NULL, 0, isrch->pattern + isrch->ofst, sLen(isrch->pattern) - isrch->ofst), NULL, 0, isrch->dir, -1, 0, 0), NULL)) {
-		ttputc(7);
+		if(beep)
+			ttputc(7);
 	}
 	enqueb(IREC, link, &isrch->irecs, i);
 }
 
 /* Main user interface */
+/* When called with c==-1, it just creates the prompt */
 static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 {
 	IREC *i;
@@ -87,7 +90,8 @@ static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 			isrch->pattern = vstrunc(isrch->pattern, sLEN(isrch->pattern) - i->what);
 			frirec(deque_f(IREC, link, i));
 		} else {
-			ttputc(7);
+			if(beep)
+				ttputc(7);
 		}
 	} else if (c == 'Q' - '@' || c == '`') {
 		isrch->quote = 1;
@@ -107,14 +111,15 @@ static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 			i->disp = i->start = bw->cursor->byte;
 			i->what = 0;
 			if (dopfnext(bw, mksrch(vsncpy(NULL, 0, isrch->pattern + isrch->ofst, sLen(isrch->pattern) - isrch->ofst), NULL, 0, isrch->dir, -1, 0, 0), NULL)) {
-				ttputc(7);
+				if(beep)
+					ttputc(7);
 				frirec(i);
 			} else {
 				enqueb(IREC, link, &isrch->irecs, i);
 			}
 		}
-	} else if ((c < 32 || c >= 256) && c != MAXINT) {	/* FIXME: overloaded MAXINT */
-		/* Done */
+	} else if (c >= 0 && c < 32 || c >= 256) {	/* c >= 256 means an X windows sequence like .ku */
+		/* Done when a control character is received */
 		nungetc(c);
 		if (notify) {
 			*notify = 1;
@@ -127,7 +132,7 @@ static int itype(BW *bw, int c, struct isrch *isrch, int *notify)
 		}
 		lastisrch = isrch;
 		return 0;
-	} else if (c != MAXINT) {	/* FIXME: overloaded MAXINT */
+	} else if (c != -1) {
 		/* Search */
 		unsigned char k;
 
@@ -158,7 +163,7 @@ static int doisrch(BW *bw, int dir)
 	isrch->ofst = sLen(isrch->pattern);
 	isrch->dir = dir;
 	isrch->quote = 0;
-	return itype(bw, MAXINT, isrch, NULL);
+	return itype(bw, -1, isrch, NULL);
 }
 
 int uisrch(BW *bw)

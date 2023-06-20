@@ -1,3 +1,411 @@
+Fri Apr 23 2004  Joe Allen <jhallen@world.std.com>
+
+	Added -guess_crlf and -guess_indent options.
+
+	Update *rc files.
+
+	Updated documentation.
+
+Thu Apr 22 2004  Joe Allen <jhallen@world.std.com>
+	* cmd.c, pw.c, pw.h, rc.c, syntax.c, syntax.h, types.h, uedit.c,
+	utils.c, utils.h, syntax/c.jsf.in:
+
+	Fixed uopen() ^] for overtype mode.
+
+	Added 'istrings' option in syntax files for ignoring case
+	in strings.
+
+	Added ^T Y- allows you to select syntax during run time (tab
+	completion works too!)
+
+	Added ^T P- picture mode: can move and type anywhere on the screen,
+	good for drawing ASCII art.
+
+Thu Apr 22 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c:
+
+	Tab key only inserts when past end of line in overtype mode.
+
+
+Thu Apr 22 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c:
+
+	Fixed bugs where overtype and wordwrap modes were interacting.
+	Hope this doesn't cause new bugs...
+
+Thu Apr 22 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c:
+
+	Now, enter does not insert new line when in overtype mode (unless at
+	end of file).  Somebody asked for this.
+
+Wed Apr 21 2004  Joe Allen <jhallen@world.std.com>
+	* b.c, b.h, joerc.in, rc.c, types.h, ublock.c, uedit.c:
+
+	Added -purify option which fixes indentation
+	if necessary for ^K, ^K. and smart backspace.
+
+Wed Apr 21 2004  Joe Allen <jhallen@world.std.com>
+	* ublock.c :
+
+	^K , and ^K . now have improved purity checking
+	and automatic block selection.
+
+Wed Apr 21 2004  Joe Allen <jhallen@world.std.com>
+	* rc.c, uedit.c, types.h, joerc.in:
+
+	Added 'smartbacks' option.
+
+Wed Apr 21 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c, b.c:
+
+	Backspace is now smart when 'smarthome' is set.
+
+Wed Apr 21 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c :
+
+	Fix new bug caused by previous bug fix :-)
+
+
+Tue Apr 20 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c :
+
+	Fix bug where double wide characters typed at end of line was
+	screwing up (was assuming that they were one character wide in
+	the utypebw optimization logic).
+
+
+Tue Apr 20 2004  Joe Allen <jhallen@world.std.com>
+	* cmd.c, joerc.in, rc.c, types.h, uedit.c, uedit.h:
+
+	Applied David Phillips' smart home key patch.
+
+	Changed  ` u to ` x.
+
+Sun Apr 18 2004  Joe Allen <jhallen@world.std.com>
+	* syntax.c, uedit.c:
+
+	Added ` u to insert unicode characters in hex.
+
+	Fixed typeing of unicode (utypebw() optimization bug).
+
+	Fixed editor hang when syntax hightlighter hits unicode characters.
+
+Sat Apr 17 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c menu.c qw.c scrn.c scrn.h utf8.h w.c w.h:
+
+	Allow UTF-8 in menu entries.
+
+	Clear up genfield() and genfmt() stuff.  Now control characters in
+	file names are properly displayed.
+
+	When UTF-8 character decodes to 127 - 159, 0 - 31, display it
+	as a control character.
+
+Sat Apr 17 2004  Joe Allen <jhallen@world.std.com>
+	* w.c:
+
+	Oops: fixed status line.
+
+Fri Apr 16 2004  Joe Allen <jhallen@world.std.com>
+ 	* ChangeLog TODO cmd.c macro.c pw.c pw.h rc.c regex.c ublock.c 
+ 	uedit.c ufile.c umath.c usearch.c ushell.c utag.c utf8.c w.c 
+ 	w.h:
+
+	UTF-8 now supported in file names and prompts.
+
+	Search should be partially working.  \+ with
+	a UTF-8 character following is broken and
+	\[ ] only works for bytes.
+
+Fri Apr 16 2004  Joe Allen <jhallen@world.std.com>
+	* b.c, bw.c, rc.c, rc.h, tw.c, types.h, utf8.c:
+
+	Fixed bug where '-syntax' on command line had
+	no effect.
+
+	Now if terminal is UTF-8, the default file type
+	is assumed to be UTF-8.
+
+Thu Apr 15 2004  Joe Allen <jhallen@world.std.com>
+	* utf8.c:
+
+	Added preprocessor directives to utf8.c to check
+	for locale support.  Needs more work: should check
+	for iconv() support.
+
+	Fix bug which happened when no locale env vars set.
+
+Thu Apr 15 2004  Joe Allen <jhallen@world.std.com>
+	* Makefile.am, configure.ac, main.c, scrn.c, uedit.c,
+	ufile.c, utf8.c, utf8.h:
+
+	First attempt at character set conversion iconv().
+	Now the file's coding can be different from the terminal's
+	coding.  Needs error checking...
+
+	Also, applied secure linux patch from RedHat.
+
+Thu Apr 15 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c, help.c, main.c, menu.c, rc.c, scrn.c, scrn.h,
+	syntax.c, syntax.h, uedit.c, w.c:
+
+	Fix syntax definition file loader so that you don't
+	get seg faults when you refer to a state which doesn't
+	exist.
+
+	Fix outatr() to work with non-UTF-8 character sets again.
+	Need to start thinking about iconv().
+
+	Mess with option strings to make ^T look nicer.
+
+	Got rid of yellow selection bar from ^T.
+
+Wed Apr 14 2004  Joe Allen <jhallen@world.std.com>
+	* b.c b.h macro.c main.c rc.c uedit.c uerror.c uformat.c utag.c
+	utils.c utils.h:
+
+	Fix many edit fuctions for UTF-8.  Now we use
+	iswalnum() when in UTF-8 mode.  Paragraph format
+	works.
+
+	Search is still broken.
+
+Tue Apr 13 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c, syntax.c, syntax.h, syntax/php.jsf.in,
+	syntax/c.jsf.in:
+
+	Added '-NNN' syntax to .jsf files.  Allows you
+	to specify number of lines back to start parsing
+	when we don't have the syntax highlighting state.
+
+Tue Apr 13 2004  Joe Allen <jhallen@world.std.com>
+
+	Moved syntax file to syntax/ subdirectory.  They
+	still don't get installed in a subdirectory :-(
+
+Tue Apr 13 2004  Joe Allen <jhallen@world.std.com>
+	* scrn.c, rc.c, joerc.in:
+
+	Added -assume_color global option.  Need to update
+	other *rc files.
+
+Mon Apr 12 2004  Joe Allen <jhallen@world.std.com>
+	* Makefile.am b.c b.h bw.c scrn.c uedit.c utf8.c utf8.h:
+
+	Input of UTF-8 is now working.  For example, you
+	can cut and paste in an xterm.
+
+	Placed UTF-8 encoder and decoder in separate file.
+
+Mon Apr 12 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c:
+
+	If a double-wide character hits right column, display '>' instead of
+	the character.  If a double-wide character is one column to the left
+	of the screen, display '<' instead of the character.
+
+
+Mon Apr 12 2004  Joe Allen <jhallen@world.std.com>
+	* almost all of them...:
+
+	Added -notite global option: when set, prevents screen from
+	being restored on exit.
+
+	Added -usetabs global option: when set, uses tabs for cursor
+	position update (which was the default before).  Now we don't
+	use tabs by default.
+
+        Completed change to 'unsigned char *' and elimination of
+        MAXINT.  What a mess.  No warnings with gcc -pedantic.
+
+	Fix UTF-8 bugs where cursor was not correct on scrolled screen.
+
+Fri Apr  9 2004  Joe Allen <jhallen@world.std.com>
+	* b.c, b.h, bw.c, types.h:
+
+	Fix lockup bug with down arrow on last line (utf-8).
+
+	Type change: chars will be banned.  Unsigned char * and
+	int will be used for characters.
+
+Fri Apr  9 2004  Joe Allen <jhallen@world.std.com>
+	* Makefile.am, b.c, b.h, bw.c, help.c, main.c, menu.c, rc.c,
+	scrn.c, scrn.h, types.h, uedit.c, w.c, wcwidth.c:
+
+	Initial check-in of UTF-8 support.  Use ^T U to enable UTF-8.
+	JOE is likely to have many bugs at this point.
+
+Thu Apr  8 2004  Joe Allen <jhallen@world.std.com>
+	* bw.c, b.c, joerc.in, rc.c, rc.h, tw.c, types.h:
+
+	Fix screen update bug introduced with Apr 7th change.
+
+	Option settings now can be based on file contents as well as
+	file name.
+
+	Added syntax indicator for status line.
+
+Thu Apr  8 2004  Joe Allen <jhallen@world.std.com>
+	* syntax.c, syntax.h:
+
+	Clean up syntax.c: use hash table for keywords, use subroutine for
+	allocating new states.
+
+
+Wed Apr  7 2004  Joe ALlen <jhallen@world.std.com>
+	* scrn.c, bw.c:
+
+	Fix highlighting bug: pointer was not always at start of line.
+
+	Assume terminal supports color if it looks like an ansi terminal
+	(this should really be an option).
+
+Tue Apr  6 2004  Joe Allen <jhallen@world.std.com>
+	* Makefile.am, bw.c, configure.ac, joerc.in, rc.c, scrn.c,
+	scrn.h, syntax.c, syntax.h, c.jsf.in, perl.jsf.in, verilog.jsf.in:
+
+	Clean up meaning of default color.
+
+	Allow syntax to be specified in joerc file: "-syntax perl"
+
+	Add class definitions to syntax files.
+
+	Add perl and verilog definitions (they need work).
+
+	Change joerc to assume files with . in their name do not want word
+	wrap enabled (except for .txt).
+
+Thu Apr  1 2004  Joe Allen <jhallen@world.std.com>
+	* scrn.c:
+	Fix color handling for terminals which do not use my defaults :-)
+	Basically we revert to the default text color, use ESC [ 0 m, not
+	ESC [ 37 m and ESC [ 40 m.
+
+Tue Mar 30 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c, syntax.c, syntax.h, types.h, bw.c:
+	Next steps for syntax highlighting: 
+		Now there is a real parser, so syntax files
+		can be defined (although, it only loads
+		the C language c.jsf for now).
+
+		The line length limit has been eliminated.
+
+		It should be faster for large files: we start
+		parsing only 50 lines back when you hit PgUp,
+		not from the start of file each time.
+
+		Todo: update other windows, allow files of
+		other types to be highlighted, create user interface
+		to allow region names to be assigned colors, create
+		more syntax files.  Possibly create program to
+		convert regex NFA to joe DFA syntax file format.
+
+Wed Mar 24 2004  Joe Allen <jhallen@world.std.com>
+	* uedit.c:
+	Fix bug where hitting ^Z on first word of file caused joe to lock up
+
+
+Wed Mar 24 2004  Joe Allen <jhallen@world.std.com>
+	* lots of file:
+	First steps at syntax highlighting!
+	This version has support for C only (and the parser is a big hack),
+	and only if all lines in the file are less than 1K.
+	Turn it on with ^T H
+	Todo: some more speed enhancements, a real parser to handle many
+	file types, eliminate long line hack, update other windows during
+	typing, eliminate some cycle saving hacks when highlighting is on.
+
+Mon Mar 22 2004  Joe Allen <jhallen@world.std.com>
+	* jmacsrc.in:
+	Added ^X [ and ^X ].
+
+Sat Mar 20 2004  Joe Allen <jhallen@world.std.com>
+	* menu.c, menu.h, joerc.in, jstarrc.in, jmacsrc.in, rjoerc.in,
+	jpicorc.in, cmd.c:
+	File selection menu is now four lines instead of one line.  This
+	needs a little more work: user should be able to set how many
+	lines it should be in each context.
+
+Sat Mar 20 2004  Joe Allen <jhallen@world.std.com>
+	* usearch.c:
+	After every search we reset window left offset to 0 and then make
+	the minimal left-right scroll necessary to get entire found text
+	completely on the screen.
+
+Sat Mar 20 2004  Joe Allen <jhallen@world.std.com>
+	* uerror.c:
+	Slight improvement in compiler error parser.
+
+Sat Mar 20 2004  Joe Allen <jhallen@world.std.com>
+	Fix shell window again: instead of running bash if there is no
+	SHELL variable defined, we just print a message.
+	Also noticed that session leader stuff in Cygwin is broken: if you
+	suspend joe the subshell breaks.
+
+Sat Mar 20 2004  Joe Allen <jhallen@world.std.com>
+	* tty.c, ushell.c:
+	Fix shell window for Cygwin:
+	The problem was that the SHELL environment variable is not defined.
+	So now, if it's not defined we assume /usr/bin/bash.
+	Also, we have to use /dev/ptmx for Cygwin.
+	There is still a problem: have to refresh the screen after shell
+	starts.
+
+Fri Mar 19 2004  Joe Allen <jhallen@world.std.com>
+	* tty.c:
+	Fix shell window for SunOS 5.8
+
+Thu Mar 18 2004  Joe Allen <jhallen@world.std.com>
+	* usearch.c, regex.c, regex.h:
+	Allow full escape sequences in replacement strings
+	fixes bug #828156
+
+Thu Mar 18 2004  Joe Allen <jhallen@world.std.com>
+	* b.c:
+	Automatically detect MS-DOS files (files with ^M^J terminated lines)
+
+Thu Mar 18 2004  Joe Allen <jhallen@world.std.com>
+	* tw.c, uedit.c, tty.c:
+	Fix ^C and ^D in shell windows (for linux at least)
+
+Mon Jan 19 2004  Marek 'Marx' Grac <xgrac@fi.muni.cz>
+	* utag.c:
+	Correct file position by using tags file generated from ctags 5.5.2
+
+Wed Jul  9 2003  John Morrissey <jwm@horde.net>
+	* configure.ac:
+	look for snprintf() in libdb too (fixes compilation on OSF1)
+
+Fri Jun 20 2003  Anil Madhavapeddy <anil@recoil.org>
+	* usearch.c:
+	fix boundary to snprintf()
+
+Mon Jun 16 2003  Vitezslav Samel <samel@mail.cz>
+	* uedit.c
+	u_goto_prev()/u_goto_next() fix take two: skip over spaces
+	(return of joe-2.8 behaviour)
+
+Sun Jun  1 2003  Vitezslav Samel <samel@mail.cz>
+	* cmd.c, tab.c, uisrch.c:
+	don't beep when not asked
+	(suggestion by Marc Joosen <marcj@historia.et.tudelft.nl>)
+
+Sun Jun  1 2003  Vitezslav Samel <samel@mail.cz>
+	* configure.ac, ublock.c:
+	NEW FEATURE: when filtering block put JOE_FILENAME= with the right
+	filename into the environment (only when putenv() is available);
+	patch by Marc Joosen <marcj@historia.et.tudelft.nl>
+
+Sat May 31 2003  Vitezslav Samel <samel@mail.cz>
+	* uedit.c:
+	make u_goto_prev()/u_goto_next() act like ubackw()/u_word_delete()
+	when moving cursor, i.e. operate on the same class of characters
+
+Sat May 31 2003  Vitezslav Samel <samel@mail.cz>
+	* configure.ac:
+	change version number to include _CVS suffix
+
 Mon May  5 2003  Vitezslav Samel <samel@mail.cz>
 	*** Release joe-2.9.8 ***
 

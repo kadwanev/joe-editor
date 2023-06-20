@@ -37,22 +37,25 @@
 #include "va.h"
 #include "vfile.h"
 #include "vs.h"
+#include "utf8.h"
 #include "w.h"
 
-char stdbuf[stdsiz];
+unsigned char stdbuf[stdsiz];
 
 extern int errno;
+int guesscrlf = 0;
+int guessindent = 0;
 
 int error;
 int force = 0;
 VFILE *vmem;
 
-char *msgs[] = {
-	"Error writing file",
-	"Error opening file",
-	"Error seeking file",
-	"Error reading file",
-	"New File"
+unsigned char *msgs[] = {
+	US "Error writing file",
+	US "Error opening file",
+	US "Error seeking file",
+	US "Error reading file",
+	US "New File"
 };
 
 /* Get size of gap (amount of free space) */
@@ -66,7 +69,7 @@ char *msgs[] = {
 					      : (p)->ptr[(p)->ofst])
 
 /* Set position of gap */
-static void gstgap(H *hdr, char *ptr, int ofst)
+static void gstgap(H *hdr, unsigned char *ptr, int ofst)
 {
 	if (ofst > hdr->hole) {
 		mmove(ptr + hdr->hole, ptr + hdr->ehole, ofst - hdr->hole);
@@ -80,7 +83,7 @@ static void gstgap(H *hdr, char *ptr, int ofst)
 }
 
 /* Insert a block */
-static void ginsm(H *hdr, char *ptr, int ofst, char *blk, int size)
+static void ginsm(H *hdr, unsigned char *ptr, int ofst, unsigned char *blk, int size)
 {
 	if (ofst != hdr->hole)
 		gstgap(hdr, ptr, ofst);
@@ -90,7 +93,7 @@ static void ginsm(H *hdr, char *ptr, int ofst, char *blk, int size)
 }
 
 /* Read block */
-static void grmem(H *hdr, char *ptr, int ofst, char *blk, int size)
+static void grmem(H *hdr, unsigned char *ptr, int ofst, unsigned char *blk, int size)
 {
 	if (ofst < hdr->hole)
 		if (size > hdr->hole - ofst) {
@@ -384,7 +387,7 @@ int piseol(P *p)
 			P *q = pdup(p);
 
 			pfwrd(q, 1L);
-			if (pgetc(q) == '\n') {
+			if (pgetb(q) == '\n') {
 				prm(q);
 				return 1;
 			} else
@@ -396,12 +399,12 @@ int piseol(P *p)
 /* is p at the beginning of line? */
 int pisbol(P *p)
 {
-	char c;
+	int c;
 
 	if (pisbof(p))
 		return 1;
-	c = prgetc(p);
-	pgetc(p);
+	c = prgetb(p);
+	pgetb(p);
 	return c == '\n';
 }
 
@@ -413,7 +416,7 @@ int pisbow(P *p)
 	int d = prgetc(q);
 
 	prm(q);
-	if (isalnum_(c) && (!isalnum_(d) || pisbof(p)))
+	if (isalnum_(p->b->o.utf8,c) && (!isalnum_(p->b->o.utf8,d) || pisbof(p)))
 		return 1;
 	else
 		return 0;
@@ -427,7 +430,7 @@ int piseow(P *p)
 	int c = prgetc(q);
 
 	prm(q);
-	if (isalnum_(c) && (!isalnum_(d) || piseof(p)))
+	if (isalnum_(p->b->o.utf8,c) && (!isalnum_(p->b->o.utf8,d) || piseof(p)))
 		return 1;
 	else
 		return 0;
@@ -439,8 +442,24 @@ int pisblank(P *p)
 	P *q = pdup(p);
 
 	p_goto_bol(q);
-	while (isblank(brc(q)))
-		pgetc(q);
+	while (joe_isblank(brc(q)))
+		pgetb(q);
+	if (piseol(q)) {
+		prm(q);
+		return 1;
+	} else {
+		prm(q);
+		return 0;
+	}
+}
+
+/* is p at end of line or spaces followed by end of line? */
+int piseolblank(P *p)
+{
+	P *q = pdup(p);
+
+	while (joe_isblank(brc(q)))
+		pgetb(q);
 	if (piseol(q)) {
 		prm(q);
 		return 1;
@@ -457,11 +476,26 @@ long pisindent(P *p)
 	long col;
 
 	p_goto_bol(q);
-	while (isblank(brc(q)))
+	while (joe_isblank(brc(q)))
 		pgetc(q);
 	col = q->col;
 	prm(q);
 	return col;
+}
+
+/* return true if all characters to left of cursor match c */
+
+int pispure(P *p,int c)
+{
+	P *q = pdup(p);
+	p_goto_bol(q);
+	while (q->byte!=p->byte)
+		if (pgetc(q)!=c) {
+			prm(q);
+			return 0;
+                }
+	prm(q);
+	return 1;
 }
 
 int pnext(P *p)
@@ -490,8 +524,8 @@ int pprev(P *p)
 	return 1;
 }
 
-/* return current character and move p to the next character */
-int pgetc(P *p)
+/* return current byte and move p to the next byte.  column will be unchanged. */
+int pgetb(P *p)
 {
 	unsigned char c;
 
@@ -501,23 +535,121 @@ int pgetc(P *p)
 	if (++p->ofst == GSIZE(p->hdr))
 		pnext(p);
 	++p->byte;
-
 	if (c == '\n') {
 		++(p->line);
 		p->col = 0;
 		p->valcol = 1;
 	} else if (p->b->o.crlf && c == '\r') {
 		if (brc(p) == '\n')
-			return pgetc(p);
+			return pgetb(p);
 		else
-			++p->col;
+			p->valcol = 0;
 	} else {
-		if (c == '\t')
-			p->col += (p->b->o.tab) - (p->col) % (p->b->o.tab);
-		else
-			++(p->col);
+		p->valcol = 0;
 	}
 	return c;
+}
+
+/* return current character and move p to the next character.  column will be updated if it was valid. */
+int pgetc(P *p)
+{
+	if (p->b->o.utf8) {
+		int val;
+		int c, oc;
+		int d;
+		int n, m;
+		int wid;
+
+		val = p->valcol;	/* Remember if column number was valid */
+		c = pgetb(p);		/* Get first byte */
+		oc = c;
+
+		if (c==NO_MORE_DATA)
+			return c;
+
+		if ((c&0xE0)==0xC0) { /* Two bytes */
+			n = 1;
+			c &= 0x1F;
+		} else if ((c&0xF0)==0xE0) { /* Three bytes */
+			n = 2;
+			c &= 0x0F;
+		} else if ((c&0xF8)==0xF0) { /* Four bytes */
+			n = 3;
+			c &= 0x07;
+		} else if ((c&0xFC)==0xF8) { /* Five bytes */
+			n = 4;
+			c &= 0x03;
+		} else if ((c&0xFE)==0xFC) { /* Six bytes */
+			n = 5;
+			c &= 0x01;
+		} else if ((c&0x80)==0x00) { /* One byte */
+			n = 0;
+		} else { /* 128-191, 254, 255: Not a valid UTF-8 start character */
+			n = 0;
+			/* c -= 384; */
+		}
+
+		m = n;
+
+		if (n) {
+			while (n) {
+				d = brc(p);
+				if((d&0xC0)!=0x80)
+					break;
+				pgetb(p);
+				c = ((c<<6)|(d&0x3F));
+				--n;
+			}
+			if (n) { /* FIXME: there was a bad UTF-8 sequence */
+				/* How to represent this? */
+				/* pbkwd(p,m-n);
+				c = oc - 384; */
+				c = 'X';
+				wid = 1;
+			} else if (val)
+				wid = mk_wcwidth(c);
+		} else {
+			wid = 1;
+		}
+
+		if (val) { /* Update column no. if it was valid to start with */
+			p->valcol = 1;
+			if (c=='\t')
+				p->col += (p->b->o.tab) - (p->col) % (p->b->o.tab);
+			else if (c=='\n')
+				p->col = 0;
+			else
+				p->col += wid;
+		}
+
+		return c;
+	} else {
+		unsigned char c;
+
+		if (p->ofst == GSIZE(p->hdr))
+			return NO_MORE_DATA;
+		c = GCHAR(p);
+		if (++p->ofst == GSIZE(p->hdr))
+			pnext(p);
+		++p->byte;
+
+		if (c == '\n') {
+			++(p->line);
+			p->col = 0;
+			p->valcol = 1;
+		} else if (p->b->o.crlf && c == '\r') {
+			if (brc(p) == '\n')
+				return pgetc(p);
+			else
+				++p->col;
+		} else {
+			if (c == '\t')
+				p->col += (p->b->o.tab) - (p->col) % (p->b->o.tab);
+			else
+				++(p->col);
+		}
+		return c;
+	}
 }
 
 /* move p n characters forward */
@@ -547,7 +679,8 @@ P *pfwrd(P *p, long n)
 	return p;
 }
 
-static int prgetc1(P *p)
+/* move p to the previous byte: does not take into account -crlf mode */
+static int prgetb1(P *p)
 {
 	unsigned char c;
 
@@ -557,31 +690,76 @@ static int prgetc1(P *p)
 	--p->ofst;
 	c = GCHAR(p);
 	--p->byte;
-	if (c == '\n') {
+	p->valcol = 0;
+	if (c == '\n')
 		--p->line;
-		p->valcol = 0;
-	} else {
-		if (c == '\t')
-			p->valcol = 0;
-		--p->col;
+	return c;
+}
+
+/* move p to the previous byte */
+int prgetb(P *p)
+{
+	int c = prgetb1(p);
+
+	if (p->b->o.crlf && c == '\n') {
+		c = prgetb1(p);
+		if (c == '\r')
+			return '\n';
+		if (c != NO_MORE_DATA)
+			pgetb(p);
+		c = '\n';
 	}
 	return c;
 }
 
-/* move p to the previous character */
+/* move p to the previous character (try to keep col updated) */
 int prgetc(P *p)
 {
-	int c = prgetc1(p);
+	if (p->b->o.utf8) {
+		int d = 0;
+		int c;
+		int n = 0;
+		int val = p->valcol;
+		for(;;) {
+			c = prgetb(p);
+			if (c == NO_MORE_DATA)
+				return NO_MORE_DATA;
+			else if ((c&0xC0)==0x80) {
+				d |= ((c&0x3F)<<n);
+				n += 6;
+			} else if ((c&0x80)==0x00) { /* One char */
+				d = c;
+				break;
+			} else if ((c&0xE0)==0xC0) { /* Two chars */
+				d |= ((c&0x1F)<<n);
+				break;
+			} else if ((c&0xF0)==0xE0) { /* Three chars */
+				d |= ((c&0x0F)<<n);
+				break;
+			} else if ((c&0xF8)==0xF0) { /* Four chars */
+				d |= ((c&0x07)<<n);
+				break;
+			} else if ((c&0xFC)==0xF8) { /* Five chars */
+				d |= ((c&0x03)<<n);
+				break;
+			} else if ((c&0xFE)==0xFC) { /* Six chars */
+				d |= ((c&0x01)<<n);
+				break;
+			} else { /* FIXME: Invalid (0xFE or 0xFF found) */
+				break;
+			}
+		}
 
-	if (p->b->o.crlf && c == '\n') {
-		c = prgetc1(p);
-		if (c == '\r')
-			return '\n';
-		if (c != NO_MORE_DATA)
-			pgetc(p);
-		c = '\n';
+		if (val && c!='\t' && c!='\n') {
+			p->valcol = 1;
+			p->col -= mk_wcwidth(d);
+		}
+		
+		return d;
 	}
-	return c;
+	else {
+		return prgetb(p);
+	}
 }
 
 /* move p n characters backwards */
@@ -622,11 +800,10 @@ P *pgoto(P *p, long loc)
 /* make p->col valid */
 P *pfcol(P *p)
 {
-	H *hdr = p->hdr;
-	int ofst = p->ofst;
+	long pos = p->byte;
 
 	p_goto_bol(p);
-	while (p->ofst != ofst || p->hdr != hdr)
+	while (p->byte < pos)
 		pgetc(p);
 	return p;
 }
@@ -635,16 +812,26 @@ P *pfcol(P *p)
 P *p_goto_bol(P *p)
 {
 	if (pprevl(p))
-		pgetc(p);
+		pgetb(p);
 	p->col = 0;
 	p->valcol = 1;
+	return p;
+}
+
+/* move p to the indentation point */
+P *p_goto_indent(P *p, int c)
+{
+	int d;
+	p_goto_bol(p);
+	while ((d=brc(p)), d==c || ((c==' ' || c=='\t') && (d==' ' || d=='\t')))
+		pgetc(p);
 	return p;
 }
 
 /* move p to the end of line */
 P *p_goto_eol(P *p)
 {
-	if (p->b->o.crlf)
+	if (p->b->o.crlf || p->b->o.utf8)
 		while (!piseol(p))
 			pgetc(p);
 	else
@@ -671,7 +858,7 @@ P *p_goto_eol(P *p)
 /* move p to the beginning of next line */
 P *pnextl(P *p)
 {
-	char c;
+	int c;
 
 	do {
 		if (p->ofst == GSIZE(p->hdr))
@@ -695,7 +882,7 @@ P *pnextl(P *p)
 /* move p to the end of previous line */
 P *pprevl(P *p)
 {
-	char c;
+	int c;
 
 	p->valcol = 0;
 	do {
@@ -711,10 +898,10 @@ P *pprevl(P *p)
 	} while (c != '\n');
 	--p->line;
 	if (p->b->o.crlf && c == '\n') {
-		int k = prgetc1(p);
+		int k = prgetb1(p);
 
 		if (k != '\r' && k != NO_MORE_DATA)
-			pgetc(p);
+			pgetb(p);
 	}
 	return p;
 }
@@ -745,35 +932,64 @@ P *pline(P *p, long line)
 }
 
 /* move p to the given 'goalcol' column */
+/* lands at exact column or on character which would cause us to go past goalcol */
 P *pcol(P *p, long goalcol)
 {
 	p_goto_bol(p);
-	do {
-		unsigned char c;
-		int wid;
+	if(p->b->o.utf8) {
+		do {
+			int c;
+			int wid;
 
-		if (p->ofst == GSIZE(p->hdr))
-			break;
-		c = GCHAR(p);
-		if (c == '\n')
-			break;
-		if (p->b->o.crlf && c == '\r' && piseol(p))
-			break;
-		if (c == '\t')
-			wid = p->b->o.tab - p->col % p->b->o.tab;
-		else
-			wid = 1;
-		if (p->col + wid > goalcol)
-			break;
-		if (++p->ofst == GSIZE(p->hdr))
-			pnext(p);
-		++p->byte;
-		p->col += wid;
-	} while (p->col != goalcol);
+			c = brch(p);
+
+			if (c == NO_MORE_DATA)
+				break;
+
+			if (c == '\n')
+				break;
+
+			if (p->b->o.crlf && c == '\r' && piseol(p))
+				break;
+
+			if (c == '\t')
+				wid = p->b->o.tab - p->col % p->b->o.tab;
+			else
+				wid = mk_wcwidth(c);
+
+			if (p->col + wid > goalcol)
+				break;
+
+			pgetc(p);
+		} while (p->col != goalcol);
+	} else {
+		do {
+			unsigned char c;
+			int wid;
+
+			if (p->ofst == GSIZE(p->hdr))
+				break;
+			c = GCHAR(p);
+			if (c == '\n')
+				break;
+			if (p->b->o.crlf && c == '\r' && piseol(p))
+				break;
+			if (c == '\t')
+				wid = p->b->o.tab - p->col % p->b->o.tab;
+			else
+				wid = 1;
+			if (p->col + wid > goalcol)
+				break;
+			if (++p->ofst == GSIZE(p->hdr))
+				pnext(p);
+			++p->byte;
+			p->col += wid;
+		} while (p->col != goalcol);
+	}
 	return p;
 }
 
-/* move p into given given 'goalcol' column (even within whitespaces) */
+/* Move to goal column, then skip backwards to just after first non-whitespace character */
 P *pcolwse(P *p, long goalcol)
 {
 	int c;
@@ -787,29 +1003,48 @@ P *pcolwse(P *p, long goalcol)
 	return p;
 }
 
-/* FIXME: whats the differnce between pcol() and pcoli() ??? */
+/* Move p to goalcol: stops after first character which equals or exceeds goal col (unlike
+   pcol() which will stops before character which would exceed goal col) */
 P *pcoli(P *p, long goalcol)
 {
 	p_goto_bol(p);
-	while (p->col < goalcol) {
-		unsigned char c;
+	if (p->b->o.utf8) {
+		while (p->col < goalcol) {
+			int c;
+			c = brc(p);
 
-		if (p->ofst == GSIZE(p->hdr))
-			break;
-		c = GCHAR(p);
-		if (c == '\n')
-			break;
-#ifdef __MSDOS
-		if (c == '\r' && piseol(p))
-			break;
-#endif
-		else if (c == '\t')
-			p->col += p->b->o.tab - p->col % p->b->o.tab;
-		else
-			++p->col;
-		if (++p->ofst == GSIZE(p->hdr))
-			pnext(p);
-		++p->byte;
+			if (c == NO_MORE_DATA)
+				break;
+
+			if (c == '\n')
+				break;
+
+			if (p->b->o.crlf && c=='\r' && piseol(p))
+				break;
+
+			pgetc(p);
+		}
+	} else {
+		while (p->col < goalcol) {
+			unsigned char c;
+
+			if (p->ofst == GSIZE(p->hdr))
+				break;
+			c = GCHAR(p);
+			if (c == '\n')
+				break;
+
+			if (p->b->o.crlf && c == '\r' && piseol(p))
+				break;
+
+			if (c == '\t')
+				p->col += p->b->o.tab - p->col % p->b->o.tab;
+			else
+				++p->col;
+			if (++p->ofst == GSIZE(p->hdr))
+				pnext(p);
+			++p->byte;
+		}
 	}
 	return p;
 }
@@ -817,9 +1052,8 @@ P *pcoli(P *p, long goalcol)
 /* fill space between curent column and 'to' column with tabs/spaces */
 void pfill(P *p, long to, int usetabs)
 {
-	piscol(p);
-	if (usetabs)
-		while (p->col < to)
+	if (usetabs=='\t')
+		while (piscol(p) < to)
 			if (p->col + p->b->o.tab - p->col % p->b->o.tab <= to) {
 				binsc(p, '\t');
 				pgetc(p);
@@ -828,8 +1062,8 @@ void pfill(P *p, long to, int usetabs)
 				pgetc(p);
 			}
 	else
-		while (p->col < to) {
-			binsc(p, ' ');
+		while (piscol(p) < to) {
+			binsc(p, usetabs);
 			pgetc(p);
 		}
 }
@@ -849,7 +1083,7 @@ void pbackws(P *p)
 	prm(q);
 }
 
-static char frgetc(P *p)
+static int frgetc(P *p)
 {
 	if (!p->ofst)
 		pprev(p);
@@ -1011,7 +1245,7 @@ static void fbkwd(P *p, int n)
 
 static int fpgetc(P *p)
 {
-	char c;
+	int c;
 
 	if (p->ofst == GSIZE(p->hdr))
 		return NO_MORE_DATA;
@@ -1160,7 +1394,7 @@ P *prifind(P *p, unsigned char *s, int len)
 B *bcpy(P *from, P *to)
 {
 	H anchor, *l;
-	char *ptr;
+	unsigned char *ptr;
 	P *q;
 
 	if (from->byte >= to->byte)
@@ -1227,7 +1461,7 @@ void pcoalesce(P *p)
 {
 	if (p->hdr != p->b->eof->hdr && GSIZE(p->hdr) + GSIZE(p->hdr->link.next) <= SEGSIZ - SEGSIZ / 4) {
 		H *hdr = p->hdr->link.next;
-		char *ptr = vlock(vmem, hdr->seg);
+		unsigned char *ptr = vlock(vmem, hdr->seg);
 		int osize = GSIZE(p->hdr);
 		int size = GSIZE(hdr);
 		P *q;
@@ -1249,7 +1483,7 @@ void pcoalesce(P *p)
 	}
 	if (p->hdr != p->b->bof->hdr && GSIZE(p->hdr) + GSIZE(p->hdr->link.prev) <= SEGSIZ - SEGSIZ / 4) {
 		H *hdr = p->hdr->link.prev;
-		char *ptr = vlock(vmem, hdr->seg);
+		unsigned char *ptr = vlock(vmem, hdr->seg);
 		int size = GSIZE(hdr);
 		P *q;
 
@@ -1293,7 +1527,7 @@ static B *bcut(P *from, P *to)
 {
 	H *h,			/* The deleted text */
 	*i;
-	char *ptr;
+	unsigned char *ptr;
 	P *p;
 	long nlines;		/* No. EOLs to delete */
 	long amnt;		/* No. bytes to delete */
@@ -1479,7 +1713,7 @@ static void bsplit(P *p)
 {
 	if (p->ofst) {
 		H *hdr;
-		char *ptr;
+		unsigned char *ptr;
 		P *pp;
 
 		hdr = halloc();
@@ -1516,14 +1750,14 @@ static void bsplit(P *p)
 }
 
 /* Make a chain out of a block of memory (the block must not be empty) */
-static H *bldchn(char *blk, int size, long *nlines)
+static H *bldchn(unsigned char *blk, int size, long *nlines)
 {
 	H anchor, *l;
 
 	*nlines = 0;
 	izque(H, link, &anchor);
 	do {
-		char *ptr;
+		unsigned char *ptr;
 		int amnt;
 
 		ptr = vlock(vmem, (l = halloc())->seg);
@@ -1630,7 +1864,7 @@ P *binsb(P *p, B *b)
 }
 
 /* insert memory block 'blk' at 'p' */
-P *binsm(P *p, char *blk, int amnt)
+P *binsm(P *p, unsigned char *blk, int amnt)
 {
 	long nlines;
 	H *h = NULL;
@@ -1660,26 +1894,42 @@ P *binsm(P *p, char *blk, int amnt)
 	return p;
 }
 
-/* insert char 'c' at 'p' */
-P *binsc(P *p, char c)
+/* insert byte 'c' at 'p' */
+P *binsbyte(P *p, unsigned char c)
 {
 	if (p->b->o.crlf && c == '\n')
-		return binsm(p, "\r\n", 2);
+		return binsm(p, US "\r\n", 2);
 	else
 		return binsm(p, &c, 1);
 }
 
-/* insert zero-terminated string 's' at 'p' */
-P *binss(P *p, char *s)
+/* UTF-8 encode a character and insert it */
+P *binsc(P *p, int c)
 {
-	return binsm(p, s, strlen(s));
+	if (c>127 && p->b->o.utf8) {
+		unsigned char buf[8];
+		int len = utf8_encode(buf,c);
+		return binsm(p,buf,len);
+	} else {
+		unsigned char ch = c;
+		if (p->b->o.crlf && c == '\n')
+			return binsm(p, US "\r\n", 2);
+		else
+			return binsm(p, &ch, 1);
+	}
+}
+
+/* insert zero-terminated string 's' at 'p' */
+P *binss(P *p, unsigned char *s)
+{
+	return binsm(p, s, strlen((char *)s));
 }
 
 /* Read 'size' bytes from file or stream.  Stops and returns amnt. read
  * when requested size has been read or when end of file condition occurs.
  * Returns with -2 in error for read error or 0 in error for success.
  */
-static int bkread(int fi, char *buff, int size)
+static int bkread(int fi, unsigned char *buff, int size)
 {
 	int a, b;
 
@@ -1702,7 +1952,7 @@ B *bread(int fi, long int max)
 	H anchor, *l;
 	long lines = 0, total = 0;
 	int amnt;
-	char *seg;
+	unsigned char *seg;
 
 	izque(H, link, &anchor);
 	error = 0;
@@ -1732,9 +1982,9 @@ B *bread(int fi, long int max)
  *
  * Returns new variable length string.
  */
-char *parsens(char *s, long int *skip, long int *amnt)
+unsigned char *parsens(unsigned char *s, long int *skip, long int *amnt)
 {
-	char *n = vsncpy(NULL, 0, sz(s));
+	unsigned char *n = vsncpy(NULL, 0, sz(s));
 	int x;
 
 	*skip = 0;
@@ -1743,25 +1993,25 @@ char *parsens(char *s, long int *skip, long int *amnt)
 	if (n[x] == ',') {
 		n[x] = 0;
 		if (n[x + 1] == 'x' || n[x + 1] == 'X')
-			sscanf(n + x + 2, "%lx", skip);
+			sscanf((char *)(n + x + 2), "%lx", skip);
 		else if (n[x + 1] == '0' && (n[x + 2] == 'x' || n[x + 2] == 'X'))
-			sscanf(n + x + 3, "%lx", skip);
+			sscanf((char *)(n + x + 3), "%lx", skip);
 		else if (n[x + 1] == '0')
-			sscanf(n + x + 1, "%lo", skip);
+			sscanf((char *)(n + x + 1), "%lo", skip);
 		else
-			sscanf(n + x + 1, "%ld", skip);
+			sscanf((char *)(n + x + 1), "%ld", skip);
 		for (--x; x > 0 && ((n[x] >= '0' && n[x] <= '9') || n[x] == 'x' || n[x] == 'X'); --x) ;
 		if (n[x] == ',') {
 			n[x] = 0;
 			*amnt = *skip;
 			if (n[x + 1] == 'x' || n[x + 1] == 'X')
-				sscanf(n + x + 2, "%lx", skip);
+				sscanf((char *)(n + x + 2), "%lx", skip);
 			else if (n[x + 1] == '0' && (n[x + 2] == 'x' || n[x + 2] == 'X'))
-				sscanf(n + x + 3, "%lx", skip);
+				sscanf((char *)(n + x + 3), "%lx", skip);
 			else if (n[x + 1] == '0')
-				sscanf(n + x + 1, "%lo", skip);
+				sscanf((char *)(n + x + 1), "%lo", skip);
 			else
-				sscanf(n + x + 1, "%ld", skip);
+				sscanf((char *)(n + x + 1), "%ld", skip);
 		}
 	}
 #ifndef __MSDOS__
@@ -1769,9 +2019,9 @@ char *parsens(char *s, long int *skip, long int *amnt)
 		for (x = 1; n[x] && n[x] != '/'; ++x) ;
 		if (n[x] == '/') {
 			if (x == 1) {
-				char *z;
+				unsigned char *z;
 
-				s = getenv("HOME");
+				s = (unsigned char *)getenv("HOME");
 				z = vsncpy(NULL, 0, sz(s));
 				z = vsncpy(z, sLEN(z), sz(n + x));
 				vsrm(n);
@@ -1780,11 +2030,11 @@ char *parsens(char *s, long int *skip, long int *amnt)
 				struct passwd *passwd;
 
 				n[x] = 0;
-				passwd = getpwnam(n + 1);
+				passwd = getpwnam((char *)(n + 1));
 				n[x] = '/';
 				if (passwd) {
-					char *z = vsncpy(NULL, 0,
-							 sz(passwd->pw_dir));
+					unsigned char *z = vsncpy(NULL, 0,
+							 sz((unsigned char *)(passwd->pw_dir)));
 
 					z = vsncpy(z, sLEN(z), sz(n + x));
 					vsrm(n);
@@ -1804,19 +2054,21 @@ char *parsens(char *s, long int *skip, long int *amnt)
  * -3 for seek error
  * -4 for open error
  */
-B *bload(char *s)
+B *bload(unsigned char *s)
 {
-	char buffer[SEGSIZ];
+	unsigned char buffer[SEGSIZ];
 	FILE *fi;
 	B *b;
 	long skip, amnt;
-	char *n;
+	unsigned char *n;
 	int nowrite = 0;
+	P *p;
+	int x;
 
 	if (!s || !s[0]) {
 		error = -1;
 		b = bmk(NULL);
-		setopt(&b->o, "");
+		setopt(b,US "");
 		b->rdonly = b->o.readonly;
 		b->er = error;
 		return b;
@@ -1829,18 +2081,18 @@ B *bload(char *s)
 	if (n[0] == '!') {
 		nescape(maint->t);
 		ttclsn();
-		fi = popen(n + 1, "r");
+		fi = popen((char *)(n + 1), "r");
 	} else
 #endif
 	if (!strcmp(n, "-"))
 		fi = stdin;
 	else {
-		fi = fopen(n, "r+");
+		fi = fopen((char *)n, "r+");
 		if (!fi)
 			nowrite = 1;
 		else
 			fclose(fi);
-		fi = fopen(n, "r");
+		fi = fopen((char *)n, "r");
 		if (!fi)
 			nowrite = 0;
 	}
@@ -1853,7 +2105,7 @@ B *bload(char *s)
 		else
 			error = -4;
 		b = bmk(NULL);
-		setopt(&b->o, n);
+		setopt(b,n);
 		b->rdonly = b->o.readonly;
 		goto opnerr;
 	}
@@ -1879,7 +2131,7 @@ B *bload(char *s)
 
 	/* Read from stream into new buffer */
 	b = bread(fileno(fi), amnt);
-	setopt(&b->o, n);
+	setopt(b,n);
 	b->rdonly = b->o.readonly;
 
 	/* Close stream */
@@ -1899,7 +2151,7 @@ opnerr:
 	}
 
 	/* Set name */
-	b->name = joesep(strdup(s));
+	b->name = joesep((unsigned char *)strdup(s));
 
 	/* Set flags */
 	if (error || s[0] == '!' || skip || amnt != MAXLONG) {
@@ -1915,6 +2167,48 @@ opnerr:
 	if (nowrite)
 		b->rdonly = b->o.readonly = 1;
 
+	/* If first line has CR-LF, assume MS-DOS file */
+	if (guesscrlf) {
+		p=pdup(b->bof);
+		b->o.crlf = 0;
+		for(x=0;x!=1024;++x) {
+			int c = pgetc(p);
+			if(c == '\r') {
+				b->o.crlf = 1;
+				break;
+				}
+			if(c == '\n') {
+				b->o.crlf = 0;
+				break;
+				}
+			if(c == NO_MORE_DATA)
+				break;
+		}
+		prm(p);
+	}
+
+	/* Search backwards through file: if first indented line
+	   is indented with a tab, assume indentc is tab */
+	if (guessindent) {
+		p=pdup(b->eof);
+		for (x=0; x!=20; ++x) {
+			p_goto_bol(p);
+			if (pisindent(p)) {
+				if (brc(p)=='\t') {
+					b->o.indentc = '\t';
+					b->o.istep = 1;
+				} else {
+					b->o.indentc = ' ';
+					b->o.istep = 2;
+				}
+				break;
+			}
+			if (prgetc(p)==NO_MORE_DATA)
+				break;
+		}
+		prm(p);
+	}
+
 	/* Eliminate parsed name */
 	vsrm(n);
 
@@ -1923,14 +2217,14 @@ opnerr:
 }
 
 /* Find already loaded buffer or load file into new buffer */
-B *bfind(char *s)
+B *bfind(unsigned char *s)
 {
 	B *b;
 
 	if (!s || !s[0]) {
 		error = -1;
 		b = bmk(NULL);
-		setopt(&b->o, "");
+		setopt(b,US "");
 		b->rdonly = b->o.readonly;
 		b->internal = 0;
 		b->er = error;
@@ -1951,9 +2245,9 @@ B *bfind(char *s)
 	return b;
 }
 
-char **getbufs(void)
+unsigned char **getbufs(void)
 {
-	char **s = vamk(16);
+	unsigned char **s = vamk(16);
 	B *b;
 
 	for (b = bufs.link.next; b != &bufs; b = b->link.next)
@@ -2020,7 +2314,7 @@ err:
 }
 
 /* Save 'size' bytes beginning at 'p' in file 's' */
-int bsave(P *p, char *s, long int size)
+int bsave(P *p, unsigned char *s, long int size)
 {
 	FILE *f;
 	long skip, amnt;
@@ -2034,19 +2328,19 @@ int bsave(P *p, char *s, long int size)
 	if (s[0] == '!') {
 		nescape(maint->t);
 		ttclsn();
-		f = popen(s + 1, "w");
+		f = popen((char *)(s + 1), "w");
 	} else
 #endif
 	if (s[0] == '>' && s[1] == '>')
-		f = fopen(s + 2, "a");
+		f = fopen((char *)(s + 2), "a");
 	else if (!strcmp(s, "-")) {
 		nescape(maint->t);
 		ttclsn();
 		f = stdout;
 	} else if (skip || amnt != MAXLONG)
-		f = fopen(s, "r+");
+		f = fopen((char *)s, "r+");
 	else
-		f = fopen(s, "w");
+		f = fopen((char *)s, "w");
 	joesep(s);
 
 	if (!f) {
@@ -2064,7 +2358,7 @@ int bsave(P *p, char *s, long int size)
 
 	if (!error && force && size && !skip && amnt == MAXLONG) {
 		P *q = pdup(p);
-		char nl = '\n';
+		unsigned char nl = '\n';
 
 		pfwrd(q, size - 1);
 		if (brc(q) != '\n' && joe_write(fileno(f), &nl, 1) < 0)
@@ -2091,6 +2385,8 @@ opnerr:
 	return error;
 }
 
+/* Return byte at p */
+
 int brc(P *p)
 {
 	if (p->ofst == GSIZE(p->hdr))
@@ -2098,9 +2394,23 @@ int brc(P *p)
 	return GCHAR(p);
 }
 
-char *brmem(P *p, char *blk, int size)
+/* Return character at p */
+
+int brch(P *p)
 {
-	char *bk = blk;
+	if (p->b->o.utf8) {
+		P *q = pdup(p);
+		int c = pgetc(q);
+		prm(q);
+		return c;
+	} else {
+		return brc(p);
+	}
+}
+
+unsigned char *brmem(P *p, unsigned char *blk, int size)
+{
+	unsigned char *bk = blk;
 	P *np;
 	int amnt;
 
@@ -2117,19 +2427,19 @@ char *brmem(P *p, char *blk, int size)
 	return blk;
 }
 
-char *brs(P *p, int size)
+unsigned char *brs(P *p, int size)
 {
-	char *s = (char *) joe_malloc(size + 1);
+	unsigned char *s = (unsigned char *) joe_malloc(size + 1);
 
 	s[size] = 0;
 	return brmem(p, s, size);
 }
 
-char *brvs(P *p, int size)
+unsigned char *brvs(P *p, int size)
 {
-	char *s = vstrunc(NULL, size);
+	unsigned char *s = vstrunc(NULL, size);
 
-	return brmem(p, s, size);
+	return brmem(p, (unsigned char *)s, size);
 }
 
 /* Save edit buffers when editor dies */

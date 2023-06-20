@@ -13,53 +13,72 @@
 #include "scrn.h"
 #include "utils.h"
 #include "vs.h"
+#include "utf8.h"
 #include "w.h"
 
 extern int dostaupd;
 
 static void menufllw(MENU *m)
 {
-	m->top = m->cursor - m->cursor % m->perline;
+	if (m->cursor < m->top)
+		m->top = m->cursor - m->cursor % m->perline;
+	else if (m->cursor >= m->top+m->perline*m->h)
+		m->top = m->cursor - m->cursor % m->perline - m->perline*(m->h-1);
 }
 
 static void menudisp(MENU *m)
 {
 	int col;
 	int x;
+	int y;
 	int *s = m->t->t->scrn + m->x + m->y * m->t->t->co;
+	int *a = m->t->t->attr + m->x + m->y * m->t->t->co;
+	struct utf8_sm sm;
 
-	col = 0;
-	for (x = 0; x != m->perline && m->list[x + m->top]; ++x) {
-		int atr, z;
+	utf8_init(&sm);
 
-		if (x + m->top == m->cursor)
-			atr = INVERSE;
-		else
-			atr = 0;
-		if (col == m->w)
-			break;
-		for (z = 0; m->list[x + m->top][z]; ++z) {
+	for (y = 0; y != m->h; ++y) {
+		col = 0;
+		for (x = 0; x != m->perline && y*m->perline+x+m->top<m->nitems; ++x) {
+			int atr, z, lcol;
+	
+			if (x + y*m->perline + m->top == m->cursor)
+				atr = INVERSE;
+			else
+				atr = 0;
+
 			if (col == m->w)
 				break;
-			outatr(m->t->t, s + col, m->x + col, m->y, m->list[x + m->top][z], atr);
-			++col;
+
+			/* Generate field */
+			genfield(m->t->t,
+			         s + col,
+			         a + col,
+			         m->x + col,
+			         m->y + y,
+			         0,
+			         m->list[x + y*m->perline + m->top],
+			         strlen((char *)m->list[x + y*m->perline + m->top]),
+			         atr,
+			         m->width,
+			         0);
+
+			col += m->width;
+
+			/* Space between columns */
+			if (col != m->w) {
+				outatr(utf8, m->t->t, s + col, a + col, m->x + col, m->y+y, ' ', 0);
+				++col;
+			}
 		}
-		while (z < m->width) {
-			if (col == m->w)
-				break;
-			outatr(m->t->t, s + col, m->x + col, m->y, ' ', 0);
-			++col;
-			++z;
-		}
-		if (col != m->w) {
-			outatr(m->t->t, s + col, m->x + col, m->y, ' ', 0);
-			++col;
-		}
+		/* Clear to end of line */
+		if (col != m->w)
+			eraeol(m->t->t, m->x + col, m->y + y);
+		s += m->t->t->co;
+		a += m->t->t->co;
 	}
-	if (col != m->w)
-		eraeol(m->t->t, m->x + col, m->y);
-	m->parent->cury = 0;
-	m->parent->curx = (m->cursor - m->top) * (m->width + 1);
+	m->parent->cury = (m->cursor - m->top) / m->perline;
+	m->parent->curx = ((m->cursor - m->top) % m->perline) * (m->width + 1);
 }
 
 static void menumove(MENU *m, int x, int y)
@@ -81,9 +100,11 @@ static void mconfig(MENU *m)
 		int x;
 
 		m->top = 0;
-		for (x = 0, m->width = 0; m->list[x]; ++x)
-			if (strlen(m->list[x]) > m->width)
-				m->width = strlen(m->list[x]);
+		for (x = 0, m->width = 0; m->list[x]; ++x) {
+			int d = txtwidth(m->list[x],strlen(m->list[x]));
+			if (d > m->width)
+				m->width = d;
+		}
 		m->nitems = x;
 		if (m->width > m->w)
 			m->width = m->w - 1;
@@ -148,13 +169,91 @@ int umuparw(MENU *m)
 
 int umdnarw(MENU *m)
 {
+	int col = m->cursor % m->perline;
+
+        m->cursor -= col;
+
 	if (m->cursor + m->perline < m->nitems) {
 		m->cursor += m->perline;
+		if (m->cursor + col >= m->nitems)
+			if (m->nitems)
+				m->cursor = m->nitems - 1;
+			else
+				m->cursor = 0;
+		else
+			m->cursor += col;
 		return 0;
-	} else if (m->top + m->perline < m->nitems)
-		return umeof(m);
-	else
+	} else {
+		m->cursor += col;
 		return -1;
+	}
+}
+
+int umpgup(MENU *m)
+{
+	int amnt = (m->h+1)/2;
+	if (m->top >= amnt*m->perline) {
+		m->top -= amnt*m->perline;
+		m->cursor -= amnt*m->perline;
+		return 0;
+	} else if (m->top) {
+		m->cursor -= m->top;
+		m->top = 0;
+		return 0;
+	} else if (m->cursor >= m->perline) {
+		m->cursor = m->cursor % m->perline;
+		return 0;
+	} else
+		return -1;
+}
+
+int umpgdn(MENU *m)
+{
+	int amnt = (m->h+1)/2;
+	int col = m->cursor % m->perline;
+	int y = m->cursor / m->perline;
+	int h = (m->nitems + m->perline - 1) / m->perline;
+	int t = m->top / m->perline;
+	m->cursor -= col;
+
+	if (t + m->h + amnt <= h) {
+		m->top += amnt*m->perline;
+		m->cursor += amnt*m->perline;
+		if (m->cursor + col >= m->nitems)
+			if (m->nitems)
+				m->cursor = m->nitems - 1;
+			else
+				m->cursor = 0;
+		else
+			m->cursor += col;
+		return 0;
+	} else if (t + m->h < h) {
+		amnt = h - (t + m->h);
+		m->top += amnt*m->perline;
+		m->cursor += amnt*m->perline;
+		if (m->cursor + col >= m->nitems)
+			if (m->nitems)
+				m->cursor = m->nitems - 1;
+			else
+				m->cursor = 0;
+		else
+			m->cursor += col;
+		return 0;
+	} else if (y+1!=h) {
+		m->cursor = (h-1)*m->perline;
+		if (m->cursor + col >= m->nitems)
+			if (m->nitems)
+				m->cursor = m->nitems - 1;
+			else
+				m->cursor = 0;
+		else
+			m->cursor += col;
+		return 0;
+	} else {
+		m->cursor += col;
+		return -1;
+	}
+
 }
 
 static int umrtn(MENU *m)
@@ -228,7 +327,7 @@ static int menuabort(MENU *m)
 }
 
 WATOM watommenu = {
-	"menu",
+	US "menu",
 	menudisp,
 	menufllw,
 	menuabort,
@@ -241,16 +340,16 @@ WATOM watommenu = {
 	TYPEMENU
 };
 
-void ldmenu(MENU *m, char **s, int cursor)
+void ldmenu(MENU *m, unsigned char **s, int cursor)
 {
 	m->list = s;
 	m->cursor = cursor;
 	mconfig(m);
 }
 
-MENU *mkmenu(W *w, char **s, int (*func) (/* ??? */), int (*abrt) (/* ??? */), int (*backs) (/* ??? */), int cursor, void *object, int *notify)
+MENU *mkmenu(W *w, unsigned char **s, int (*func) (/* ??? */), int (*abrt) (/* ??? */), int (*backs) (/* ??? */), int cursor, void *object, int *notify)
 {
-	W *new = wcreate(w->t, &watommenu, w, w, w->main, 1, NULL, notify);
+	W *new = wcreate(w->t, &watommenu, w, w, w->main, 4, NULL, notify);
 	MENU *m;
 
 	if (!new) {
@@ -270,12 +369,13 @@ MENU *mkmenu(W *w, char **s, int (*func) (/* ??? */), int (*abrt) (/* ??? */), i
 	m->w = new->w;
 	m->x = new->x;
 	m->y = new->y;
+	m->top = 0;
 	ldmenu(m, s, cursor);
 	w->t->curwin = new;
 	return m;
 }
 
-static char *cull(char *a, char *b)
+static unsigned char *cull(unsigned char *a, unsigned char *b)
 {
 	int x;
 
@@ -283,9 +383,9 @@ static char *cull(char *a, char *b)
 	return vstrunc(a, x);
 }
 
-char *mcomplete(MENU *m)
+unsigned char *mcomplete(MENU *m)
 {
-	char *com;
+	unsigned char *com;
 	int x;
 
 	if (!m->nitems)

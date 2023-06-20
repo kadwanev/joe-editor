@@ -23,7 +23,12 @@
 #include "undo.h"
 #include "utils.h"
 #include "vfile.h"
+#include "menu.h"
+#include "va.h"
 #include "w.h"
+
+extern int smode;
+extern int beep;
 
 static void disppw(BW *bw, int flg)
 {
@@ -79,7 +84,7 @@ static int rtnpw(BW *bw)
 {
 	W *w = bw->parent;
 	PW *pw = (PW *) bw->object;
-	char *s;
+	unsigned char *s;
 	W *win;
 	int *notify;
 	int (*pfunc) ();
@@ -176,7 +181,7 @@ static int abortpw(BW *b)
 }
 
 static WATOM watompw = {
-	"prompt",
+	US "prompt",
 	disppw,
 	bwfllw,
 	abortpw,
@@ -190,8 +195,12 @@ static WATOM watompw = {
 };
 
 /* Create a prompt window */
+/* wide=-1: use default
+   wide=0: use 8-bit chars
+   wide=1: use UTF-8
+*/
 
-BW *wmkpw(W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify)
+BW *wmkpw(W *w, unsigned char *prompt, B **history, int (*func) (), unsigned char *huh, int (*abrt) (), int (*tab) (), void *object, int *notify,int wide)
 {
 	W *new;
 	PW *pw;
@@ -206,11 +215,13 @@ BW *wmkpw(W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt
 	}
 	wfit(new->t);
 	new->object = (void *) (bw = bwmk(new, bmk(NULL), 1));
+	if (wide!=-1)
+		bw->b->o.utf8= wide;
 	bw->object = (void *) (pw = (PW *) joe_malloc(sizeof(PW)));
 	pw->abrt = abrt;
 	pw->tab = tab;
 	pw->object = object;
-	pw->prompt = strdup(prompt);
+	pw->prompt = (unsigned char *)strdup((char *)prompt);
 	pw->promptlen = fmtlen(prompt);
 	pw->promptofst = 0;
 	pw->pfunc = func;
@@ -229,4 +240,95 @@ BW *wmkpw(W *w, char *prompt, B **history, int (*func) (), char *huh, int (*abrt
 	}
 	w->t->curwin = new;
 	return bw;
+}
+
+/* Tab completion functions */
+
+unsigned char **regsub(unsigned char **z, int len, unsigned char *s)
+{
+	unsigned char **lst = NULL;
+	int x;
+
+	for (x = 0; x != len; ++x)
+		if (rmatch(s, z[x]))
+			lst = vaadd(lst, vsncpy(NULL, 0, sz(z[x])));
+	return lst;
+}
+
+void cmplt_ins(BW *bw, unsigned char *line)
+{
+	P *p = pdup(bw->cursor);
+
+	p_goto_bol(p);
+	p_goto_eol(bw->cursor);
+	bdel(p, bw->cursor);
+	binsm(bw->cursor, sv(line));
+	p_goto_eol(bw->cursor);
+	prm(p);
+	bw->cursor->xcol = piscol(bw->cursor);
+}
+
+int cmplt_abrt(BW *bw, int x, unsigned char *line)
+{
+	if (line) {
+		cmplt_ins(bw, line);
+		vsrm(line);
+	}
+	return -1;
+}
+
+int cmplt_rtn(MENU *m, int x, unsigned char *line)
+{
+	cmplt_ins(m->parent->win->object, m->list[x]);
+	vsrm(line);
+	m->object = NULL;
+	wabort(m->parent);
+	return 0;
+}
+
+int simple_cmplt(BW *bw,unsigned char **list)
+{
+	MENU *m;
+	P *p, *q;
+	unsigned char *line;
+	unsigned char *line1;
+	unsigned char **lst;
+
+	p = pdup(bw->cursor);
+	p_goto_bol(p);
+	q = pdup(bw->cursor);
+	p_goto_eol(q);
+	line = brvs(p, (int) (q->byte - p->byte));	/* Assumes short lines :-) */
+	prm(p);
+	prm(q);
+	m = mkmenu(bw->parent, NULL, cmplt_rtn, cmplt_abrt, NULL, 0, line, NULL);
+	if (!m)
+		return -1;
+	line1 = vsncpy(NULL, 0, sv(line));
+	line1 = vsadd(line1, '*');
+	lst = regsub(list, aLEN(list), line1);
+	vsrm(line1);
+	ldmenu(m, lst, 0);
+	if (!lst) {
+		wabort(m->parent);
+		if(beep)
+			ttputc(7);
+		return -1;
+	} else {
+		if (aLEN(lst) == 1)
+			return cmplt_rtn(m, 0, line);
+		else if (smode || isreg(line))
+			return 0;
+		else {
+			unsigned char *com = mcomplete(m);
+
+			vsrm(m->object);
+			m->object = com;
+			wabort(m->parent);
+			smode = 2;
+			if(beep)
+				ttputc(7);
+			return 0;
+		}
+	}
 }

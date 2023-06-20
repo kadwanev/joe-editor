@@ -18,11 +18,15 @@
 #include "blocks.h"
 #include "scrn.h"
 #include "termcap.h"
+#include "utf8.h"
 #include "utils.h"
 
 int skiptop = 0;
 int lines = 0;
 int columns = 0;
+int notite = 0;
+int usetabs = 0;
+int assume_color = 0;
 
 extern int mid;
 
@@ -125,9 +129,18 @@ unsigned xlata[256] = {
 	INVERSE, INVERSE, INVERSE, INVERSE + UNDERLINE		/* 256 */
 };
 
+/* Write a multibyte character */
+
+void utf8_putc(int utf8_char)
+{
+	unsigned char buf[8];
+	int len = utf8_encode(buf,utf8_char);
+	ttputs(buf);
+}
+
 void xlat(int *attr, unsigned char *c)
 {
-	if(isprint(*c) || (dspasis && *c > 128))
+	if(isprint(*c) || (dspasis && *c >= 128 ))
 		*attr = 0;
 	else {
 		*attr = xlata[*c];
@@ -135,15 +148,24 @@ void xlat(int *attr, unsigned char *c)
 	}
 }
 
+void xlat_utf_ctrl(int *attr, unsigned char *c)
+{
+	*attr = xlata[*c];
+	*c = xlatc[*c];
+}
+
 /* Set attributes */
 
-int attr(SCRN *t, int c)
+int set_attr(SCRN *t, int c)
 {
 	int e;
 
 	c &= ~255;
-	e = (t->attrib & ~c);
-	if (e) {		/* If any attribute go off, switch them all off: fixes bug on PCs */
+
+	// Attributes which have gone off
+	e = ((AT_MASK|FG_NOT_DEFAULT|BG_NOT_DEFAULT)&t->attrib & ~c);
+
+	if (e) {	/* If any attribute go off, switch them all off: fixes bug on PCs */
 		if (t->me)
 			texec(t->cap, t->me, 1, 0, 0, 0, 0);
 		else {
@@ -154,13 +176,17 @@ int attr(SCRN *t, int c)
 		}
 		t->attrib = 0;
 	}
+
+	// Attributes which have turned on
 	e = (c & ~t->attrib);
+
 	if (e & INVERSE) {
 		if (t->mr)
 			texec(t->cap, t->mr, 1, 0, 0, 0, 0);
 		else if (t->so)
 			texec(t->cap, t->so, 1, 0, 0, 0, 0);
 	}
+
 	if (e & UNDERLINE)
 		if (t->us)
 			texec(t->cap, t->us, 1, 0, 0, 0, 0);
@@ -173,8 +199,107 @@ int attr(SCRN *t, int c)
 	if (e & DIM)
 		if (t->mh)
 			texec(t->cap, t->mh, 1, 0, 0, 0, 0);
+
+	if ((t->attrib&FG_MASK)!=(c&FG_MASK))
+		if (t->Sf) texec(t->cap,t->Sf,1,7-(((c&FG_VALUE)>>FG_SHIFT)),0,0,0);
+
+	if ((t->attrib&BG_MASK)!=(c&BG_MASK))
+		if (t->Sb) texec(t->cap,t->Sb,1,((c&BG_VALUE)>>BG_SHIFT),0,0,0);
+
 	t->attrib = c;
+
 	return 0;
+}
+
+/* Output character with attributes */
+
+void outatr(int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a)
+{
+	if(wide)
+		if(utf8) {
+			/* UTF-8 char to UTF-8 terminal */
+			int zz;
+			if(*scrn==c && *attrf==a)
+				return;
+
+			zz = mk_wcwidth(c);
+			*scrn = c;
+			*attrf = a;
+			if(t->ins)
+				clrins(t);
+			if(t->x != xx || t->y != yy)
+				cpos(t, xx, yy);
+			if(t->attrib != a)
+				set_attr(t, a);
+			utf8_putc(c);
+			t->x+=zz;
+			if(zz==2) {
+				scrn[1]= -1;
+				attrf[1]= 0;
+			}
+		} else {
+			/* UTF-8 char to non-UTF-8 terminal */
+			unsigned char buf[10];
+			utf8_encode(buf,c);	/* Utf-8 encode character */
+			c = from_utf8(buf);	/* Convert to non-utf character */
+
+			if(*scrn==c && *attrf==a)
+				return;
+
+			*scrn = c;
+			*attrf = a;
+			if(t->ins)
+				clrins(t);
+			if(t->x != xx || t->y != yy)
+				cpos(t,xx,yy);
+			if(t->attrib != a)
+				set_attr(t,a);
+			ttputc(c);
+			t->x++;
+		}
+	else
+		if(!utf8) {
+			/* Non UTF-8 char to non UTF-8 terminal */
+			if(*scrn==c && *attrf==a)
+				return;
+
+			*scrn = c;
+			*attrf = a;
+			if(t->ins)
+				clrins(t);
+			if(t->x != xx || t->y != yy)
+				cpos(t,xx,yy);
+			if(t->attrib != a)
+				set_attr(t,a);
+			ttputc(c);
+			t->x++;
+		} else {
+			/* Non UTF-8 char to UTF-8 terminal */
+			unsigned char buf[10];
+			int zz;
+			to_utf8(buf,c);
+			c = utf8_decode_string(buf);
+
+			if(*scrn==c && *attrf==a)
+				return;
+
+			zz = mk_wcwidth(c);
+			*scrn = c;
+			*attrf = a;
+			if(t->ins)
+				clrins(t);
+			if(t->x != xx || t->y != yy)
+				cpos(t, xx, yy);
+			if(t->attrib != a)
+				set_attr(t, a);
+			ttputs(buf);
+			/* utf8_putc(c); */
+			t->x+=zz;
+			if(zz==2) {
+				scrn[1]= -1;
+				attrf[1]= 0;
+			}
+		}
 }
 
 /* Set scrolling region */
@@ -220,36 +345,45 @@ int clrins(SCRN *t)
 
 int eraeol(SCRN *t, int x, int y)
 {
-	int *s, *ss;
+	int *s, *ss, *a, *aa;
 	int w = t->co - x - 1;	/* Don't worry about last column */
 
 	if (w <= 0)
 		return 0;
 	s = t->scrn + y * t->co + x;
+	a = t->attr + y * t->co + x;
 	ss = s + w;
+	aa = a + w;
 	do {
 		if (*--ss != ' ') {
 			++ss;
 			break;
+		} else if (*--aa != 0) {
+			++ss;
+			++aa;
+			break;
 		}
 	} while (ss != s);
-	if ((ss - s > 3 || s[w] != ' ') && t->ce) {
+	if ((ss - s > 3 || s[w] != ' ' || a[w] != 0) && t->ce) {
 		cpos(t, x, y);
-		attr(t, 0);
+		set_attr(t, 0);
 		texec(t->cap, t->ce, 1, 0, 0, 0, 0);
 		msetI(s, ' ', w);
+		msetI(a, 0, w);
 	} else if (s != ss) {
 		if (t->ins)
 			clrins(t);
 		if (t->x != x || t->y != y)
 			cpos(t, x, y);
 		if (t->attrib)
-			attr(t, 0);
+			set_attr(t, 0);
 		while (s != ss) {
 			*s = ' ';
+			*a = 0;
 			ttputc(' ');
 			++t->x;
 			++s;
+			++a;
 		}
 	}
 	return 0;
@@ -258,23 +392,20 @@ int eraeol(SCRN *t, int x, int y)
 /* As above but useable in insert mode */
 /* The cursor position must already be correct */
 
-static void outatri(SCRN *t, int x, int y, int c)
+static void outatri(SCRN *t, int x, int y, int c, int a)
 {
-	unsigned char ch;
-
 	if (c == -1)
 		c = ' ';
-	ch = c;
-	c -= ch;
-	if (c != t->attrib)
-		attr(t, c);
-	if (t->haz && ch == '~')
-		ch = '\\';
-	ttputc(ch);
-	++t->x;
+	if (a != t->attrib)
+		set_attr(t, a);
+	if (t->haz && c == '~')
+		c = '\\';
+	utf8_putc(c);
+	t->x+=mk_wcwidth(c);
+	/* ++t->x; */
 }
 
-static void out(char *t, char c)
+static void out(unsigned char *t, unsigned char c)
 {
 	ttputc(c);
 }
@@ -289,10 +420,10 @@ SCRN *nopen(CAP *cap)
 	t->cap = cap;
 	setcap(cap, baud, out, NULL);
 
-	t->li = getnum(t->cap, "li");
+	t->li = getnum(t->cap,US "li");
 	if (t->li < 1)
 		t->li = 24;
-	t->co = getnum(t->cap, "co");
+	t->co = getnum(t->cap,US "co");
 	if (t->co < 2)
 		t->co = 80;
 	x = y = 0;
@@ -302,95 +433,125 @@ SCRN *nopen(CAP *cap)
 		t->co = x;
 	}
 
-	t->haz = getflag(t->cap, "hz");
-	t->os = getflag(t->cap, "os");
-	t->eo = getflag(t->cap, "eo");
-	if (getflag(t->cap, "hc"))
+	t->haz = getflag(t->cap,US "hz");
+	t->os = getflag(t->cap,US "os");
+	t->eo = getflag(t->cap,US "eo");
+	if (getflag(t->cap,US "hc"))
 		t->os = 1;
-	if (t->os || getflag(t->cap, "ul"))
+	if (t->os || getflag(t->cap,US "ul"))
 		t->ul = 1;
 	else
 		t->ul = 0;
 
-	t->xn = getflag(t->cap, "xn");
-	t->am = getflag(t->cap, "am");
+	t->xn = getflag(t->cap,US "xn");
+	t->am = getflag(t->cap,US "am");
 
-	t->ti = jgetstr(t->cap, "ti");
-	t->cl = jgetstr(t->cap, "cl");
-	t->cd = jgetstr(t->cap, "cd");
+	if (notite)
+		t->ti = 0;
+	else
+		t->ti = jgetstr(t->cap,US "ti");
+	t->cl = jgetstr(t->cap,US "cl");
+	t->cd = jgetstr(t->cap,US "cd");
 
-	t->te = jgetstr(t->cap, "te");
+	if (notite)
+		t->te = 0;
+	else
+		t->te = jgetstr(t->cap,US "te");
+
+	t->ut = getflag(t->cap,US "ut");
+	t->Sb = jgetstr(t->cap,US "AB");
+	if (!t->Sb) t->Sb = jgetstr(t->cap,US "Sb");
+	t->Sf = jgetstr(t->cap,US "AF");
+	if (!t->Sf) t->Sf = jgetstr(t->cap,US "Sf");
 
 	t->mb = NULL;
 	t->md = NULL;
 	t->mh = NULL;
 	t->mr = NULL;
 	t->avattr = 0;
-	if (!(t->me = jgetstr(t->cap, "me")))
+	if (!(t->me = jgetstr(t->cap,US "me")))
 		goto oops;
-	if ((t->mb = jgetstr(t->cap, "mb")))
+	if ((t->mb = jgetstr(t->cap,US "mb")))
 		t->avattr |= BLINK;
-	if ((t->md = jgetstr(t->cap, "md")))
+	if ((t->md = jgetstr(t->cap,US "md")))
 		t->avattr |= BOLD;
-	if ((t->mh = jgetstr(t->cap, "mh")))
+	if ((t->mh = jgetstr(t->cap,US "mh")))
 		t->avattr |= DIM;
-	if ((t->mr = jgetstr(t->cap, "mr")))
+	if ((t->mr = jgetstr(t->cap,US "mr")))
 		t->avattr |= INVERSE;
       oops:
 
+
+	if (assume_color) {
+		/* Install color support if it looks like an ansi terminal (it has bold which begins with ESC [) */
+#ifndef TERMINFO
+		if (!t->Sf && t->md && t->md[0]=='\\' && t->md[1]=='E' && t->md[2]=='[') { 
+			t->ut = 1;
+			t->Sf =US "\\E[3%dm";
+			t->Sb =US "\\E[4%dm";
+		}
+#else
+		if (!t->Sf && t->md && t->md[0]=='\033' && t->md[1]=='[') { 
+			t->ut = 1;
+			t->Sf =US "\033[3%p1%dm";
+			t->Sb =US "\033[4%p1%dm";
+		}
+#endif
+	}
+
 	t->so = NULL;
 	t->se = NULL;
-	if (getnum(t->cap, "sg") <= 0 && !t->mr && jgetstr(t->cap, "se")) {
-		if ((t->so = jgetstr(t->cap, "so")) != NULL)
+	if (getnum(t->cap,US "sg") <= 0 && !t->mr && jgetstr(t->cap,US "se")) {
+		if ((t->so = jgetstr(t->cap,US "so")) != NULL)
 			t->avattr |= INVERSE;
-		t->se = jgetstr(t->cap, "se");
+		t->se = jgetstr(t->cap,US "se");
 	}
-	if (getflag(t->cap, "xs") || getflag(t->cap, "xt"))
+	if (getflag(t->cap,US "xs") || getflag(t->cap,US "xt"))
 		t->so = NULL;
 
 	t->us = NULL;
 	t->ue = NULL;
-	if (getnum(t->cap, "ug") <= 0 && jgetstr(t->cap, "ue")) {
-		if ((t->us = jgetstr(t->cap, "us")) != NULL)
+	if (getnum(t->cap,US "ug") <= 0 && jgetstr(t->cap,US "ue")) {
+		if ((t->us = jgetstr(t->cap,US "us")) != NULL)
 			t->avattr |= UNDERLINE;
-		t->ue = jgetstr(t->cap, "ue");
+		t->ue = jgetstr(t->cap,US "ue");
 	}
 
-	if (!(t->uc = jgetstr(t->cap, "uc")))
+	if (!(t->uc = jgetstr(t->cap,US "uc")))
 		if (t->ul)
-			t->uc = "_";
+			t->uc =US "_";
 	if (t->uc)
 		t->avattr |= UNDERLINE;
 
-	t->ms = getflag(t->cap, "ms");
+	t->ms = getflag(t->cap,US "ms");
 
-	t->da = getflag(t->cap, "da");
-	t->db = getflag(t->cap, "db");
-	t->cs = jgetstr(t->cap, "cs");
-	t->rr = getflag(t->cap, "rr");
-	t->sf = jgetstr(t->cap, "sf");
-	t->sr = jgetstr(t->cap, "sr");
-	t->SF = jgetstr(t->cap, "SF");
-	t->SR = jgetstr(t->cap, "SR");
-	t->al = jgetstr(t->cap, "al");
-	t->dl = jgetstr(t->cap, "dl");
-	t->AL = jgetstr(t->cap, "AL");
-	t->DL = jgetstr(t->cap, "DL");
-	if (!getflag(t->cap, "ns") && !t->sf)
-		t->sf = "\12";
+	t->da = getflag(t->cap,US "da");
+	t->db = getflag(t->cap,US "db");
+	t->cs = jgetstr(t->cap,US "cs");
+	t->rr = getflag(t->cap,US "rr");
+	t->sf = jgetstr(t->cap,US "sf");
+	t->sr = jgetstr(t->cap,US "sr");
+	t->SF = jgetstr(t->cap,US "SF");
+	t->SR = jgetstr(t->cap,US "SR");
+	t->al = jgetstr(t->cap,US "al");
+	t->dl = jgetstr(t->cap,US "dl");
+	t->AL = jgetstr(t->cap,US "AL");
+	t->DL = jgetstr(t->cap,US "DL");
+	if (!getflag(t->cap,US "ns") && !t->sf)
+		t->sf =US "\12";
 
-	if (!getflag(t->cap, "in") && baud < 38400) {
-		t->dc = jgetstr(t->cap, "dc");
-		t->DC = jgetstr(t->cap, "DC");
-		t->dm = jgetstr(t->cap, "dm");
-		t->ed = jgetstr(t->cap, "ed");
+	if (!getflag(t->cap,US "in") && baud < 38400) {
+		t->dc = jgetstr(t->cap,US "dc");
+		t->DC = jgetstr(t->cap,US "DC");
+		t->dm = jgetstr(t->cap,US "dm");
+		t->ed = jgetstr(t->cap,US "ed");
 
-		t->im = jgetstr(t->cap, "im");
-		t->ei = jgetstr(t->cap, "ei");
-		t->ic = jgetstr(t->cap, "ic");
-		t->IC = jgetstr(t->cap, "IC");
-		t->ip = jgetstr(t->cap, "ip");
-		t->mi = getflag(t->cap, "mi");
+		t->im = jgetstr(t->cap,US "im");
+		t->ei = jgetstr(t->cap,US "ei");
+		t->ic = jgetstr(t->cap,US "ic");
+		t->IC = jgetstr(t->cap,US "IC");
+		t->ip = jgetstr(t->cap,US "ip");
+		t->mi = getflag(t->cap,US "mi");
 	} else {
 		t->dm = NULL;
 		t->dc = NULL;
@@ -405,36 +566,41 @@ SCRN *nopen(CAP *cap)
 	}
 
 	t->bs = NULL;
-	if (jgetstr(t->cap, "bc"))
-		t->bs = jgetstr(t->cap, "bc");
-	else if (jgetstr(t->cap, "le"))
-		t->bs = jgetstr(t->cap, "le");
-	if (getflag(t->cap, "bs"))
-		t->bs = "\10";
+	if (jgetstr(t->cap,US "bc"))
+		t->bs = jgetstr(t->cap,US "bc");
+	else if (jgetstr(t->cap,US "le"))
+		t->bs = jgetstr(t->cap,US "le");
+	if (getflag(t->cap,US "bs"))
+		t->bs =US "\10";
 
 	t->cbs = tcost(t->cap, t->bs, 1, 2, 2, 0, 0);
 
-	t->lf = "\12";
-	if (jgetstr(t->cap, "do"))
-		t->lf = jgetstr(t->cap, "do");
+	t->lf =US "\12";
+	if (jgetstr(t->cap,US "do"))
+		t->lf = jgetstr(t->cap,US "do");
 	t->clf = tcost(t->cap, t->lf, 1, 2, 2, 0, 0);
 
-	t->up = jgetstr(t->cap, "up");
+	t->up = jgetstr(t->cap,US "up");
 	t->cup = tcost(t->cap, t->up, 1, 2, 2, 0, 0);
 
-	t->nd = jgetstr(t->cap, "nd");
+	t->nd = jgetstr(t->cap,US "nd");
 
 	t->tw = 8;
-	if (getnum(t->cap, "it") > 0)
-		t->tw = getnum(t->cap, "it");
-	else if (getnum(t->cap, "tw") > 0)
-		t->tw = getnum(t->cap, "tw");
+	if (getnum(t->cap,US "it") > 0)
+		t->tw = getnum(t->cap,US "it");
+	else if (getnum(t->cap,US "tw") > 0)
+		t->tw = getnum(t->cap,US "tw");
 
-	if (!(t->ta = jgetstr(t->cap, "ta")))
-		if (getflag(t->cap, "pt"))
-			t->ta = "\11";
-	t->bt = jgetstr(t->cap, "bt");
-	if (getflag(t->cap, "xt")) {
+	if (!(t->ta = jgetstr(t->cap,US "ta")))
+		if (getflag(t->cap,US "pt"))
+			t->ta =US "\11";
+	t->bt = jgetstr(t->cap,US "bt");
+	if (getflag(t->cap,US "xt")) {
+		t->ta = NULL;
+		t->bt = NULL;
+	}
+
+	if (!usetabs) {
 		t->ta = NULL;
 		t->bt = NULL;
 	}
@@ -442,28 +608,28 @@ SCRN *nopen(CAP *cap)
 	t->cta = tcost(t->cap, t->ta, 1, 2, 2, 0, 0);
 	t->cbt = tcost(t->cap, t->bt, 1, 2, 2, 0, 0);
 
-	t->ho = jgetstr(t->cap, "ho");
+	t->ho = jgetstr(t->cap,US "ho");
 	t->cho = tcost(t->cap, t->ho, 1, 2, 2, 0, 0);
-	t->ll = jgetstr(t->cap, "ll");
+	t->ll = jgetstr(t->cap,US "ll");
 	t->cll = tcost(t->cap, t->ll, 1, 2, 2, 0, 0);
 
-	t->cr = "\15";
-	if (jgetstr(t->cap, "cr"))
-		t->cr = jgetstr(t->cap, "cr");
-	if (getflag(t->cap, "nc") || getflag(t->cap, "xr"))
+	t->cr =US "\15";
+	if (jgetstr(t->cap,US "cr"))
+		t->cr = jgetstr(t->cap,US "cr");
+	if (getflag(t->cap,US "nc") || getflag(t->cap,US "xr"))
 		t->cr = NULL;
 	t->ccr = tcost(t->cap, t->cr, 1, 2, 2, 0, 0);
 
-	t->cRI = tcost(t->cap, t->RI = jgetstr(t->cap, "RI"), 1, 2, 2, 0, 0);
-	t->cLE = tcost(t->cap, t->LE = jgetstr(t->cap, "LE"), 1, 2, 2, 0, 0);
-	t->cUP = tcost(t->cap, t->UP = jgetstr(t->cap, "UP"), 1, 2, 2, 0, 0);
-	t->cDO = tcost(t->cap, t->DO = jgetstr(t->cap, "DO"), 1, 2, 2, 0, 0);
-	t->cch = tcost(t->cap, t->ch = jgetstr(t->cap, "ch"), 1, 2, 2, 0, 0);
-	t->ccv = tcost(t->cap, t->cv = jgetstr(t->cap, "cv"), 1, 2, 2, 0, 0);
-	t->ccV = tcost(t->cap, t->cV = jgetstr(t->cap, "cV"), 1, 2, 2, 0, 0);
-	t->ccm = tcost(t->cap, t->cm = jgetstr(t->cap, "cm"), 1, 2, 2, 0, 0);
+	t->cRI = tcost(t->cap, t->RI = jgetstr(t->cap,US "RI"), 1, 2, 2, 0, 0);
+	t->cLE = tcost(t->cap, t->LE = jgetstr(t->cap,US "LE"), 1, 2, 2, 0, 0);
+	t->cUP = tcost(t->cap, t->UP = jgetstr(t->cap,US "UP"), 1, 2, 2, 0, 0);
+	t->cDO = tcost(t->cap, t->DO = jgetstr(t->cap,US "DO"), 1, 2, 2, 0, 0);
+	t->cch = tcost(t->cap, t->ch = jgetstr(t->cap,US "ch"), 1, 2, 2, 0, 0);
+	t->ccv = tcost(t->cap, t->cv = jgetstr(t->cap,US "cv"), 1, 2, 2, 0, 0);
+	t->ccV = tcost(t->cap, t->cV = jgetstr(t->cap,US "cV"), 1, 2, 2, 0, 0);
+	t->ccm = tcost(t->cap, t->cm = jgetstr(t->cap,US "cm"), 1, 2, 2, 0, 0);
 
-	t->cce = tcost(t->cap, t->ce = jgetstr(t->cap, "ce"), 1, 2, 2, 0, 0);
+	t->cce = tcost(t->cap, t->ce = jgetstr(t->cap,US "ce"), 1, 2, 2, 0, 0);
 
 /* Make sure terminal can do absolute positioning */
 	if (t->cm)
@@ -479,7 +645,7 @@ SCRN *nopen(CAP *cap)
 	leave = 1;
 	ttclose();
 	signrm();
-	fprintf(stderr, "Sorry, your terminal can't do absolute cursor positioning.\nIt's broken\n");
+	fprintf(stderr,"Sorry, your terminal can't do absolute cursor positioning.\nIt's broken\n");
 	return NULL;
       ok:
 
@@ -512,8 +678,10 @@ SCRN *nopen(CAP *cap)
 
 /* Initialize variable screen size dependant vars */
 	t->scrn = NULL;
+	t->attr = NULL;
 	t->sary = NULL;
 	t->updtab = NULL;
+	t->syntab = NULL;
 	t->compose = NULL;
 	t->ofst = NULL;
 	t->ary = NULL;
@@ -538,8 +706,12 @@ void nresize(SCRN *t, int w, int h)
 		joe_free(t->sary);
 	if (t->updtab)
 		joe_free(t->updtab);
+	if (t->syntab)
+		joe_free(t->syntab);
 	if (t->scrn)
 		joe_free(t->scrn);
+	if (t->attr)
+		joe_free(t->attr);
 	if (t->compose)
 		joe_free(t->compose);
 	if (t->ofst)
@@ -547,8 +719,10 @@ void nresize(SCRN *t, int w, int h)
 	if (t->ary)
 		joe_free(t->ary);
 	t->scrn = (int *) joe_malloc(t->li * t->co * sizeof(int));
+	t->attr = (int *) joe_malloc(t->li * t->co * sizeof(int));
 	t->sary = (int *) joe_calloc(t->li, sizeof(int));
 	t->updtab = (int *) joe_malloc(t->li * sizeof(int));
+	t->syntab = (int *) joe_malloc(t->li * sizeof(int));
 	t->compose = (int *) joe_malloc(t->co * sizeof(int));
 	t->ofst = (int *) joe_malloc(t->co * sizeof(int));
 	t->ary = (struct hentry *) joe_malloc(t->co * sizeof(struct hentry));
@@ -979,65 +1153,87 @@ docv:
 	} else if (x > t->x) {
 		/* Have to go right */
 		/* Hmm.. this should take into account possible attribute changes */
-		if (t->cRI < x - t->x) {
+		if (x-t->x>1 && t->RI) {
 			texec(t->cap, t->RI, 1, x - t->x, 0, 0, 0);
 			t->x = x;
 		} else {
+			while(x>t->x) {
+				texec(t->cap, t->nd, 1, 0, 0, 0, 0);
+				++t->x;
+			}
+		}
+
+		/* if (t->cRI < x - t->x) { */
+/*		} else {
 			int *s = t->scrn + t->x + t->y * t->co;
+			int *a = t->attr + t->x + t->y * t->co;
 
 			if (t->ins)
 				clrins(t);
 			while (x > t->x) {
-				int c = (0xFF & *s);
-				int a = (0xFF00 & *s);
+				int atr, c;
+				if(*s==-1) c=' ', atr=0;
+				else c= *s, atr= *a;
 
-				if (a != t->attrib)
-					attr(t, a);
-				ttputc(c);
+				if (atr != t->attrib)
+					set_attr(t, atr);
+				utf8_putc(c);
 				++s;
+				++a;
 				++t->x;
 			}
 		}
+*/
 	}
 }
 
 int cpos(register SCRN *t, register int x, register int y)
 {
+	/* Move cursor quickly if we can */
 	if (y == t->y) {
-		if (x == t->x)
-			return 0;
 		if (x > t->x && x - t->x < 4 && !t->ins) {
 			int *cs = t->scrn + t->x + t->co * t->y;
-
-			if (t->ins)
-				clrins(t);
+			int *as = t->attr + t->x + t->co * t->y;
 			do {
-				int c = (0xFF & *cs);
-				int a = (0xFF00 & *cs);
+				/* We used to space over unknown chars, but they now could be
+				   the right half of a UTF-8 two column character, so we can't.
+				   Also do not try to emit utf-8 sequences here. */
+				if(*cs<32 || *cs>=127)
+					break;
 
-				if (a != t->attrib)
-					attr(t, a);
-				ttputc(c);
+				if (*as != t->attrib)
+					set_attr(t, *as);
+
+				ttputc(*cs);
+
 				++cs;
+				++as;
 				++t->x;
+
 			} while (x != t->x);
-			return 0;
 		}
+		if (x == t->x)
+			return 0;
 	}
-	if (!t->ms && t->attrib & (INVERSE | UNDERLINE))
-		attr(t, t->attrib & ~(INVERSE | UNDERLINE));
+	if ((!t->ms && t->attrib & (INVERSE | UNDERLINE | BG_NOT_DEFAULT)) ||
+	    (t->ut && (t->attrib & BG_NOT_DEFAULT)))
+		set_attr(t, t->attrib & ~(INVERSE | UNDERLINE | BG_MASK));
+
+	/* Should be in cposs */
 	if (y < t->top || y >= t->bot)
 		setregn(t, 0, t->li);
+
 	cposs(t, x, y);
 	return 0;
 }
 
-static void doinschr(SCRN *t, int x, int y, int *s, int n)
+static void doinschr(SCRN *t, int x, int y, int *s, int *as, int n)
 {
 	int a;
 
 	if (x < 0) {
 		s -= x;
+		as -= x;
 		x = 0;
 	}
 	if (x >= t->co - 1 || n <= 0)
@@ -1049,7 +1245,7 @@ static void doinschr(SCRN *t, int x, int y, int *s, int n)
 				setins(t, x);
 			for (a = 0; a != n; ++a) {
 				texec(t->cap, t->ic, 1, x, 0, 0, 0);
-				outatri(t, x + a, y, s[a]);
+				outatri(t, x + a, y, s[a], as[a]);
 				texec(t->cap, t->ip, 1, x, 0, 0, 0);
 			}
 			if (!t->mi)
@@ -1057,11 +1253,13 @@ static void doinschr(SCRN *t, int x, int y, int *s, int n)
 		} else {
 			texec(t->cap, t->IC, 1, n, 0, 0, 0);
 			for (a = 0; a != n; ++a)
-				outatri(t, x + a, y, s[a]);
+				outatri(t, x + a, y, s[a], as[a]);
 		}
 	}
 	mmove(t->scrn + x + t->co * y + n, t->scrn + x + t->co * y, (t->co - (x + n)) * sizeof(int));
+	mmove(t->attr + x + t->co * y + n, t->attr + x + t->co * y, (t->co - (x + n)) * sizeof(int));
 	mmove(t->scrn + x + t->co * y, s, n * sizeof(int));
+	mmove(t->attr + x + t->co * y, s, n * sizeof(int));
 }
 
 static void dodelchr(SCRN *t, int x, int y, int n)
@@ -1083,12 +1281,15 @@ static void dodelchr(SCRN *t, int x, int y, int n)
 		texec(t->cap, t->ed, 1, x, 0, 0, 0);	/* Exit delete mode */
 	}
 	mmove(t->scrn + t->co * y + x, t->scrn + t->co * y + x + n, (t->co - (x + n)) * sizeof(int));
+	mmove(t->attr + t->co * y + x, t->attr + t->co * y + x + n, (t->co - (x + n)) * sizeof(int));
 	msetI(t->scrn + t->co * y + t->co - n, ' ', n);
+	msetI(t->attr + t->co * y + t->co - n, 0, n);
 }
 
 /* Insert/Delete within line */
+/* FIXME: doesn't know about attr */
 
-void magic(SCRN *t, int y, int *cs, int *s, int placex)
+void magic(SCRN *t, int y, int *cs, int *ca,int *s, int *a, int placex)
 {
 	struct hentry *htab = t->htab;
 	int *ofst = t->ofst;
@@ -1184,7 +1385,7 @@ void magic(SCRN *t, int y, int *cs, int *s, int placex)
 				for (z = x; z != t->co - 1 && ofst[z] == q; ++z) ;
 				while (s[x + q] == cs[x + q] && x - q < placex)
 					++x;
-				doinschr(t, x + q, y, s + x + q, -q);
+				doinschr(t, x + q, y, s + x + q, a + x + q, -q);
 				for (fu = x; fu != t->co - 1; ++fu)
 					if (ofst[fu] != t->co - 1)
 						ofst[fu] -= q;
@@ -1200,7 +1401,7 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 
 	if (!amnt)
 		return;
-	attr(t, 0);
+	set_attr(t, 0);
 	if (top == 0 && bot == t->li && (t->sf || t->SF)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, t->li - 1);
@@ -1248,16 +1449,22 @@ static void doupscrl(SCRN *t, int top, int bot, int amnt)
 		goto done;
 	}
 	msetI(t->updtab + top, 1, bot - top);
+	msetI(t->syntab + top, -1, bot - top);
 	return;
 
       done:
 	mmove(t->scrn + top * t->co, t->scrn + (top + amnt) * t->co, (bot - top - amnt) * t->co * sizeof(int));
+	mmove(t->attr + top * t->co, t->attr + (top + amnt) * t->co, (bot - top - amnt) * t->co * sizeof(int));
 
 	if (bot == t->li && t->db) {
 		msetI(t->scrn + (t->li - amnt) * t->co, -1, amnt * t->co);
+		msetI(t->attr + (t->li - amnt) * t->co, 0, amnt * t->co);
 		msetI(t->updtab + t->li - amnt, 1, amnt);
-	} else
+		msetI(t->syntab + t->li - amnt, -1, amnt);
+	} else {
 		msetI(t->scrn + (bot - amnt) * t->co, ' ', amnt * t->co);
+		msetI(t->attr + (bot - amnt) * t->co, 0, amnt * t->co);
+	}
 }
 
 static void dodnscrl(SCRN *t, int top, int bot, int amnt)
@@ -1266,7 +1473,7 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 
 	if (!amnt)
 		return;
-	attr(t, 0);
+	set_attr(t, 0);
 	if (top == 0 && bot == t->li && (t->sr || t->SR)) {
 		setregn(t, 0, t->li);
 		cpos(t, 0, 0);
@@ -1314,15 +1521,21 @@ static void dodnscrl(SCRN *t, int top, int bot, int amnt)
 		goto done;
 	}
 	msetI(t->updtab + top, 1, bot - top);
+	msetI(t->syntab + top, -1, bot - top);
 	return;
       done:
 	mmove(t->scrn + (top + amnt) * t->co, t->scrn + top * t->co, (bot - top - amnt) * t->co * sizeof(int));
+	mmove(t->attr + (top + amnt) * t->co, t->attr + top * t->co, (bot - top - amnt) * t->co * sizeof(int));
 
 	if (!top && t->da) {
 		msetI(t->scrn, -1, amnt * t->co);
+		msetI(t->attr, 0, amnt * t->co);
 		msetI(t->updtab, 1, amnt);
-	} else
+		msetI(t->syntab, -1, amnt);
+	} else {
 		msetI(t->scrn + t->co * top, ' ', amnt * t->co);
+		msetI(t->attr + t->co * top, 0, amnt * t->co);
+	}
 }
 
 void nscroll(SCRN *t)
@@ -1359,7 +1572,7 @@ void nscroll(SCRN *t)
 
 void npartial(SCRN *t)
 {
-	attr(t, 0);
+	set_attr(t, 0);
 	clrins(t);
 	setregn(t, 0, t->li);
 }
@@ -1385,7 +1598,7 @@ void nreturn(SCRN *t)
 void nclose(SCRN *t)
 {
 	leave = 1;
-	attr(t, 0);
+	set_attr(t, 0);
 	clrins(t);
 	setregn(t, 0, t->li);
 	cpos(t, 0, t->li - 1);
@@ -1394,6 +1607,7 @@ void nclose(SCRN *t)
 	ttclose();
 	rmcap(t->cap);
 	joe_free(t->scrn);
+	joe_free(t->attr);
 	joe_free(t->sary);
 	joe_free(t->ofst);
 	joe_free(t->htab);
@@ -1413,15 +1627,20 @@ void nscrldn(SCRN *t, int top, int bot, int amnt)
 		for (x = bot; x != top + amnt; --x) {
 			t->sary[x - 1] = (t->sary[x - amnt - 1] == t->li ? t->li : t->sary[x - amnt - 1] - amnt);
 			t->updtab[x - 1] = t->updtab[x - amnt - 1];
+			t->syntab[x - 1] = t->syntab[x - amnt - 1];
 		}
-		for (x = top; x != top + amnt; ++x)
+		for (x = top; x != top + amnt; ++x) {
 			t->updtab[x] = 1;
+			t->syntab[x] = -1;
+			}
 	}
 	if (amnt > bot - top)
 		amnt = bot - top;
 	msetI(t->sary + top, t->li, amnt);
-	if (amnt == bot - top)
+	if (amnt == bot - top) {
 		msetI(t->updtab + top, 1, amnt);
+		msetI(t->syntab + top, -1, amnt);
+		}
 }
 
 void nscrlup(SCRN *t, int top, int bot, int amnt)
@@ -1436,15 +1655,20 @@ void nscrlup(SCRN *t, int top, int bot, int amnt)
 		for (x = top + amnt; x != bot; ++x) {
 			t->sary[x - amnt] = (t->sary[x] == t->li ? t->li : t->sary[x] + amnt);
 			t->updtab[x - amnt] = t->updtab[x];
+			t->syntab[x - amnt] = t->syntab[x];
 		}
-		for (x = bot - amnt; x != bot; ++x)
+		for (x = bot - amnt; x != bot; ++x) {
 			t->updtab[x] = 1;
+			t->syntab[x] = -1;
+			}
 	}
 	if (amnt > bot - top)
 		amnt = bot - top;
 	msetI(t->sary + bot - amnt, t->li, amnt);
-	if (amnt == bot - top)
+	if (amnt == bot - top) {
 		msetI(t->updtab + bot - amnt, 1, amnt);
+		msetI(t->syntab + bot - amnt, -1, amnt);
+		}
 }
 
 extern volatile int dostaupd;
@@ -1453,16 +1677,19 @@ void nredraw(SCRN *t)
 {
 	dostaupd = 1;
 	msetI(t->scrn, ' ', t->co * skiptop);
+	msetI(t->attr, 0, t->co * skiptop);
 	msetI(t->scrn + skiptop * t->co, -1, (t->li - skiptop) * t->co);
+	msetI(t->attr + skiptop * t->co, 0, (t->li - skiptop) * t->co);
 	msetI(t->sary, 0, t->li);
 	msetI(t->updtab + skiptop, -1, t->li - skiptop);
+	msetI(t->syntab + skiptop, -1, t->li - skiptop);
 	t->x = -1;
 	t->y = -1;
 	t->top = t->li;
 	t->bot = 0;
 	t->attrib = -1;
 	t->ins = -1;
-	attr(t, 0);
+	set_attr(t, 0);
 	clrins(t);
 	setregn(t, 0, t->li);
 
@@ -1472,10 +1699,375 @@ void nredraw(SCRN *t)
 			t->x = 0;
 			t->y = 0;
 			msetI(t->scrn, ' ', t->li * t->co);
+			msetI(t->attr, 0, t->li * t->co);
 		} else if (t->cd) {
 			cpos(t, 0, 0);
 			texec(t->cap, t->cd, 1, 0, 0, 0, 0);
 			msetI(t->scrn, ' ', t->li * t->co);
+			msetI(t->attr, 0, t->li * t->co);
 		}
 	}
+}
+
+/* Convert color/attribute name into internal code */
+
+int meta_color(unsigned char *s)
+{
+	if(!strcmp((char *)s,"inverse"))
+		return INVERSE;
+	else if(!strcmp((char *)s,"underline"))
+		return UNDERLINE;
+	else if(!strcmp((char *)s,"bold"))
+		return BOLD;
+	else if(!strcmp((char *)s,"blink"))
+		return BLINK;
+	else if(!strcmp((char *)s,"dim"))
+		return DIM;
+	else if(!strcmp((char *)s,"white"))
+		return FG_WHITE;
+	else if(!strcmp((char *)s,"cyan"))
+		return FG_CYAN;
+	else if(!strcmp((char *)s,"magenta"))
+		return FG_MAGENTA;
+	else if(!strcmp((char *)s,"blue"))
+		return FG_BLUE;
+	else if(!strcmp((char *)s,"yellow"))
+		return FG_YELLOW;
+	else if(!strcmp((char *)s,"green"))
+		return FG_GREEN;
+	else if(!strcmp((char *)s,"red"))
+		return FG_RED;
+	else if(!strcmp((char *)s,"black"))
+		return FG_BLACK;
+	else if(!strcmp((char *)s,"bg_white"))
+		return BG_WHITE;
+	else if(!strcmp((char *)s,"bg_cyan"))
+		return BG_CYAN;
+	else if(!strcmp((char *)s,"bg_magenta"))
+		return BG_MAGENTA;
+	else if(!strcmp((char *)s,"bg_blue"))
+		return BG_BLUE;
+	else if(!strcmp((char *)s,"bg_yellow"))
+		return BG_YELLOW;
+	else if(!strcmp((char *)s,"bg_green"))
+		return BG_GREEN;
+	else if(!strcmp((char *)s,"bg_reg"))
+		return BG_RED;
+	else if(!strcmp((char *)s,"bg_black"))
+		return BG_BLACK;
+	else
+		return 0;
+}
+
+/* Generate a field
+ *
+ * 't' is SCRN to write to.
+ * 'scrn' is address of field in character buffer
+ * 'attr' is address of field in attribute buffer
+ * 'x', 'y' are starting column and line numbers of field
+ * 'ofst' is first column within string to display
+ * 's', 'len' is string to generate in field
+ * 'atr' is screeen attributes (and color) which should be used
+ * 'width' is column width of field
+ * 'flg' if set, erases to end of line
+ */
+
+void genfield(SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,int len,int atr,int width,int flg)
+{
+	int col;
+	struct utf8_sm sm;
+	int last_col = x + width;
+
+	utf8_init(&sm);
+
+	for (col = 0;len != 0 && x < last_col; len--) {
+		int c = *s++;
+		int a;
+		int wid = 0;
+		if (utf8) {
+			/* UTF-8 mode: decode character and determine its width */
+			c = utf8_decode(&sm,c);
+			if (c >= 0) {
+				if (c<32 || c>126 && c<160) { /* Control character */
+					/* Note that this ignore dspasis */
+					a = xlata[c] ^ atr;
+					c = xlatc[c];
+					wid = 1;
+				} else { /* Normal character */
+					wid = mk_wcwidth(c);
+					a = atr;
+				}
+			}
+		} else {
+			/* Byte mode: character is one column wide */
+			unsigned char bc = c;
+			xlat (&a, &bc); /* Uses dspasis as it should */
+			c = bc;
+			a ^= atr;
+			wid = 1 ;
+		}
+		if (col >= ofst) {
+			if (x + wid > last_col) {
+				/* Character crosses end of field, so fill balance of field with '>' characters instead */
+				while (x < last_col) {
+					outatr(utf8, t, scrn, attr, x, y, '>', atr);
+					++scrn;
+					++attr;
+					++x;
+				}
+			} else if(wid) {
+				/* Emit character */
+				outatr(utf8, t, scrn, attr, x, y, c, a);
+				x += wid;
+				scrn += wid;
+				attr += wid;
+			}
+		} else if ((col + wid) > ofst) {
+			/* Wide character crosses left side of field */
+			wid -= ofst - col;
+			col = ofst;
+			while (wid) {
+				outatr(utf8, t, scrn, attr, x, y, '<', a);
+				++scrn;
+				++attr;
+				++x;
+				++col;
+				--wid;
+			}
+		} else
+			col += wid;
+	}
+	/* Fill balance of field with spaces */
+	while (x < last_col) {
+		outatr(utf8, t, scrn, attr, x, y, ' ', 0);
+		++x;
+		++scrn;
+		++attr;
+	}
+	/* Erase to end of line */
+	if (flg)
+		eraeol(t, x, y);
+}
+
+/* Width function for above */
+
+int txtwidth(unsigned char *s,int len)
+{
+	if (utf8) {
+		int col=0;
+		struct utf8_sm sm;
+		utf8_init(&sm);
+
+		while(len--) {
+			int d = utf8_decode(&sm,*s++);
+			if (d >= 0)
+				col += mk_wcwidth(d);
+		}
+
+		return col;
+	} else
+		return len;
+}
+
+/* Generate text with formatting escape sequences */
+
+void genfmt(SCRN *t, int x, int y, int ofst, unsigned char *s, int flg)
+{
+	int *scrn = t->scrn + y * t->co + x;
+	int *attr = t->attr + y * t->co + x;
+	int atr = 0;
+	int col = 0;
+	int c;
+	struct utf8_sm sm;
+
+	utf8_init(&sm);
+
+	while ((c = *s++) != '\0')
+		if (c == '\\') {
+			switch (c = *s++) {
+			case 'u':
+			case 'U':
+				atr ^= UNDERLINE;
+				break;
+			case 'i':
+			case 'I':
+				atr ^= INVERSE;
+				break;
+			case 'b':
+			case 'B':
+				atr ^= BOLD;
+				break;
+			case 'd':
+			case 'D':
+				atr ^= DIM;
+				break;
+			case 'f':
+			case 'F':
+				atr ^= BLINK;
+				break;
+			case 0:
+				--s;
+				break;
+			default: {
+				unsigned char bc = (c&0x7F);	/* Allow only ASCII here */
+				int a;
+				xlat (&a, &bc); /* Uses dspasis as it should */
+				c = bc;
+				a ^= atr;
+				if (col++ >= ofst) {
+					outatr(utf8, t, scrn, attr, x, y, c, a);
+					++scrn;
+					++attr;
+					++x;
+					}
+				break;
+				}
+			}
+		} else {
+			int wid = 0;
+			int a;
+			if (utf8) {
+				/* UTF-8 mode: decode character and determine its width */
+				c = utf8_decode(&sm,c);
+				if (c >= 0) {
+					if (c<32 || c>126 && c<160) { /* Control character */
+						/* Note that this ignores dspasis */
+						a = xlata[c] ^ atr;
+						c = xlatc[c];
+						wid = 1;
+					} else { /* Normal character */
+						wid = mk_wcwidth(c);
+						a = atr;
+					}
+				}
+			} else {
+				/* Byte mode: character is one column wide */
+				unsigned char bc = c;
+				xlat (&a, &bc); /* Uses dspasis as it should */
+				c = bc;
+				a ^= atr;
+				wid = 1 ;
+			}
+
+			if (col >= ofst) {
+				outatr(utf8, t, scrn, attr, x, y, c, a);
+				scrn += wid;
+				attr += wid;
+				x += wid;
+				col += wid;
+			} else if (col+wid>ofst) {
+				while (col<ofst) {
+					++col;
+					--wid;
+				}
+				while (wid) {
+					outatr(utf8, t, scrn, attr, x, y, '<', atr);
+					++scrn;
+					++attr;
+					++x;
+					++col;
+					--wid;
+				}
+			} else
+				col += wid;
+		}
+	if (flg)
+		eraeol(t, x, y);
+}
+
+/* Determine column width of string with format codes */
+
+int fmtlen(unsigned char *s)
+{
+	int col = 0;
+	struct utf8_sm sm;
+	int c;
+
+	utf8_init(&sm);
+
+	while (c= *s++) {
+		if (c == '\\') {
+			switch (*s++) {
+			case 'u':
+			case 'i':
+			case 'd':
+			case 'f':
+			case 'b':
+			case 'U':
+			case 'I':
+			case 'D':
+			case 'F':
+			case 'B':
+				continue;
+			case 0:
+				return col;
+			default:
+				++col;
+				continue;
+			}
+		} else {
+			int wid = 0;
+			if(utf8) {
+				c = utf8_decode(&sm,c);
+				if (c>=0)
+					wid = mk_wcwidth(c);
+			} else {
+				wid = 1;
+			}
+			col += wid;
+		}
+	}
+	return col;
+}
+
+/* Return offset within format string which corresponds to a particular
+   column */
+
+/* FIXME: this is not valid if we land in the middle of a double-wide character */
+
+int fmtpos(unsigned char *s, int goal)
+{
+	unsigned char *org = s;
+	int col = 0;
+	int c;
+	struct utf8_sm sm;
+
+	utf8_init(&sm);
+
+	while ((c= *s) && col<goal) {
+		s++;
+		if (c == '\\') {
+			switch (*s++) {
+			case 'u':
+			case 'i':
+			case 'd':
+			case 'f':
+			case 'b':
+			case 'U':
+			case 'I':
+			case 'D':
+			case 'F':
+			case 'B':
+				continue;
+			case 0:
+				--s;
+				break;
+			default:
+				++col;
+				continue;
+			}
+		} else {
+			int wid = 0;
+			if(utf8) {
+				c = utf8_decode(&sm,c);
+				if (c>=0)
+					wid = mk_wcwidth(c);
+			} else {
+				wid = 1;
+			}
+			col += wid;
+		}
+	}
+
+	return s - org + goal - col;
 }

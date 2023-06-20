@@ -12,7 +12,8 @@
 #include "types.h"
 
 extern OPTIONS pdefault;
-void setopt PARAMS((OPTIONS *n, char *name));
+extern OPTIONS fdefault;
+void setopt PARAMS((B *b, unsigned char *name));
 
 /* KMAP *kmap_getcontext(char *name);
  * Find and return the KMAP for a given context name.  If none is found, an

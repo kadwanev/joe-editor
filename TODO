@@ -1,58 +1,306 @@
-FEATURES
-=-=-=-=-
-	-=- syntax higlighting
-	-=- gettext (possibility of translate messages from joe)
-	-=- folding
+-----------------------
+Tasks for next release:
+-----------------------
 
-	from joe2.8
-	-=- picture mode
-	-=- brief emulation? EDT emulation?
-	-=- save editor state
-	-=- CR-LF mode for joe editing DOS files in linux?
-	-=- xedit and folding stuff
-		- with seperate valid-line database?
-		- display update algorithm will break
-	-=- hexadecimal edit mode
-	-=- fixed record length edit mode
-	-=- verticle windows
-		- difficult to get scrolling to work right
+UTF-8: regex, incremental search, select charset UI
 
-PROGRAM REDeSIGN:
-=-=-=-=-=-=-=-=-=-=
-	-=- why to use list of help screens and array of help screens
-		when later is only array used ?
-	-=- prepare sources to use gettext
-	-=- add prototypes for functions
-	-=- clean sources
-	-=- add documentation
+Highlight: more syntax files, other windows.
+why do we lose highlight state during page down?
 
-PORTABILITY
-=-=-=-=-=-=
-	-=- WARNING: MSDOS compatibility can be broken by my changes
-		I try to use ANSI/ISO C but sometimes 
-		I have to use POSIX extentsions so if you want to 
-		have a DOS version, plz mail me your patches
-	-=- MSDOS
-		- how to give memory back during shell escapes?
-	-=- make identifier length significant in first 8 (6?) places 
-		for old C compilers
+Math: need hex and octal entry, some math functions
+
+Misc: update documentation.
+
+Test test test...
 
 
-BuGS
-=-=-
-Emacs emulation improvements:
-	- Rectangle mode for emacs yank system
-	- Overtype mode works for yank
-	- Query save loop? for kill-emacs and compile
-	- Emacs reload from file function? ^X ^V 
-		(it just works out if ^X ^V kills all instances of the buffer)
-	- Bufed should display unnamed buffers
-	- ESC args should work differently in emacs
-	- nextword,nextword,prevword sequence 
-		doesn't work for marking next successive word at ends of lines
-	- exiting options and i-search with ESC is not pretty
-		(it isn't in emacs either)
-	- Allow either direct screen access or normal tty support 
-		for DOS version.
 
 
+
+Improvements for regular text
+-----------------------------
+mode where wordwrap wraps rest of paragraph?
+mode where all editing wraps rest of paragraph?
+
+Improvements for programming
+----------------------------
+
+Abbreviations
+
+ Tab complete a word in a file, should look through file for matching
+ words.
+
+Should <space> indent-step in smartmode?  Probably not: think about /*
+comments.                                                            *
+
+Show name of function cursor is in (parse C).  This is useful during
+searches.
+
+Jump to definition (tags does this)
+
+Show list of references
+
+Diff mode (need vertical window)
+
+Tie in with CVS
+
+Refactoring
+
+Compiling
+
+ Make it work better:
+   remove dead windows
+   detect errors better
+
+UTF-8/Internationalization
+--------------------------
+
+- think about regex, rc files, highlighting
+    32-bit chars in search/replace \[...] sequences?
+
+- check incremental search functions.
+
+- translate: allow user to specify charset.  think about isalpha.
+
+
+- deal with error utf8 sequences: prget and pgetc do not match, also check
+  bw.c (genfield ignores error sequences).
+
+- deal with error utf8 sequences: no way to print control characters which
+  began the sequence.
+
+- when first char of utf8 is last of line, nothing shows on screen (state
+  machine never gets any input).
+
+
+- right-left mode for Hebrew/Arabic?
+
+  There is no good way to do this.  For all rtol, you could use a reversed
+xterm.  For mixed, you need tags to indicate direction.
+
+
+- Gettext?
+
+
+--- we have converted from char to unsigned char, so normal characters are
+in the range 0 - 255 and EOF is -1 when assigned to an int.  In a UTF-8
+terminal we'll have 0 - MAXINT.  Unfortunately we used >=256 for X key
+sequences.  We need to change these to <-2 to not collide with UTF-8 chars.
+Yuck.  From uisrch.c:
+
+Detect control character and stop incremental search:
+
+	} else if (c >= 0 && c < 32 || c >= 256) {	/* c >= 256 means an X windows sequence like .ku */
+		/* Done when a control character is received */
+
+(but we will never get a key >=256: we should only get encoded utf-8
+sequence: perhaps all of this is ok).
+
+
+0xxx_xxxx	1	0x7F		7
+
+10xx_xxxx       error
+
+110x_xxxx	2	0x7FF		11
+ 10xx_xxxx
+
+1110x_xxxx	3	0x1FFFF		17
+ 10xx_xxxx
+ 10xx_xxxx
+
+1111_0xxx	4	0x1FFFFF	21
+ 10xx_xxxx
+ 10xx_xxxx
+ 10xx_xxxx
+
+1111_10xx	5	0x3FFFFFF	26
+ 10xx_xxxx
+ 10xx_xxxx
+ 10xx_xxxx
+ 10xx_xxxx
+
+1111_110x	6	0x7FFFFFFF	31
+ 10xx_xxxx
+ 10xx_xxxx
+ 10xx_xxxx
+ 10xx_xxxx
+ 10xx_xxxx
+
+1111_111x	error
+
+
+
+Syntax Highlighting:
+--------------------
+
+More syntax files.
+
+Recognize more file types (joerc work).
+
+Update other *rc files.
+
+UTF-8 syntax files?
+
+UI for changing colors in the editor (or at least dark/light mode)
+
+More colors: UI for using 256 color xterms.
+
+
+
+Support for more languages:
+
+ Paragraph reformat mode for TeX files.
+
+ ^G Matching for verilog begin ... end, html tags, etc.
+
+ Add .v, .pl, etc. file types to joerc
+
+ Reformat paragraph should reformat C function if we're editing C.
+
+
+File loading/storing:
+
+ Reload modified files
+
+ Lock files being edited
+  one person gets write lock
+
+ Save all modified
+
+ On save, should check if file on disk is newer
+
+ Should have switch buffers in current window as more fundamental joe key
+ sequence.
+
+ should ignore wordwrap when overtype mode is enabled.  they
+ interact very badly together.
+
+ joe a b c
+ windows are not in order a, b, c
+
+ Unnamed buffers should be in bufed list (was fixed in the lost joe 2.9)
+
+ Don't understand:  optionally break hardlinks on save?  what is "tla"?
+
+ Save all history buffers in .joestate file?
+
+ Use memory mapped files to fast load large files.  Have to not
+ count no. lines in each buffer on startup.
+
+
+Jmacs/Jstar/Jpico:
+
+ Jmacs: incremental search should wrap
+
+ Emulate other editors?  Brief, EDT?
+
+ Rectangle mode for emacs yank system
+
+ Overtype mode works for yank
+
+ Query save loop? for kill-emacs and compile
+
+ Emacs reload from file function? ^X ^V 
+ (it just works out if ^X ^V kills all instances of the buffer)
+
+ ESC args should work differently in emacs
+
+ nextword,nextword,prevword sequence 
+ doesn't work for marking next successive word at ends of lines
+
+ exiting options and i-search with ESC is not pretty
+ (it isn't in emacs either)
+
+Shell windows:
+
+ Better environment settings for shell windows.
+
+
+Documentation:
+
+ Update man page.
+
+ Include documentation for joe hackers.  I wrote a lot of this
+ some time, I need to find it.
+
+
+Prompts:
+
+ Make tab completion more like bash?
+ Tab character cycle through names like in vim
+ ^D in vim shows whole directory
+
+ Sort should be column wide, not row wise.
+
+ Size of file selection window should be an option
+
+ HTML-style thing for option selection
+
+
+Terminal handling:
+
+ Emit ESC c to reset terminal on startup?
+
+ Look into clearing right-most column.
+
+ joe should open tty earlier in startup sequence because ^Y
+ is suspend character on sun.
+
+
+Math mode:
+
+ Expand math mode (hex, octal, math functions...)
+
+
+Macros:
+
+ Interactive macros during file load are broken.  Think about multiple
+ stack hack (otherwise template based C++ callbacks).
+
+
+Mouse:
+
+ ` and autoindent mode are a problem for drag and drop.
+ any way we can distinguish normal typing from a drop?
+ modify xterm...
+
+
+Keyboard:
+
+ Ctrl-left arrow, etc. give codes in modern Lini- should somehow make
+ use of these.
+
+
+Regex:
+
+ Perl compatible regex search.
+
+
+Major new modes:
+
+ Hex edit mode
+
+ Fixed record length mode
+
+
+Major code improvements:
+
+ Vertical windows (optionally lock-stepped).
+
+
+Major new features:
+
+ Folding
+
+
+Options
+
+ Fix it so all options appear in ^T.  Maybe make hook function
+ to handle major changes.  Need this for major mode change for
+ hex edit mode.
+
+Other requests:
+
+ -cleanup (delete extra lines and extra spaces at ends of lines).
+
+ -show no. utf characters, not no. bytes

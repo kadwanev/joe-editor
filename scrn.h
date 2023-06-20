@@ -58,9 +58,12 @@ int cpos PARAMS((register SCRN *t, register int x, register int y));
  *
  * Set attributes
  */
-int attr PARAMS((SCRN *t, int c));
+int set_attr PARAMS((SCRN *t, int c));
 
-/* void outatr(SCRN *t,int *scrn,int x,int y,int c,int a);
+/* Encode character as utf8 */
+void utf8_putc PARAMS((int c));
+
+/* void outatr(SCRN *t,int *scrn,int *attr,int x,int y,int c,int a);
  *
  * Output a character at the given screen cooridinate.  The cursor position
  * after this function is executed is indeterminate.
@@ -77,7 +80,7 @@ int attr PARAMS((SCRN *t, int c));
 #define DIM 16
 extern unsigned atab[];
 
-#define outatr(t,scrn,x,y,c,a) do { \
+#define outatr(t,scrn,attr,x,y,c,a) do { \
 	(t); \
 	(x); \
 	(y); \
@@ -91,20 +94,39 @@ extern unsigned atab[];
 #define BOLD		1024
 #define BLINK		2048
 #define DIM		4096
+#define AT_MASK		(INVERSE+UNDERLINE+BOLD+BLINK+DIM)
 
-#define outatr(t, scrn, xx, yy, c, a) do {		\
-	if(*(scrn) != ((c) | (a))) {			\
-		*(scrn) = ((c) | (a));			\
-		if((t)->ins)				\
-			clrins(t);			\
-		if((t)->x != (xx) || (t)->y != (yy))	\
-			cpos((t), (xx), (yy));		\
-		if((t)->attrib != (a))			\
-			attr((t), (a));			\
-		ttputc(c);				\
-		++(t)->x;				\
-	}						\
-} while(0)
+#define BG_SHIFT 13
+#define BG_VALUE (7<<BG_SHIFT)
+#define BG_NOT_DEFAULT (8<<BG_SHIFT)
+#define BG_MASK (15<<BG_SHIFT)
+
+#define BG_DEFAULT (0<<BG_SHIFT) /* default */
+#define BG_BLACK (8<<BG_SHIFT)
+#define BG_RED (9<<BG_SHIFT)
+#define BG_GREEN (10<<BG_SHIFT)
+#define BG_YELLOW (11<<BG_SHIFT)
+#define BG_BLUE (12<<BG_SHIFT)
+#define BG_MAGENTA (13<<BG_SHIFT)
+#define BG_CYAN (14<<BG_SHIFT)
+#define BG_WHITE (15<<BG_SHIFT)
+
+#define FG_SHIFT 17
+#define FG_VALUE (7<<FG_SHIFT)
+#define FG_NOT_DEFAULT (8<<FG_SHIFT)
+#define FG_MASK (15<<FG_SHIFT)
+
+#define FG_DEFAULT (0<<FG_SHIFT)
+#define FG_WHITE (8<<FG_SHIFT) /* default */
+#define FG_CYAN (9<<FG_SHIFT)
+#define FG_MAGENTA (10<<FG_SHIFT)
+#define FG_BLUE (11<<FG_SHIFT)
+#define FG_YELLOW (12<<FG_SHIFT)
+#define FG_GREEN (13<<FG_SHIFT)
+#define FG_RED (14<<FG_SHIFT)
+#define FG_BLACK (15<<FG_SHIFT)
+
+void outatr PARAMS((int wide,SCRN *t,int *scrn,int *attrf,int xx,int yy,int c,int a));
 
 #endif
 
@@ -112,6 +134,7 @@ extern unsigned atab[];
  * translate character and its attribute into something printable
  */
 void xlat PARAMS((int *attr, unsigned char *c));
+void xlat_utf_ctrl PARAMS((int *attr, unsigned char *c));
 
 /* int eraeol(SCRN *t,int x,int y);
  *
@@ -145,8 +168,25 @@ void nscroll PARAMS((SCRN *t));
  *
  * Figure out and execute line shifting
  */
-void magic PARAMS((SCRN *t, int y, int *cs, int *s, int placex));
+void magic PARAMS((SCRN *t, int y, int *cs, int *ca, int *s, int *a,int placex));
 
 int clrins PARAMS((SCRN *t));
+
+int meta_color PARAMS((unsigned char *s));
+
+/* Generate a field */
+void genfield PARAMS((SCRN *t,int *scrn,int *attr,int x,int y,int ofst,unsigned char *s,int len,int atr,int width,int flg));
+
+/* Column width of a string takes into account utf-8) */
+int txtwidth PARAMS((unsigned char *s,int len));
+
+/* Generate a field: formatted */
+void genfmt PARAMS((SCRN *t, int x, int y, int ofst, unsigned char *s, int flg));
+
+/* Column width of formatted string */
+int fmtlen PARAMS((unsigned char *s));
+
+/* Offset within formatted string of particular column */
+int fmtpos PARAMS((unsigned char *s, int goal));
 
 #endif

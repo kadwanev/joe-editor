@@ -62,8 +62,20 @@
 /* We have <termios.h> and <sys/termios.h> */
 #undef HAVE_POSIX_TERMIOS
 
+/* Define to 1 if you have the `putenv' function. */
+#undef HAVE_PUTENV
+
 /* Define to 1 if you have the <pwd.h> header file. */
 #undef HAVE_PWD_H
+
+/* We have SELinux headers */
+#undef HAVE_SELINUX
+
+/* Define to 1 if you have the <selinux/context.h> header file. */
+#undef HAVE_SELINUX_CONTEXT_H
+
+/* Define to 1 if you have the <selinux/selinux.h> header file. */
+#undef HAVE_SELINUX_SELINUX_H
 
 /* Define to 1 if you have the `setitimer' function. */
 #undef HAVE_SETITIMER

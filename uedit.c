@@ -23,6 +23,7 @@
 #include "umath.h"
 #include "utils.h"
 #include "vs.h"
+#include "utf8.h"
 #include "w.h"
 
 /***************/
@@ -37,6 +38,25 @@ int pgamnt = -1;		/* No. of PgUp/PgDn lines to keep */
 int u_goto_bol(BW *bw)
 {
 	p_goto_bol(bw->cursor);
+	return 0;
+}
+
+/*
+ * Move cursor to first non-whitespace character, unless it is
+ * already there, in which case move it to beginning of line
+ */
+int uhome(BW *bw)
+{
+	P *p = pdup(bw->cursor);
+
+	if ((bw->o.smarthome) && (piscol(p) > pisindent(p))) { 
+		p_goto_bol(p);
+		while (joe_isblank(brc(p)))
+			pgetc(p);
+	} else
+		p_goto_bol(p);
+	pset(bw->cursor, p);
+	prm(p);
 	return 0;
 }
 
@@ -72,10 +92,24 @@ int u_goto_eof(BW *bw)
  */
 int u_goto_left(BW *bw)
 {
-	if (prgetc(bw->cursor) != NO_MORE_DATA)
-		return 0;
-	else
-		return -1;
+	if (bw->o.picture) {
+		if (bw->cursor->xcol) {
+			--bw->cursor->xcol;
+			pcol(bw->cursor,bw->cursor->xcol);
+			return 0;
+		}
+	} else {
+		/* Have to do ECHKXCOL here because of picture mode */
+		if (bw->cursor->xcol != piscol(bw->cursor)) {
+			bw->cursor->xcol = piscol(bw->cursor);
+			return 0;
+		} else if (prgetc(bw->cursor) != NO_MORE_DATA) {
+			bw->cursor->xcol = piscol(bw->cursor);
+			return 0;
+		} else {
+			return -1;
+		}
+	}
 }
 
 /*
@@ -83,10 +117,18 @@ int u_goto_left(BW *bw)
  */
 int u_goto_right(BW *bw)
 {
-	if (pgetc(bw->cursor) != NO_MORE_DATA)
+	if (bw->o.picture) {
+		++bw->cursor->xcol;
+		pcol(bw->cursor,bw->cursor->xcol);
 		return 0;
-	else
-		return -1;
+	} else {
+		if (pgetc(bw->cursor) != NO_MORE_DATA) {
+			bw->cursor->xcol = piscol(bw->cursor);
+			return 0;
+		} else {
+			return -1;
+		}
+	}
 }
 
 /*
@@ -97,23 +139,28 @@ int u_goto_right(BW *bw)
  */
 int u_goto_prev(BW *bw)
 {
-	if (pisbof(bw->cursor)) {
-		return -1;	/* cursor is at beginning of file */
-	} else if (isspace(prgetc(bw->cursor))) {
-		while ((!pisbof(bw->cursor)) && (isspace(prgetc(bw->cursor))))
-			/* do nothing */;	/* if cursor is on white-space char then find first non-white-space char */
-	}
-	if (pisbof(bw->cursor)) {
-		return -1;	/* cursor is at beginning of file */
-	}
-	pgetc(bw->cursor);
+	P *p = pdup(bw->cursor);
+	int c = prgetc(p);
 
-	while (!pisbof(bw->cursor)) {
-		if (isspace(prgetc(bw->cursor))) {	/* if previous character is white-space then beginning of word was found */
-			pgetc(bw->cursor);
-			break;
-		}
+	if (isalnum_(bw->b->o.utf8,c)) {
+		while (isalnum_(bw->b->o.utf8,(c=prgetc(p))))
+			/* Do nothing */;
+		if (c != NO_MORE_DATA)
+			pgetc(p);
+	} else if (isspace(c) || ispunct(c)) {
+		while ((c=prgetc(p)), (isspace(c) || ispunct(c)))
+			/* Do nothing */;
+		while(isalnum_(bw->b->o.utf8,(c=prgetc(p))))
+			/* Do nothing */;
+		if (c != NO_MORE_DATA)
+			pgetc(p);
 	}
+	if (p->byte == bw->cursor->byte) {
+		prm(p);
+		return -1;
+	}
+	pset(bw->cursor, p);
+	prm(p);
 	return 0;
 }
 
@@ -125,30 +172,32 @@ int u_goto_prev(BW *bw)
  */
 int u_goto_next(BW *bw)
 {
-	if (piseof(bw->cursor)) {
-		return -1;	/* cursor is at end of file */
-	} else if (isspace(pgetc(bw->cursor))) {
-		while ((!piseof(bw->cursor)) && (isspace(pgetc(bw->cursor))))
-			/* do nothing */;	/* if cursor is on white-space char then find first non-white-space char */
-	}
-	if (piseof(bw->cursor)) {
-		return -1;	/* cursor is at end of file */
-	}
-	prgetc(bw->cursor);
+	P *p = pdup(bw->cursor);
+	int c = brch(p);
 
-	while (!piseof(bw->cursor)) {
-		if (isspace(pgetc(bw->cursor))) {	/* if next character is white-space then end of word was found */
-			prgetc(bw->cursor);
-			break;
-		}
+	if (isalnum_(bw->b->o.utf8,c))
+		while (isalnum_(bw->b->o.utf8,(c = brch(p))))
+			pgetc(p);
+	else if (isspace(c) || ispunct(c)) {
+		while (isspace(c = brch(p)) || ispunct(c))
+			pgetc(p);
+		while (isalnum_(bw->b->o.utf8,(c = brch(p))))
+			pgetc(p);
+	} else
+		pgetc(p);
+	if (p->byte == bw->cursor->byte) {
+		prm(p);
+		return -1;
 	}
+	pset(bw->cursor, p);
+	prm(p);
 	return 0;
 }
 
 static P *pboi(P *p)
 {
 	p_goto_bol(p);
-	while (isblank(brc(p)))
+	while (joe_isblank(brch(p)))
 		pgetc(p);
 	return p;
 }
@@ -166,9 +215,9 @@ static int pisedge(P *p)
 	pboi(q);
 	if (q->byte == p->byte)
 		goto left;
-	if (isblank(c = brc(p))) {
+	if (joe_isblank(c = brch(p))) {
 		pset(q, p);
-		if (isblank(prgetc(q)))
+		if (joe_isblank(prgetc(q)))
 			goto no;
 		if (c == '\t')
 			goto right;
@@ -224,7 +273,7 @@ int utomatch(BW *bw)
 	 f,			/* Character to find */
 	 dir;			/* 1 to search forward, -1 to search backward */
 
-	switch (c = brc(bw->cursor)) {
+	switch (c = brch(bw->cursor)) {
 	case '(':
 		f = ')';
 		dir = 1;
@@ -322,6 +371,12 @@ int udnarw(BW *bw)
 {
 	if (bw->cursor->line != bw->b->eof->line) {
 		pnextl(bw->cursor);
+		pcol(bw->cursor, bw->cursor->xcol);
+		return 0;
+	} else if(bw->o.picture) {
+		p_goto_eol(bw->cursor);
+		binsc(bw->cursor,'\n');
+		pgetc(bw->cursor);
 		pcol(bw->cursor, bw->cursor->xcol);
 		return 0;
 	} else
@@ -493,7 +548,7 @@ int udnslide(BW *bw)
 
 static B *linehist = NULL;	/* History of previously entered line numbers */
 
-static int doline(BW *bw, char *s, void *object, int *notify)
+static int doline(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	long num = calc(bw, s);
 
@@ -514,14 +569,14 @@ static int doline(BW *bw, char *s, void *object, int *notify)
 		if (merr)
 			msgnw(bw->parent, merr);
 		else
-			msgnw(bw->parent, "Invalid line number");
+			msgnw(bw->parent, US "Invalid line number");
 		return -1;
 	}
 }
 
 int uline(BW *bw)
 {
-	if (wmkpw(bw->parent, "Go to line (^C to abort): ", &linehist, doline, NULL, NULL, NULL, NULL, NULL))
+	if (wmkpw(bw->parent, US "Go to line (^C to abort): ", &linehist, doline, NULL, NULL, NULL, NULL, NULL, -1))
 		return 0;
 	else
 		return -1;
@@ -531,7 +586,7 @@ int uline(BW *bw)
 
 static B *colhist = NULL;	/* History of previously entered column numbers */
 
-static int docol(BW *bw, char *s, void *object, int *notify)
+static int docol(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	long num = calc(bw, s);
 
@@ -550,14 +605,14 @@ static int docol(BW *bw, char *s, void *object, int *notify)
 		if (merr)
 			msgnw(bw->parent, merr);
 		else
-			msgnw(bw->parent, "Invalid column number");
+			msgnw(bw->parent, US "Invalid column number");
 		return -1;
 	}
 }
 
 int ucol(BW *bw)
 {
-	if (wmkpw(bw->parent, "Go to column (^C to abort): ", &colhist, docol, NULL, NULL, NULL, NULL, NULL))
+	if (wmkpw(bw->parent, US "Go to column (^C to abort): ", &colhist, docol, NULL, NULL, NULL, NULL, NULL, -1))
 		return 0;
 	else
 		return -1;
@@ -567,7 +622,7 @@ int ucol(BW *bw)
 
 static B *bytehist = NULL;	/* History of previously entered byte numbers */
 
-static int dobyte(BW *bw, char *s, void *object, int *notify)
+static int dobyte(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	long num = calc(bw, s);
 
@@ -586,14 +641,14 @@ static int dobyte(BW *bw, char *s, void *object, int *notify)
 		if (merr)
 			msgnw(bw->parent, merr);
 		else
-			msgnw(bw->parent, "Invalid byte number");
+			msgnw(bw->parent, US "Invalid byte number");
 		return -1;
 	}
 }
 
 int ubyte(BW *bw)
 {
-	if (wmkpw(bw->parent, "Go to byte (^C to abort): ", &bytehist, dobyte, NULL, NULL, NULL, NULL, NULL))
+	if (wmkpw(bw->parent, US "Go to byte (^C to abort): ", &bytehist, dobyte, NULL, NULL, NULL, NULL, NULL, -1))
 		return 0;
 	else
 		return -1;
@@ -606,9 +661,8 @@ int ubyte(BW *bw)
 int udelch(BW *bw)
 {
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		char c = 4;
-
-		joe_write(bw->pid, &c, 0);	/* FIXME: why would we write zero chars ??? */
+		unsigned char c = 4;
+		joe_write(bw->out, &c, 1);	/* Send Ctrl-D to process */
 	} else {
 		P *p;
 
@@ -627,20 +681,60 @@ int udelch(BW *bw)
 int ubacks(BW *bw, int k)
 {
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		char c = k;
+		unsigned char c = k;
 
 		joe_write(bw->out, &c, 1);
 	} else if (bw->parent->watom->what == TYPETW || !pisbol(bw->cursor)) {
 		P *p;
 		int c;
+		int indent;
+		int col;
+		int indwid;
+		int wid;
+		int pure = 1;
 
 		if (pisbof(bw->cursor))
 			return -1;
-		p = pdup(bw->cursor);
-		if ((c = prgetc(bw->cursor)) != NO_MORE_DATA)
-			if (!bw->o.overtype || c == '\t' || pisbol(p) || piseol(p))
-				bdel(bw->cursor, p);
-		prm(p);
+
+		/* Indentation point of this line */
+		indent = pisindent(bw->cursor);
+
+		/* Column position of cursor */
+		col = piscol(bw->cursor);
+
+		/* Indentation step in columns */
+		if (bw->o.indentc=='\t')
+			wid = bw->o.tab;
+		else
+			wid = 1;
+
+		indwid = (bw->o.istep*wid);
+
+		/* Smart backspace when: cursor is at indentation point, indentation point
+		   is a multiple of indentation width, we're not at beginning of line,
+		   'smarthome' option is enabled, and indentation is purely made out of
+		   indent characters (or purify indents is enabled). */
+		
+		/* Ignore purify for backspace */
+		if (col == indent && (col%indwid)==0 && col!=0 && bw->o.smartbacks && pispure(bw->cursor,bw->o.indentc)) {
+			P *p;
+			int x;
+
+			/* Delete all indentation */
+			p = pdup(bw->cursor);
+			p_goto_bol(p);
+			bdel(p,bw->cursor);
+			prm(p);
+
+			/* Indent to new position */
+			pfill(bw->cursor,col-indwid,bw->o.indentc);
+		} else {
+			P *p = pdup(bw->cursor);
+			if ((c = prgetc(bw->cursor)) != NO_MORE_DATA)
+				if (!bw->o.overtype || c == '\t' || pisbol(p) || piseol(p))
+					bdel(bw->cursor, p);
+			prm(p);
+		}
 	} else
 		return -1;
 	return 0;
@@ -656,13 +750,13 @@ int ubacks(BW *bw, int k)
 int u_word_delete(BW *bw)
 {
 	P *p = pdup(bw->cursor);
-	int c = brc(p);
+	int c = brch(p);
 
-	if (isalnum_(c))
-		while (isalnum_(c = brc(p)))
+	if (isalnum_(bw->b->o.utf8,c))
+		while (isalnum_(bw->b->o.utf8,(c = brch(p))))
 			pgetc(p);
 	else if (isspace(c))
-		while (isspace(c = brc(p)))
+		while (isspace(c = brch(p)))
 			pgetc(p);
 	else
 		pgetc(p);
@@ -685,8 +779,8 @@ int ubackw(BW *bw)
 	P *p = pdup(bw->cursor);
 	int c = prgetc(bw->cursor);
 
-	if (isalnum_(c)) {
-		while (isalnum_(c = prgetc(bw->cursor)))
+	if (isalnum_(bw->b->o.utf8,c)) {
+		while (isalnum_(bw->b->o.utf8,(c = prgetc(bw->cursor))))
 			/* do nothing */;
 		if (c != NO_MORE_DATA)
 			pgetc(bw->cursor);
@@ -732,7 +826,7 @@ int udelbl(BW *bw)
 
 	if (p->byte == bw->cursor->byte) {
 		prm(p);
-		return ubacks(bw, MAXINT);	/* FIXME: MAXINT overloaded */
+		return ubacks(bw, 8);	/* The 8 goes to the process if we're at EOF of shell window */
 	} else
 		bdel(p, bw->cursor);
 	prm(p);
@@ -769,50 +863,115 @@ int uinsc(BW *bw)
  * to process.
  */
 
+struct utf8_sm utype_utf8_sm;
+extern int utf8;
+
 int utypebw(BW *bw, int k)
 {
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
-		char c = k;
+		unsigned char c = k;
+
+		utype_utf8_sm.state = 0;
+		utype_utf8_sm.ptr = 0;
 
 		joe_write(bw->out, &c, 1);
+	} else if (k == '\t' && bw->o.overtype && !piseol(bw->cursor)) { /* TAB in overtype mode is supposed to be just cursor motion */
+		int col = bw->cursor->xcol;		/* Current cursor column */
+		col = col + bw->o.tab - (col%bw->o.tab);/* Move to next tab stop */
+		pcol(bw->cursor,col);			/* Try to position cursor there */
+		if (!bw->o.picture && piseol(bw->cursor) && piscol(bw->cursor)<col)	/* We moved past end of line, insert a tab (unless in picture mode) */
+			if (bw->o.spaces)
+				pfill(bw->cursor,col,' ');
+			else
+				pfill(bw->cursor,col,'\t');
+		bw->cursor->xcol = col;			/* Put cursor there even if we can't really go there */
 	} else if (k == '\t' && bw->o.spaces) {
-		long n = piscol(bw->cursor);
+		long n;
+
+		if (bw->o.picture)
+			n = bw->cursor->xcol;
+		else
+			n = piscol(bw->cursor);
+
+		utype_utf8_sm.state = 0;
+		utype_utf8_sm.ptr = 0;
 
 		n = bw->o.tab - n % bw->o.tab;
 		while (n--)
 			utypebw(bw, ' ');
 	} else {
-		int upd = bw->parent->t->t->updtab[bw->y + bw->cursor->line - bw->top->line];
-		int simple = 1;
+		int upd;
+		int simple;
+		int x;
+
+		/* Picture mode */
+		if (bw->o.picture && bw->cursor->xcol!=piscol(bw->cursor))
+			pfill(bw->cursor,bw->cursor->xcol,' '); /* Why no tabs? */
+
+		/* UTF8 decoder */
+		if(utf8) {
+			int utf8_char = utf8_decode(&utype_utf8_sm,k);
+
+			if(utf8_char >= 0)
+				k = utf8_char;
+			else
+				return 0;
+		}
+
+		upd = bw->parent->t->t->updtab[bw->y + bw->cursor->line - bw->top->line];
+		simple = 1;
 
 		if (pisblank(bw->cursor))
 			while (piscol(bw->cursor) < bw->o.lmargin) {
 				binsc(bw->cursor, ' ');
 				pgetc(bw->cursor);
 			}
-		binsc(bw->cursor, k), pgetc(bw->cursor);
-		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !isblank(k)) {
+
+		if(utf8 && !bw->b->o.utf8) {
+			unsigned char buf[10];
+			utf8_encode(buf,k);
+			k = from_utf8(buf);
+		} else if(!utf8 && bw->b->o.utf8) {
+			unsigned char buf[10];
+			to_utf8(buf,k);
+			k = utf8_decode_string(buf);
+		}
+		
+		binsc(bw->cursor, k);
+
+		/* We need x position before we move cursor */
+		x = piscol(bw->cursor) - bw->offset;
+		pgetc(bw->cursor);
+
+		/* Tabs are weird here... */
+		if (bw->o.overtype && !piseol(bw->cursor) && k != '\t')
+			udelch(bw);
+
+		/* Not sure if we're in right position for wordwrap when we're in overtype mode */
+		if (bw->o.wordwrap && piscol(bw->cursor) > bw->o.rmargin && !joe_isblank(k)) {
 			wrapword(bw->cursor, (long) bw->o.lmargin, bw->o.french, NULL);
 			simple = 0;
-		} else if (bw->o.overtype && !piseol(bw->cursor) && k != '\t')
-			udelch(bw);
+		}
+
 		bw->cursor->xcol = piscol(bw->cursor);
 #ifndef __MSDOS__
-		if (bw->cursor->xcol - bw->offset - 1 < 0 || bw->cursor->xcol - bw->offset - 1 >= bw->w)
+		if (x < 0 || x >= bw->w)
 			simple = 0;
 		if (bw->cursor->line < bw->top->line || bw->cursor->line >= bw->top->line + bw->h)
 			simple = 0;
 		if (simple && bw->parent->t->t->sary[bw->y + bw->cursor->line - bw->top->line])
 			simple = 0;
 		if (simple && k != '\t' && k != '\n' && !curmacro) {
-			int a = 0;
-			unsigned char c = (unsigned char)k;
+			int a;
+			int atr = 0;
+			unsigned char c = k;
 			SCRN *t = bw->parent->t->t;
 			int y = bw->y + bw->cursor->line - bw->top->line;
-			int x = bw->cursor->xcol - bw->offset + bw->x - 1;
 			int *screen = t->scrn + y * t->co;
+			int *attr = t->attr + y * t->co;
+			x += bw->x;
 
-			if (!upd && piseol(bw->cursor))
+			if (!upd && piseol(bw->cursor) && !bw->o.highlight)
 				t->updtab[y] = 0;
 			if (markb &&
 			    markk &&
@@ -820,9 +979,19 @@ int utypebw(BW *bw, int k)
 			    markk->b == bw->b &&
 			   ((!square && bw->cursor->byte >= markb->byte && bw->cursor->byte < markk->byte) ||
 			    ( square && bw->cursor->line >= markb->line && bw->cursor->line <= markk->line && piscol(bw->cursor) >= markb->xcol && piscol(bw->cursor) < markk->xcol)))
-				a = INVERSE;
-			xlat(&a, &c);
-			outatr(t, screen + x, x, y, c, a);
+				atr = INVERSE;
+			if (bw->b->o.utf8) {
+				if (k<32 || k>126 && k<160) {
+					xlat_utf_ctrl(&a, &c);
+					k = c;
+					atr ^= a;
+					}
+			} else {
+				xlat(&a, &c);
+				k = c;
+				atr ^= a;
+			}
+			outatr(bw->b->o.utf8, t, screen + x, attr + x, x, y, k, atr);
 		}
 #endif
 	}
@@ -831,12 +1000,30 @@ int utypebw(BW *bw, int k)
 
 /* Quoting */
 
+static B *unicodehist = NULL;	/* History of previously entered unicode characters */
+
+static int dounicode(BW *bw, unsigned char *s, void *object, int *notify)
+{
+	int num;
+	unsigned char buf[8];
+	int x;
+	sscanf(s,"%x",&num);
+	if (notify)
+		*notify = 1;
+	vsrm(s);
+	utf8_encode(buf,num);
+	for(x=0;buf[x];++x)
+		utypebw(bw, buf[x]);
+	bw->cursor->xcol = piscol(bw->cursor);
+	return 0;
+}
+
 int quotestate;
 int quoteval;
 
 static int doquote(BW *bw, int c, void *object, int *notify)
 {
-	char buf[40];
+	unsigned char buf[40];
 
 	if (c < 0 || c >= 256) {
 		nungetc(c);
@@ -847,17 +1034,25 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		if (c >= '0' && c <= '9') {
 			quoteval = c - '0';
 			quotestate = 1;
-			snprintf(buf, sizeof(buf), "ASCII %c--", c);
+			snprintf((char *)buf, sizeof(buf), "ASCII %c--", c);
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
 				return -1;
 			else
 				return 0;
 		} else if (c == 'x' || c == 'X') {
-			quotestate = 3;
-			if (!mkqwna(bw->parent, sc("ASCII 0x--"), doquote, NULL, NULL, notify))
-				return -1;
-			else
-				return 0;
+			if (bw->b->o.utf8) {
+				if (!wmkpw(bw->parent, US "Unicode (ISO-10646) character in hex (^C to abort): ", &unicodehist, dounicode,
+				           NULL, NULL, NULL, NULL, NULL, -1))
+					return 0;
+				else
+					return -1;
+			} else {
+				quotestate = 3;
+				if (!mkqwna(bw->parent, sc("ASCII 0x--"), doquote, NULL, NULL, notify))
+					return -1;
+				else
+					return 0;
+			}
 		} else if (c == 'o' || c == 'O') {
 			quotestate = 5;
 			if (!mkqwna(bw->parent, sc("ASCII 0---"), doquote, NULL, NULL, notify))
@@ -875,7 +1070,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 1:
 		if (c >= '0' && c <= '9') {
-			snprintf(buf, sizeof(buf), "ASCII %c%c-", quoteval + '0', c);
+			snprintf((char *)buf, sizeof(buf), "ASCII %c%c-", quoteval + '0', c);
 			quoteval = quoteval * 10 + c - '0';
 			quotestate = 2;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -893,7 +1088,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 3:
 		if (c >= '0' && c <= '9') {
-			snprintf(buf, sizeof(buf), "ASCII 0x%c-", c);
+			snprintf((char *)buf, sizeof(buf), "ASCII 0x%c-", c);
 			quoteval = c - '0';
 			quotestate = 4;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -901,7 +1096,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 			else
 				return 0;
 		} else if (c >= 'a' && c <= 'f') {
-			snprintf(buf, sizeof(buf), "ASCII 0x%c-", c + 'A' - 'a');
+			snprintf((char *)buf, sizeof(buf), "ASCII 0x%c-", c + 'A' - 'a');
 			quoteval = c - 'a' + 10;
 			quotestate = 4;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -909,7 +1104,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 			else
 				return 0;
 		} else if (c >= 'A' && c <= 'F') {
-			snprintf(buf, sizeof(buf), "ASCII 0x%c-", c);
+			snprintf((char *)buf, sizeof(buf), "ASCII 0x%c-", c);
 			quoteval = c - 'A' + 10;
 			quotestate = 4;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -935,7 +1130,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 5:
 		if (c >= '0' && c <= '7') {
-			snprintf(buf, sizeof(buf), "ASCII 0%c--", c);
+			snprintf((char *)buf, sizeof(buf), "ASCII 0%c--", c);
 			quoteval = c - '0';
 			quotestate = 6;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -946,7 +1141,7 @@ static int doquote(BW *bw, int c, void *object, int *notify)
 		break;
 	case 6:
 		if (c >= '0' && c <= '7') {
-			snprintf(buf, sizeof(buf), "ASCII 0%c%c-", quoteval + '0', c);
+			snprintf((char *)buf, sizeof(buf), "ASCII 0%c%c-", quoteval + '0', c);
 			quoteval = quoteval * 8 + c - '0';
 			quotestate = 7;
 			if (!mkqwna(bw->parent, sz(buf), doquote, NULL, NULL, notify))
@@ -1015,7 +1210,7 @@ int uquote8(BW *bw)
 		return -1;
 }
 
-extern char srchstr[];
+extern unsigned char srchstr[];
 
 static int doctrl(BW *bw, int c, void *object, int *notify)
 {
@@ -1050,14 +1245,20 @@ int rtntw(BW *bw)
 {
 	if (bw->pid && bw->cursor->byte == bw->b->eof->byte) {
 		joe_write(bw->out, "\n", 1);
+	} else if (bw->o.overtype) {
+		p_goto_eol(bw->cursor);
+		if (piseof(bw->cursor))
+			binsc(bw->cursor, '\n');
+		pgetc(bw->cursor);
+		bw->cursor->xcol = piscol(bw->cursor);
 	} else {
 		P *p = pdup(bw->cursor);
-		char c;
+		unsigned char c;
 
 		binsc(bw->cursor, '\n'), pgetc(bw->cursor);
 		if (bw->o.autoindent) {
 			p_goto_bol(p);
-			while (isspace(c = pgetc(p)) && c != 10) {
+			while (isspace(c = pgetc(p)) && c != '\n') {
 				binsc(bw->cursor, c);
 				pgetc(bw->cursor);
 			}
@@ -1072,11 +1273,7 @@ int rtntw(BW *bw)
 
 int uopen(BW *bw)
 {
-	P *q = pdup(bw->cursor);
-
-	rtntw(bw);
-	pset(bw->cursor, q);
-	prm(q);
+	binsc(bw->cursor,'\n');
 	return 0;
 }
 
@@ -1089,7 +1286,7 @@ static int dosetmark(BW *bw, int c, void *object, int *notify)
 	if (c >= '0' && c <= '9') {
 		pdupown(bw->cursor, bw->b->marks + c - '0');
 		poffline(bw->b->marks[c - '0']);
-		snprintf(msgbuf, JOE_MSGBUFSIZE, "Mark %d set", c - '0');
+		snprintf((char *)msgbuf, JOE_MSGBUFSIZE, "Mark %d set", c - '0');
 		msgnw(bw->parent, msgbuf);
 		return 0;
 	} else {
@@ -1120,7 +1317,7 @@ static int dogomark(BW *bw, int c, void *object, int *notify)
 			bw->cursor->xcol = piscol(bw->cursor);
 			return 0;
 		} else {
-			snprintf(msgbuf, JOE_MSGBUFSIZE, "Mark %d not set", c - '0');
+			snprintf((char *)msgbuf, JOE_MSGBUFSIZE, "Mark %d not set", c - '0');
 			msgnw(bw->parent, msgbuf);
 			return -1;
 	} else {
@@ -1165,7 +1362,7 @@ static int dofwrdc(BW *bw, int k, void *object, int *notify)
 				break;
 	}
 	if (c == NO_MORE_DATA) {
-		msgnw(bw->parent, "Not found");
+		msgnw(bw->parent, US "Not found");
 		prm(q);
 		return -1;
 	} else {
@@ -1200,7 +1397,7 @@ int ubkwdc(BW *bw, int k)
 
 /* Display a message */
 
-static int domsg(BASE *b, char *s, void *object, int *notify)
+static int domsg(BASE *b, unsigned char *s, void *object, int *notify)
 {
 	if (notify)
 		*notify = 1;
@@ -1212,7 +1409,7 @@ static int domsg(BASE *b, char *s, void *object, int *notify)
 
 int umsg(BASE *b)
 {
-	if (wmkpw(b->parent, "Msg (^C to abort): ", NULL, domsg, NULL, NULL, NULL, NULL, NULL))
+	if (wmkpw(b->parent, US "Msg (^C to abort): ", NULL, domsg, NULL, NULL, NULL, NULL, NULL, -1))
 		return 0;
 	else
 		return -1;
@@ -1220,7 +1417,7 @@ int umsg(BASE *b)
 
 /* Insert text */
 
-static int dotxt(BW *bw, char *s, void *object, int *notify)
+static int dotxt(BW *bw, unsigned char *s, void *object, int *notify)
 {
 	int x;
 
@@ -1232,9 +1429,9 @@ static int dotxt(BW *bw, char *s, void *object, int *notify)
 	return 0;
 }
 
-int utxt(BASE *bw)
+int utxt(BW *bw)
 {
-	if (wmkpw(bw->parent, "Insert (^C to abort): ", NULL, dotxt, NULL, NULL, utypebw, NULL, NULL))
+	if (wmkpw(bw->parent, US "Insert (^C to abort): ", NULL, dotxt, NULL, NULL, utypebw, NULL, NULL, bw->b->o.utf8))
 		return 0;
 	else
 		return -1;

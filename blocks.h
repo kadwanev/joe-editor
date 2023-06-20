@@ -20,7 +20,7 @@ void *mmove PARAMS((void *d, void *s, int sz));
  * If 'sz'==0 nothing happens
  * Return original value of 'd'
  */
-char *mset PARAMS((void *dest, unsigned char c, int sz));
+unsigned char *mset PARAMS((void *dest, unsigned char c, int sz));
 
 /* int *msetI(int *d,int c,int sz); Set 'sz' ints at 'd' to 'c'.
  * If 'sz'==0 nothing happens
@@ -28,17 +28,23 @@ char *mset PARAMS((void *dest, unsigned char c, int sz));
  */
 int *msetI PARAMS((void *dest, int c, int sz));
 
+/* void **msetP(void **d,void *c,int sz); Set 'sz' pointers at 'd' to 'c'.
+ * If 'sz'==0 nothing happens
+ * Returns orininal value of 'd'
+ */
+void **msetP PARAMS((void **dest, void *c, int sz));
+
 /* int mcnt(char *blk,char c,int size);
  *
  * Count the number of occurances a character appears in a block
  */
-int mcnt PARAMS((char *blk, char c, int size));
+int mcnt PARAMS((unsigned char *blk, unsigned char c, int size));
 
 #ifdef junk
 /* char *mchr(char *s,char c);
  *
  * Return address of first 'c' following 's'.
  */
-char *mchr PARAMS(());
+unsigned char *mchr PARAMS(());
 #endif
 #endif

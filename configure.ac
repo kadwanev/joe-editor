@@ -4,7 +4,7 @@
 AC_PREREQ(2.54)
 
 #### Here's the only place where to change version number ####
-AC_INIT(joe, 2.9.8)
+AC_INIT(joe, 3.0)
 AC_CONFIG_SRCDIR([b.c])
 
 AC_CANONICAL_BUILD
@@ -33,7 +33,7 @@ esac
 
 # Checks for libraries.
 AC_SEARCH_LIBS(tgetflag, ncurses curses termcap, AC_DEFINE_UNQUOTED(TERMINFO, 1, [If we have newer terminfo/termcap capabilities]))
-AC_SEARCH_LIBS(snprintf, snprintf)
+AC_SEARCH_LIBS(snprintf, snprintf db)
 
 # Checks for header files.
 AC_HEADER_DIRENT
@@ -51,6 +51,12 @@ AC_CHECK_HEADERS([errno.h fcntl.h locale.h sgtty.h stdlib.h string.h])
 AC_CHECK_HEADERS([sys/ioctl.h sys/param.h sys/time.h unistd.h utime.h])
 AC_CHECK_HEADERS([ncurses.h curses.h sys/dirent.h time.h pwd.h paths.h])
 AC_CHECK_HEADERS([term.h sys/types.h sys/stat.h sys/wait.h limits.h signal.h])
+
+AC_CHECK_HEADERS([selinux/selinux.h selinux/context.h])
+if test "$ac_cv_header_selinux_selinux_h" = "yes" -a "$ac_cv_header_selinux_context_h" = "yes" ; then
+	echo "Enabling SELinux context copying!"
+	AC_DEFINE(HAVE_SELINUX, 1, [We have SELinux headers])
+fi
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_PROTOTYPES
@@ -92,7 +98,7 @@ AC_CHECK_FUNCS([isblank])
 if test x"$ac_cv_func_isblank" = xyes; then
 	joe_ISBLANK
 fi
-AC_CHECK_FUNCS([alarm mkdir mkstemp setlocale strchr strdup utime setpgid])
+AC_CHECK_FUNCS([alarm mkdir mkstemp putenv setlocale strchr strdup utime setpgid])
 AC_CHECK_FUNC([snprintf],, AC_MSG_ERROR([snprintf not available: I won't build for this ancient system]))
 AC_CHECK_FUNCS([setitimer sigaction sigvec siginterrupt sigprocmask])
 
@@ -110,5 +116,5 @@ AH_VERBATIM([_PARAMS],[/* Check to see if we can use strict prototypes */
 #  endif
 #endif])
 
-AC_CONFIG_FILES([Makefile joe.1 joerc jmacsrc jstarrc rjoerc jpicorc])
+AC_CONFIG_FILES([Makefile joe.1 joerc jmacsrc jstarrc rjoerc jpicorc syntax/c.jsf syntax/perl.jsf syntax/verilog.jsf syntax/sh.jsf syntax/python.jsf syntax/conf.jsf syntax/php.jsf])
 AC_OUTPUT
