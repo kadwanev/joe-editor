@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- Default configuration if not supplied (commandline build) -->
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    
+    <!-- Pick latest present VS version if not supplied -->
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == '' and '$([MSBuild]::GetRegistryValueFromView(`HKCU\Software\Microsoft\VisualStudio\13.0`, `VisualStudioLocation`, `dne`, RegistryView.Registry32))' != 'dne'">13.0</VisualStudioVersion>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == '' and '$([MSBuild]::GetRegistryValueFromView(`HKCU\Software\Microsoft\VisualStudio\12.0`, `VisualStudioLocation`, `dne`, RegistryView.Registry32))' != 'dne'">12.0</VisualStudioVersion>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == '' and '$([MSBuild]::GetRegistryValueFromView(`HKCU\Software\Microsoft\VisualStudio\11.0`, `VisualStudioLocation`, `dne`, RegistryView.Registry32))' != 'dne'">11.0</VisualStudioVersion>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
+
+    <!-- Pick toolset to use based on VS version (to enable XP targetting) -->
+    <PlatformToolset Condition="'$(PlatformToolset)' == '' and '$(VisualStudioVersion)' == '13.0'">v130_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == '' and '$(VisualStudioVersion)' == '12.0'">v120_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == '' and '$(VisualStudioVersion)' == '11.0'">v110_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v$([System.String]::Copy('$(VisualStudioVersion)').Replace('.', ''))</PlatformToolset>
+  </PropertyGroup>
+
+  <PropertyGroup>
+	<JoeRoot>$(MSBuildThisFileDirectory)\..\..\..</JoeRoot>
+	<JoeWinRoot>$(MSBuildThisFileDirectory)\..</JoeWinRoot>
+	<BinaryRoot>$(JoeWinRoot)\..\bin</BinaryRoot>
+	<JoeExternalSrcDir>$(JoeRoot)\joe</JoeExternalSrcDir>
+	<PuttyExternalSrcDir>$(JoeWinRoot)\putty\putty</PuttyExternalSrcDir>
+	<JoeWinSrcDir>$(JoeWinRoot)\joewin\win</JoeWinSrcDir>
+	<JoeWinCommonSrcDir>$(JoeWinRoot)\common</JoeWinCommonSrcDir>
+	<JoeSrcDir>$(JoeWinRoot)\joe\win</JoeSrcDir>
+	<PuttySrcDir>$(JoeWinRoot)\putty\win</PuttySrcDir>
+	<JoeConfDir>$(JoeWinRoot)\..\rc</JoeConfDir>
+	<JoeSyntaxDir>$(JoeRoot)\syntax</JoeSyntaxDir>
+	<SchemesDir>$(JoeWinRoot)\..\schemes</SchemesDir>
+	<SchemeGenDir>$(SchemesDir)\generated</SchemeGenDir>
+	<VimSchemeDir>$(SchemesDir)\generated\vimschemes</VimSchemeDir>
+	<JoeDocsDir>$(JoeWinRoot)\..\docs</JoeDocsDir>
+	<JoeLangDir>$(JoeRoot)\po</JoeLangDir>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <PlatformDir Condition="'$(Platform)' == 'Win32'">x86</PlatformDir>
+    <PlatformDir Condition="'$(Platform)' == 'x86'">x86</PlatformDir>
+    <PlatformDir Condition="'$(Platform)' == 'x64'">x64</PlatformDir>
+    <OutputRootDir>$(BinaryRoot)\$(PlatformDir)\$(Configuration)</OutputRootDir>
+    <StandaloneDir Condition="'$(IsStandalone)' != ''">\Standalone</StandaloneDir>
+    <OutDir Condition="'$(WriteOutputToRoot)' == ''">$(OutputRootDir)$(StandaloneDir)\Object\$(RootNamespace)\</OutDir>
+    <OutDir Condition="'$(WriteOutputToRoot)' != ''">$(OutputRootDir)$(StandaloneDir)\</OutDir>
+    <IntDir>$(OutputRootDir)$(StandaloneDir)\Intermediate\$(RootNamespace)\</IntDir>
+    <IntermediateOutputPath>$(IntDir)</IntermediateOutputPath>
+    
+    <VersionDir>$(OutputRootDir)\Intermediate\version</VersionDir>
+    <SchemesOutDir>$(OutputRootDir)\schemes</SchemesOutDir>
+    <SyntaxOutDir>$(OutputRootDir)\syntax</SyntaxOutDir>
+    <ConfOutDir>$(OutputRootDir)\conf</ConfOutDir>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <FrontendDependencies>comctl32.lib;imm32.lib;winmm.lib;$(OutputRootDir)\Intermediate\joewincommon\resources.res</FrontendDependencies>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Find Python 2.7/6/5 -->
+    <_PyRegPrefix>HKEY_LOCAL_MACHINE\SOFTWARE\Python\PythonCore</_PyRegPrefix>
+    <_PythonPath>$([MSBuild]::GetRegistryValueFromView('$(_PyRegPrefix)\2.7\InstallPath', '', null, RegistryView.Registry64, RegistryView.Registry32))</_PythonPath>
+    <_PythonPath Condition="'$(_PythonPath)'==''">$([MSBuild]::GetRegistryValueFromView('$(_PyRegPrefix)\2.6\InstallPath', '', null, RegistryView.Registry64, RegistryView.Registry32))</_PythonPath>
+    <_PythonPath Condition="'$(_PythonPath)'==''">$([MSBuild]::GetRegistryValueFromView('$(_PyRegPrefix)\2.5\InstallPath', '', null, RegistryView.Registry64, RegistryView.Registry32))</_PythonPath>
+    <_Python Condition="'$(_PythonPath)'!=''">$(_PythonPath)\python.exe</_Python>
+  </PropertyGroup>
+
+  <Import Condition="'$(OutputType)' != 'Package'" Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Condition="'$(OutputType)' != 'Package'" Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="version.props" />
+</Project>

@@ -19,14 +19,16 @@
 #undef HAVE_SETLOCALE
 #endif
 
-/* If it looks old, forget it */
-#ifndef CODESET
-#undef HAVE_SETLOCALE
-#endif
-
 #if defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE)
 #	include <locale.h>
+#ifndef JOEWIN
 #       include <langinfo.h>
+#endif
+#endif
+
+/* If we didn't find a CODESET in locale.h/langinfo.h, forget about setlocale */
+#ifndef CODESET
+#undef HAVE_SETLOCALE
 #endif
 
 /* nl_langinfo(CODESET) is broken on many systems.  If HAVE_SETLOCALE is undefined,
@@ -223,6 +225,32 @@ int utf8_decode_fwrd(unsigned char **p,int *plen)
 	return c;
 }
 
+/* Get next character from string and advance it, locale dependent */
+
+int fwrd_c(unsigned char **s)
+{
+	if (locale_map->type)
+		return utf8_decode_fwrd(s, NULL);
+	else {
+		int c = **s;
+		*s = *s + 1;
+		return c;
+	}
+}
+
+/* Copy character from one string to another */
+
+void copy_c(unsigned char **d, unsigned char **s)
+{
+	if (locale_map->type) {
+		*d += utf8_encode(*d, utf8_decode_fwrd(s, NULL));
+	} else if (**s) {
+		**d = **s;
+		(*s)++;
+		(*d)++;
+	}
+}
+
 /* For systems (BSD) with no nl_langinfo(CODESET) */
 
 /*
@@ -417,9 +445,6 @@ void joe_locale()
 	if (!locale_map_non_utf8)
 		locale_map_non_utf8 = find_charmap(USTR "ascii");
 
-	fdefault.charmap = locale_map;
-	pdefault.charmap = locale_map;
-
 /*
 	printf("Character set is %s\n",locale_map->name);
 
@@ -438,8 +463,6 @@ void joe_locale()
 /* For no locale support */
 #ifdef junk
 	locale_map = find_charmap("ascii");
-	fdefault.charmap = locale_map;
-	pdefault.charmap = locale_map;
 #endif
 	init_gettext(locale_msgs);
 }
@@ -498,73 +521,69 @@ int from_utf8(struct charmap *map,unsigned char *s)
 #endif
 }
 
-void my_iconv(unsigned char *dest, size_t destsiz, struct charmap *dest_map,
+unsigned char *my_iconv(unsigned char *dest,struct charmap *dest_map,
               unsigned char *src, struct charmap *src_map)
 {
 	if (dest_map == src_map) {
-		zlcpy (dest, destsiz, src);
-		return;
+		return vscpyz(dest, src);
 	}
 
 	if (src_map->type) {
 		/* src is UTF-8 */
 		if (dest_map->type) {
 			/* UTF-8 to UTF-8? */
-			zlcpy (dest, destsiz, src);
+			dest = vscpyz(dest, src);
 		} else {
-			--destsiz;
 			/* UTF-8 to non-UTF-8 */
-			while (*src && destsiz) {
+			dest = vsensure(dest, zlen(src) / 2);
+			dest = vstrunc(dest, 0);
+			while (*src) {
 				int len = -1;
 				int c = utf8_decode_fwrd(&src, &len);
 				if (c >= 0) {
 					int d = from_uni(dest_map, c);
 					if (d >= 0)
-						*dest++ = d;
+						dest = vsadd(dest, d);
 					else
-						*dest++ = '?';
+						dest = vsadd(dest, '?');
 				} else
-					*dest++ = 'X';
-				--destsiz;
+					dest = vsadd(dest, 'X');
 			}
-			*dest = 0;
 		}
 	} else {
 		/* src is not UTF-8 */
 		if (!dest_map->type) {
 			/* Non UTF-8 to non-UTF-8 */
-			--destsiz;
-			while (*src && destsiz) {
+			dest = vsensure(dest, zlen(src));
+			dest = vstrunc(dest, 0);
+			while (*src) {
 				int c = to_uni(src_map, *src++);
 				int d;
 				if (c >= 0) {
 					d = from_uni(dest_map, c);
 					if (d >= 0)
-						*dest++ = d;
+						dest = vsadd(dest, d);
 					else
-						*dest++ = '?';
+						dest = vsadd(dest, '?');
 				} else
-					*dest++ = '?';
-				--destsiz;
+					dest = vsadd(dest, '?');
 			}
-			*dest = 0;
 		} else {
 			/* Non-UTF-8 to UTF-8 */
-			--destsiz;
-			while (*src && destsiz >= 6) {
+			dest = vsensure(dest, zlen(src) * 3);
+			dest = vstrunc(dest, 0);
+			while (*src) {
 				int c = to_uni(src_map, *src++);
 				if (c >= 0) {
-					int l = utf8_encode(dest, c);
-					destsiz -= l;
-					dest += l;
-				} else {
-					*dest++ = '?';
-					--destsiz;
-				}
+					dest = vsensure(dest, vslen(dest) + 10);
+					obj_len(dest) += utf8_encode(dest + obj_len(dest), c);
+					dest[obj_len(dest)] = 0;
+				} else
+					dest = vsadd(dest, '?');
 			}
-			*dest = 0;
 		}
 	}
+	return dest;
 }
 
 /* Guess character set */

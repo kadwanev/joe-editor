@@ -2,12 +2,32 @@
 
 #include "config.h"
 
+#ifdef JOEWIN
+#include "joedata.h"
+#endif
+
 /* Common header files */
 
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <math.h>
+#include <stdarg.h>
+
+#ifdef JOEWIN
+/* Windows header */
+#define WIN32_LEAN_AND_MEAN
+#include "jwwin.h"
+
+/* Things defined in windows.h that we don't want... */
+#undef HTSIZE
+#undef ERROR
+#undef small
+
+/* Other headers */
+#include <io.h>
+#include <assert.h>
+#endif
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -39,16 +59,21 @@ typedef int pid_t;
 #include <time.h>
 #endif
 
-#define joe_gettext(s) my_gettext((unsigned char *)(s))
+#ifdef HAVE_UCONTEXT_H
 
-/*
-#ifdef ENABLE_NLS
-#include <libintl.h>
-#define joe_gettext(s) (unsigned char *)gettext((char *)(s))
-#else
-#define joe_gettext(s) ((unsigned char *)(s))
+#ifndef __sparc /* Makecontext is broken in many version of solaris */
+#define USE_UCONTEXT 1
 #endif
-*/
+
+#endif
+
+#ifdef USE_UCONTEXT
+#include <ucontext.h>
+#else
+#include <setjmp.h>
+#endif
+
+#define joe_gettext(s) my_gettext((unsigned char *)(s))
 
 /* Strings needing translation are marked with this macro */
 #define _(s) (s)
@@ -116,13 +141,19 @@ typedef int pid_t;
 #endif
 
 /* Largest signed integer */
+#ifndef MAXINT
 #define MAXINT  ((((unsigned int)-1)/2)-1)
+#endif
 
 /* Largest signed long */
+#ifndef MAXLONG
 #define MAXLONG ((((unsigned long)-1L)/2)-1)
+#endif
 
 /* Largest signed long long */
+#ifndef MAXLONGLONG
 #define MAXLONGLONG ((((unsigned long long)-1L)/2)-1)
+#endif
 
 /* Largest off_t */
 /* BSD provides a correct OFF_MAX macro, but AIX provides a broken one,
@@ -142,6 +173,13 @@ typedef int pid_t;
 #define EOF -1
 #endif
 #define NO_MORE_DATA EOF
+
+#ifndef JOEWIN
+
+/* This is defined as a function in Windows build since it is computed at runtime */
+#define JOEDATA_PLUS(x) (JOEDATA x)
+
+#endif
 
 #if defined __MSDOS__ && SIZEOF_INT == 2 /* real mode ms-dos compilers */
 #if SIZEOF_VOID_P == 4 /* real mode ms-dos compilers with 'far' memory model or something like that */
@@ -183,8 +221,7 @@ typedef int pid_t;
 /* These do not belong here. */
 
 /* #define KEYS		256 */
-#define KEYS 267	/* 256 ascii + mdown, mup, mdrag, m2down, m2up, m2drag,
-                                        m3down, m3up, m3drag */
+#define KEYS		273	/* 256 ascii + mouse */
 #define KEY_MDOWN	256
 #define KEY_MUP		257
 #define KEY_MDRAG	258
@@ -196,8 +233,13 @@ typedef int pid_t;
 #define KEY_M3DRAG	264
 #define KEY_MWUP	265
 #define KEY_MWDOWN	266
+#define KEY_MRDOWN	267
+#define KEY_MRUP	268
+#define KEY_MRDRAG	269
+#define KEY_MMDOWN	270
+#define KEY_MMUP	271
+#define KEY_MMDRAG	272
 
-#define stdsiz		8192
 #define FITHEIGHT	4		/* Minimum text window height */
 #define LINCOLS		10
 #define NPROC		8		/* Number of processes we keep track of */
@@ -221,7 +263,7 @@ typedef struct hash HASH;
 typedef struct kmap KMAP;
 typedef struct kbd KBD;
 typedef struct key KEY;
-typedef struct watom WATOM;
+typedef struct watom WATOM; /* \ odd character */
 typedef struct screen Screen;
 typedef struct window W;
 typedef struct base BASE;
@@ -242,6 +284,8 @@ typedef struct vfile VFILE;
 typedef struct highlight_state HIGHLIGHT_STATE;
 typedef struct mpx MPX;
 typedef struct jfile JFILE;
+typedef struct obj Obj;
+typedef struct coroutine Coroutine;
 
 /* Structure which are passed by value */
 
@@ -253,6 +297,13 @@ struct highlight_state {
 
 /* Include files */
 
+#ifdef JOEWIN
+#include "jwcolors.h"
+#endif
+
+#include "obj.h"
+#include "libcoro.h"
+#include "coroutine.h"
 #include "b.h"
 #include "blocks.h"
 #include "bw.h"
@@ -293,9 +344,15 @@ struct highlight_state {
 #include "utag.h"
 #include "utf8.h"
 #include "utils.h"
-#include "va.h"
 #include "vfile.h"
-#include "vs.h"
 #include "w.h"
 #include "gettext.h"
 #include "builtin.h"
+
+#ifdef JOEWIN
+#include "jwglobals.h"
+#include "jwglue.h"
+#include "bupdates.h"
+#include "uwindows.h"
+#include "jwutils.h"
+#endif

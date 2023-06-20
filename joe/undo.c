@@ -100,6 +100,9 @@ static void doundo(BW *bw, UNDOREC *ptr)
 	if (bw->b->changed && !ptr->changed)
 		bw_unlock(bw);
 	bw->b->changed = ptr->changed;
+#ifdef JOEWIN
+	notify_changed_buffer(bw->b);
+#endif
 }
 
 int uundo(BW *bw)
@@ -447,6 +450,9 @@ int unotmod(BW *bw)
 	bw_unlock(bw);
 	bw->b->changed = 0;
 	msgnw(bw->parent, joe_gettext(_("Modified flag cleared")));
+#ifdef JOEWIN
+	notify_changed_buffer(bw->b);
+#endif
 	return 0;
 }
 
@@ -488,13 +494,13 @@ void save_yank(FILE *f)
 void load_yank(FILE *f)
 {
 	UNDOREC *rec;
-	unsigned char buf[SMALL*4+80];
-	unsigned char bf[SMALL+1];
-	while(fgets((char *)buf,sizeof(buf)-1,f) && zcmp(buf,USTR "done\n")) {
+	unsigned char *buf = vsmk(1024);
+	unsigned char *bf = vsmk(1024);
+	while(vsgets(&buf,f) && zcmp(buf,USTR "done")) {
 		unsigned char *p = buf;
 		int len;
 		parse_ws(&p,'#');
-		len = parse_string(&p,bf,sizeof(bf));
+		len = parse_string(&p,&bf);
 		if (len>0 && len<=SMALL) {
 			if (++nyanked == MAX_YANK) {
 				frrec(deque_f(UNDOREC, link, yanked.link.next));

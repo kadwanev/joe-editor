@@ -8,6 +8,8 @@
 
 #include "types.h"
 
+static int map_name_cmp(unsigned char *a,unsigned char *b);
+
 /* Convert from byte code to unicode.  Returns -1 for unknown. */
 
 int to_uni(struct charmap *cset, int c)
@@ -38,12 +40,21 @@ int from_uni(struct charmap *cset, int c)
 
 /* Builtin maps */
 
-/* Aliases */
-
-static struct {
+struct alias_table_s {
 	unsigned char *alias;
 	unsigned char *builtin;
-} alias_table[] = {
+};
+
+struct builtin_charmap {
+	unsigned char *name;
+	int to_uni[256];
+};
+
+#ifndef JOEWIN
+
+/* Aliases */
+
+static struct alias_table_s alias_table[] = {
 	{ USTR "c", USTR "ascii" },
 	{ USTR "posix", USTR "ascii" },
 	{ USTR "8859-1", USTR "iso-8859-1" },
@@ -82,11 +93,6 @@ static struct {
 };
 
 /* I took all the ISO-8859- ones, plus any ones referenced by a locale */
-
-struct builtin_charmap {
-	unsigned char *name;
-	int to_uni[256];
-};
 
 static struct builtin_charmap builtin_charmaps[]=
 {
@@ -950,6 +956,186 @@ static struct builtin_charmap builtin_charmaps[]=
 	0x00f8, 0x00f9, 0x00fa, 0x00fb, 0x00fc, 0x00fd, 0x00fe, 0x00ff } }
 };
 
+#else //JOEWIN
+
+/*
+** Use Windows code pages rather than bake them in for JOEWIN.
+*/
+
+struct windows_code_page
+{
+    int              present;
+    int              codepage;
+    unsigned char    *primaryname;
+    unsigned char    *aliases[4];
+};
+
+/* See http://msdn.microsoft.com/en-us/library/dd317756(VS.85).aspx */
+static struct windows_code_page wincp[] = {
+    { 0, 437,   USTR "ibm437",         { USTR "dos-us", NULL } },
+    { 0, 874,   USTR "windows-874",    { USTR "thai", USTR "tis-620", NULL } },
+    { 0, 1250,  USTR "windows-1250",   { NULL } },
+    { 0, 1251,  USTR "windows-1251",   { USTR "windows-cyrillic", USTR "cp1251", NULL } },
+    { 0, 1252,  USTR "windows-1252",   { USTR "windows-latin1", NULL } },
+    { 0, 1253,  USTR "windows-1253",   { USTR "windows-greek", NULL } },
+    { 0, 1254,  USTR "windows-1254",   { USTR "windows-turkish", NULL } },
+    { 0, 1255,  USTR "windows-1255",   { USTR "windows-hebrew", USTR "cp1255", NULL } },
+    { 0, 1256,  USTR "windows-1256",   { USTR "windows-arabic", USTR "cp1256", NULL } },
+    { 0, 1257,  USTR "windows-1257",   { USTR "windows-baltic", NULL } },
+    { 0, 1258,  USTR "windows-1258",   { USTR "windows-vietnamese", NULL } },
+    { 0, 20127, USTR "ascii",          { USTR "c", USTR "posix", NULL } },
+    { 0, 20866, USTR "koi8-r",         { NULL } },
+    { 0, 21866, USTR "koi8-u",         { NULL } },
+    { 0, 28591, USTR "iso-8859-1",     { USTR "latin1", NULL } },
+    { 0, 28592, USTR "iso-8859-2",     { USTR "latin2", NULL } },
+    { 0, 28593, USTR "iso-8859-3",     { USTR "latin3", NULL } },
+    { 0, 28594, USTR "iso-8859-4",     { USTR "baltic", USTR "latin4", NULL } },
+    { 0, 28595, USTR "iso-8859-5",     { USTR "cyrillic", NULL } },
+    { 0, 28596, USTR "iso-8859-6",     { USTR "arabic", NULL } },
+    { 0, 28597, USTR "iso-8859-7",     { USTR "greek", NULL } },
+    { 0, 28598, USTR "iso-8859-8",     { USTR "hebrew", NULL } },
+    { 0, 28599, USTR "iso-8859-9",     { USTR "turkish", USTR "latin5", NULL } },
+    { 0, 28600, USTR "iso-8859-10",    { USTR "nordic", USTR "latin6", NULL } },
+    { 0, 28603, USTR "iso-8859-13",    { USTR "latin7", NULL } },
+    { 0, 28605, USTR "iso-8859-15",    { USTR "latin9", NULL } },
+    { 0, -1 },
+};
+
+static struct alias_table_s *alias_table;
+
+static void init_wincp()
+{
+	int i, t, n;
+	int alias_total = 0;
+	
+	/* Find out what codepages this system really has and count how many aliases we need */
+	for (i = 0; wincp[i].codepage != -1; i++)
+	{
+		struct windows_code_page *p = &wincp[i];
+		
+		if (IsValidCodePage(p->codepage))
+		{
+			CPINFOEXW cpinfo;
+			GetCPInfoExW(p->codepage, 0, &cpinfo);
+			if (cpinfo.MaxCharSize != 1)
+			{
+				// Maximum character size isn't 1!  What's this codepage doing here?
+				assert(0);
+			}
+			else
+			{
+				p->present = 1;
+				for (t = 0; p->aliases[t]; t++)
+				{
+					++alias_total;
+				}
+			}
+		}
+	}
+	
+	alias_table = (struct alias_table_s*)malloc(sizeof(struct alias_table_s) * (alias_total + 1));
+	
+	for (n = 0, i = 0; wincp[i].codepage != -1; i++)
+	{
+		if (wincp[i].present)
+		{
+			struct windows_code_page *p = &wincp[i];
+			for (t = 0; p->aliases[t]; t++, n++)
+			{
+				alias_table[n].alias = p->aliases[t];
+				alias_table[n].builtin = p->primaryname;
+			}
+		}
+	}
+
+	alias_table[alias_total].alias = NULL;
+	alias_table[alias_total].builtin = NULL;
+}
+
+static void fix_wincp(int cp, struct builtin_charmap *map);
+
+static struct builtin_charmap *load_wincp(unsigned char *cpname)
+{
+	struct builtin_charmap *result;
+	int i;
+	int cp = -1;
+	unsigned char *name;
+	
+	for (i = 0; wincp[i].codepage != -1; i++)
+	{
+		if (wincp[i].present && !map_name_cmp(wincp[i].primaryname, cpname))
+		{
+			cp = wincp[i].codepage;
+			name = wincp[i].primaryname;
+			break;
+		}
+	}
+	
+	if (cp == -1)
+	{
+		return NULL;
+	}
+	
+	result = (struct builtin_charmap*)malloc(sizeof(struct builtin_charmap));
+	result->name = name;
+	result->to_uni[0] = 0; /* special case */
+	for (i = 1; i < 256; i++)
+	{
+		unsigned char input[2];
+		wchar_t output[3];
+		int ret;
+		
+		input[0] = (unsigned char)i;
+		input[1] = 0;
+		
+		ret = MultiByteToWideChar(cp, MB_ERR_INVALID_CHARS, input, 1, output, 3);
+		if (ret == 0)
+		{
+			// Invalid code point.
+			result->to_uni[i] = -1;
+		}
+		else if (ret == 1)
+		{
+			result->to_uni[i] = (int)output[0];
+		}
+		else
+		{
+			// MultiByteToWideChar just returned something weird.  Did it hand back a surrogate?
+			assert(0);
+			result->to_uni[i] = -1;
+		}
+	}
+
+	fix_wincp(cp, result);
+	
+	return result;
+}
+
+static void fix_wincp(int cp, struct builtin_charmap *map)
+{
+    /* Manually fix certain code pages */
+
+    if (cp == 20127)
+    {
+        int i;
+        /* ASCII: Clear the higher range (Windows starts over at 0 for 128-255 */
+        for (i = 128; i < 256; i++) map->to_uni[i] = -1;
+    }
+    else if (cp == 437)
+    {
+        int i;
+        /* IBM437 (DOS-US): Remove control codes at bottom, replace with the actual glyphs (except tab, CR and LF) */
+        unsigned short lower_points[32] =
+        { 0x0000, 0x263A, 0x263B, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022, 0x25D8, 0x0009, 0x000A, 0x2642, 0x2640, 0x000D, 0x266B, 0x263C,
+          0x25BA, 0x25C4, 0x2195, 0x203C, 0x00B6, 0x00A7, 0x25AC, 0x21A8, 0x2191, 0x2193, 0x2192, 0x2190, 0x221F, 0x2194, 0x25B2, 0x25BC };
+        /* Yes, I know this is what I'm trying to get away from, but it's just a wafer-thin mint */
+        for (i = 0; i < 32; i++) map->to_uni[i] = lower_points[i];
+    }
+
+}
+
+#endif //!JOEWIN
+
 /* For qsort() */
 
 static int pair_cmp(struct pair *a,struct pair *b)
@@ -1154,14 +1340,19 @@ static void load_builtins(void)
 	for (y=0; y!=sizeof(builtin_charmaps)/sizeof(struct builtin_charmap); ++y)
 		process_builtin(builtin_charmaps + y);
 	*/
+
+#ifdef JOEWIN
+	/* Scan codepages and load aliases */
+	init_wincp();
+#endif
 }
 
 /* Parse character map file */
 
 struct builtin_charmap *parse_charmap(unsigned char *name,FILE *f)
 {
-	unsigned char buf[1024];
-	unsigned char bf1[1024];
+	unsigned char *buf = 0;
+	unsigned char *bf1 = 0;
 	unsigned comment_char = '#';
 	int in_map = 0;
 	int x;
@@ -1179,17 +1370,17 @@ struct builtin_charmap *parse_charmap(unsigned char *name,FILE *f)
 		b->to_uni[x]= -1;
 
 	/* This is a _really_bad_ parser.  The file has to be perfect. */
-	while (fgets((char *)buf,1023,f)) {
+	while (vsgets(&buf,f)) {
 		unsigned char *p = buf;
 		parse_ws(&p, comment_char);
-		parse_tows(&p, bf1);
+		parse_tows(&p, &bf1);
 		if (!zcmp(bf1,USTR "<comment_char>")) {
 			parse_ws(&p, comment_char);
-			parse_tows(&p, bf1);
+			parse_tows(&p, &bf1);
 			comment_char = bf1[0];
 		} else if (!zcmp(bf1,USTR "<escape_char>")) {
 			parse_ws(&p, comment_char);
-			parse_tows(&p, bf1);
+			parse_tows(&p, &bf1);
 		} else if (!zcmp(bf1,USTR "CHARMAP")) {
 			in_map = 1;
 		} else if (!zcmp(bf1,USTR "END")) {
@@ -1199,7 +1390,7 @@ struct builtin_charmap *parse_charmap(unsigned char *name,FILE *f)
 			int byt;
 			sscanf((char *)bf1+2,"%x",(unsigned *)&uni);
 			parse_ws(&p, comment_char);
-			parse_tows(&p, bf1);
+			parse_tows(&p, &bf1);
 			sscanf((char *)bf1+2,"%x",(unsigned *)&byt);
 			b->to_uni[byt]=uni;
 		}
@@ -1236,7 +1427,7 @@ static int map_up(int c)
 		return c;
 }
 
-int map_name_cmp(unsigned char *a,unsigned char *b)
+static int map_name_cmp(unsigned char *a,unsigned char *b)
 {
 	while (*a=='-') ++a;
 	while (*b=='-') ++b;
@@ -1256,7 +1447,7 @@ int map_name_cmp(unsigned char *a,unsigned char *b)
 
 struct charmap *find_charmap(unsigned char *name)
 {
-	unsigned char buf[1024];
+	unsigned char *buf = 0;
 	unsigned char *p;
 	struct charmap *m;
 	struct builtin_charmap *b;
@@ -1286,13 +1477,17 @@ struct charmap *find_charmap(unsigned char *name)
 	p = (unsigned char *)getenv("HOME");
 	f = 0;
 	if (p) {
-		joe_snprintf_2(buf,sizeof(buf),"%s/.joe/charmaps/%s",p,name);
+#ifndef JOEWIN
+		buf = vsfmt(buf, 0, USTR "%s/.joe/charmaps/%s",p,name);
+#else
+		buf = vsfmt(buf, 0, USTR "%s\\charmaps\\%s",p,name);
+#endif
 		f = fopen((char *)buf,"r");
 	}
 
 	/* Check JOERCcharmaps */
 	if (!f) {
-		joe_snprintf_2(buf,sizeof(buf),"%scharmaps/%s",JOEDATA,name);
+		buf = vsfmt(buf, 0, USTR "%scharmaps/%s",JOEDATA,name);
 		f = fopen((char *)buf,"r");
 	}
 
@@ -1300,10 +1495,21 @@ struct charmap *find_charmap(unsigned char *name)
 	if (f && (b = parse_charmap(name,f)))
 		return process_builtin(b);
 
+#ifndef JOEWIN
 	/* Check builtin sets */
 	for (y=0; y!=sizeof(builtin_charmaps)/sizeof(struct builtin_charmap); ++y)
 		if (!map_name_cmp(builtin_charmaps[y].name,name))
 			return process_builtin(builtin_charmaps + y);
+#else
+	{
+		struct builtin_charmap *map;
+		map = load_wincp(name);
+		if (map)
+		{
+			return process_builtin(map);
+		}
+	}
+#endif
 
 	return NULL;
 }
@@ -1334,17 +1540,29 @@ unsigned char **get_encodings()
 	unsigned char *r;
 	unsigned char *oldpwd = pwd();
 	unsigned char *p;
-	unsigned char buf[1024];
+	unsigned char *buf = 0;
 
 	/* Builtin maps */
 
 	r = vsncpy(NULL,0,sc("utf-8"));	
 	encodings = vaadd(encodings, r);
+	vaperm(encodings);
 
+#ifndef JOEWIN
 	for (y=0; y!=sizeof(builtin_charmaps)/sizeof(struct builtin_charmap); ++y) {
 		r = vsncpy(NULL,0,sz(builtin_charmaps[y].name));
 		encodings = vaadd(encodings, r);
 	}
+#else
+	for (y = 0; wincp[y].codepage != -1; y++)
+	{
+		if (wincp[y].present)
+		{
+			r = vsncpy(NULL, 0, sz(wincp[y].primaryname));
+			encodings = vaadd(encodings, r);
+		}
+	}
+#endif
 
 	/* Aliases */
 
@@ -1357,34 +1575,36 @@ unsigned char **get_encodings()
 
 	p = (unsigned char *)getenv("HOME");
 	if (p) {
-		joe_snprintf_1(buf,sizeof(buf),"%s/.joe/charmaps",p);
+#ifndef JOEWIN
+		buf = vsfmt(buf, 0, USTR "%s/.joe/charmaps",p);
+#else
+		buf = vsfmt(buf, 0, USTR "%s\\charmaps",p);
+#endif
 		if (!chpwd(buf) && (t = rexpnd(USTR "*"))) {
-			for (x = 0; x != aLEN(t); ++x)
+			for (x = 0; x != valen(t); ++x)
 				if (zcmp(t[x],USTR "..")) {
-					for (y = 0; y != aLEN(encodings); ++y)
+					for (y = 0; y != valen(encodings); ++y)
 						if (!zcmp(t[x],encodings[y]))
 							break;
-					if (y == aLEN(encodings)) {
+					if (y == valen(encodings)) {
 						r = vsncpy(NULL,0,sv(t[x]));
 						encodings = vaadd(encodings,r);
 					}
 				}
-			varm(t);
 		}
 	}
 
-	if (!chpwd(USTR (JOEDATA "charmaps")) && (t = rexpnd(USTR "*"))) {
-		for (x = 0; x != aLEN(t); ++x)
+	if (!chpwd(USTR (JOEDATA_PLUS("charmaps"))) && (t = rexpnd(USTR "*"))) {
+		for (x = 0; x != valen(t); ++x)
 			if (zcmp(t[x],USTR "..")) {
-				for (y = 0; y != aLEN(encodings); ++y)
+				for (y = 0; y != valen(encodings); ++y)
 					if (!zcmp(t[x],encodings[y]))
 						break;
-				if (y == aLEN(encodings)) {
+				if (y == valen(encodings)) {
 					r = vsncpy(NULL,0,sv(t[x]));
 					encodings = vaadd(encodings,r);
 				}
 			}
-		varm(t);
 	}
 
 	chpwd(oldpwd);

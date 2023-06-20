@@ -28,6 +28,116 @@ int joe_ispunct(int wide,struct charmap *map,int c)
 }
 #endif
 
+int escape(int utf8,unsigned char **a, int *b)
+{
+	int c;
+	unsigned char *s = *a;
+	int l = *b;
+
+	if (*s == '\\' && l >= 2) {
+		++s; --l;
+		switch (*s) {
+		case 'n':
+			c = 10;
+			++s; --l;
+			break;
+		case 't':
+			c = 9;
+			++s; --l;
+			break;
+		case 'a':
+			c = 7;
+			++s; --l;
+			break;
+		case 'b':
+			c = 8;
+			++s; --l;
+			break;
+		case 'f':
+			c = 12;
+			++s; --l;
+			break;
+		case 'e':
+			c = 27;
+			++s; --l;
+			break;
+		case 'r':
+			c = 13;
+			++s; --l;
+			break;
+		case '8':
+			c = 8;
+			++s; --l;
+			break;
+		case '9':
+			c = 9;
+			++s; --l;
+			break;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+			c = *s - '0';
+			++s; --l;
+			if (l > 0 && *s >= '0' && *s <= '7') {
+				c = c * 8 + s[1] - '0';
+				++s; --l;
+			}
+			if (l > 0 && *s >= '0' && *s <= '7') {
+				c = c * 8 + s[1] - '0';
+				++s; --l;
+			}
+			break;
+		case 'x':
+		case 'X':
+			c = 0;
+			++s; --l;
+			if (l > 0 && *s >= '0' && *s <= '9') {
+				c = c * 16 + *s - '0';
+				++s; --l;
+			} else if (l > 0 && *s >= 'A' && *s <= 'F') {
+				c = c * 16 + *s - 'A' + 10;
+				++s; --l;
+			} else if (l > 0 && *s >= 'a' && *s <= 'f') {
+				c = c * 16 + *s - 'a' + 10;
+				++s; --l;
+			}
+
+			if (l > 0 && *s >= '0' && *s <= '9') {
+				c = c * 16 + *s - '0';
+				++s; --l;
+			} else if (l > 0 && *s >= 'A' && *s <= 'F') {
+				c = c * 16 + *s - 'A' + 10;
+				++s; --l;
+			} else if (l > 0 && *s >= 'a' && *s <= 'f') {
+				c = c * 16 + *s - 'a' + 10;
+				++s; --l;
+			}
+			break;
+		default:
+			if (utf8)
+				c = utf8_decode_fwrd(&s, &l);
+			else {
+				c = *s++;
+				--l;
+			}
+			break;
+		}
+	} else if (utf8) {
+		c = utf8_decode_fwrd(&s,&l);
+	} else {
+		c = *s++;
+		--l;
+	}
+	*a = s;
+	*b = l;
+	return c;
+}
+
 /*
  * return minimum/maximum of two numbers
  */
@@ -116,11 +226,15 @@ ssize_t joe_write(int fd, void *buf, size_t size)
 
 int joe_ioctl(int fd, int req, void *ptr)
 {
+#ifdef JOEWIN
+	return -1;
+#else
 	int rt;
 	do {
 		rt = ioctl(fd, req, ptr);
 	} while (rt == -1 && errno == EINTR);
 	return rt;
+#endif
 }
 
 /* Heap checking versions of malloc() */
@@ -249,8 +363,6 @@ void joe_free(void *ptr)
 
 #else
 
-/* Normal malloc() */
-
 void *joe_malloc(size_t size)
 {
 	void *p = malloc(size);
@@ -376,70 +488,81 @@ unsigned char *zrchr(unsigned char *s, int c)
 	return (unsigned char *)strrchr((char *)s,c);
 }
 
-#ifdef junk
-
-void *replenish(void **list,int size)
+int filecmp(unsigned char* s1, unsigned char* s2)
 {
-	unsigned char *i = joe_malloc(size*16);
-	int x;
-	for (x=0; x!=15; ++x) {
-		fr_single(list, i);
-		i += size;
-	}
-	return i;
-}
-
-/* Destructors */
-
-GC *gc_free_list = 0;
-
-void gc_add(GC **gc, void **var, void (*rm)(void *val))
-{
-	GC *g;
-	for (g = *gc; g; g=g->next)
-		if (g->var == var)
-			return;
-	g = al_single(&gc_free_list, GC);
-	g = gc_free_list;
-	gc_free_list = g->next;
-	g->next = *gc;
-	*gc = g;
-	g->var = var;
-	g->rm = rm;
-}
-
-void gc_collect(GC **gc)
-{
-	GC *g = *gc;
-	while (g) {
-		GC *next = g->next;
-		if (*g->var) {
-			g->rm(*g->var);
-			*g->var = 0;
+#ifndef JOEWIN
+	return zcmp(s1, s2);
+#else
+	if (!s1 || !s2)
+	{
+		if (!s1 && !s2)
+		{
+			return 0;
 		}
-		fr_single(&gc_free_list,g);
-		g = next;
+
+		return s1 ? 1 : -1;
 	}
-	*gc = 0;
-}
 
+	for (;; s1++, s2++)
+	{
+		unsigned char c1 = *s1, c2 = *s2;
+		
+		if (!c1 || !c2)
+		{
+			if (!c1 && !c2)
+			{
+				return 0;
+			}
+
+			return c1 ? 1 : -1;
+		}
+
+		if (c1 == c2)
+		{
+			/* Pass */
+		}
+		else if ((c1 == '\\' || c1 == '/') && (c2 == '\\' || c2 == '/'))
+		{
+			/* Pass */
+		}
+		else if (tolower(c1) == tolower(c2))
+		{
+			/* Pass */
+		}
+		else if (c1 < c2)
+		{
+			return -1;
+		}
+		else
+		{
+			return 1;
+		}
+	}
 #endif
-
-/* Zstrings */
-
-void rm_zs(ZS z)
-{
-	joe_free(z.s);
 }
 
-ZS raw_mk_zs(GC **gc,unsigned char *s,int len)
+int fullfilecmp(unsigned char *f1, unsigned char *f2)
 {
-	ZS zs;
-	zs.s = (unsigned char *)joe_malloc(len+1);
-	if (len)
-		memcpy(zs.s,s,len);
-	zs.s[len] = 0;
-	return zs;
+#ifndef JOEWIN
+	return zcmp(f1, f2);
+#else
+	wchar_t wf1[MAX_PATH + 1], wf2[MAX_PATH + 1];
+
+	if (utf8towcs(wf1, f1, MAX_PATH) || utf8towcs(wf2, f2, MAX_PATH))
+	{
+		/* Can't convert! */
+		assert(FALSE);
+		return filecmp(f1, f2);
+	}
+
+	if (fixpath(wf1, MAX_PATH) || fixpath(wf2, MAX_PATH))
+	{
+		return filecmp(f1, f2);
+	}
+
+	/* Is this really the way to compare filenames in every locale? */
+	return wcsicmp(wf1, wf2);
+#endif
 }
 
 #ifndef SIG_ERR
@@ -494,31 +617,38 @@ int parse_ws(unsigned char **pp,int cmt)
 
 /* Parse an identifier into a buffer.  Identifier is truncated to a maximum of len-1 chars. */
 
-int parse_ident(unsigned char **pp, unsigned char *buf, int len)
+int parse_ident(unsigned char **pp, unsigned char **buf)
 {
 	unsigned char *p = *pp;
+	unsigned char *bf = *buf;
+	bf = vstrunc(bf, 0);
 	if (joe_isalpha_(locale_map,*p)) {
-		while(len > 1 && joe_isalnum_(locale_map,*p))
-			*buf++= *p++, --len;
-		*buf=0;
+		while(joe_isalnum_(locale_map,*p)) {
+			bf = vsadd(bf, *p++);
+		}
 		while(joe_isalnum_(locale_map,*p))
 			++p;
 		*pp = p;
+		*buf = bf;
 		return 0;
-	} else
+	} else {
+		*buf = bf;
 		return -1;
+	}
 }
 
 /* Parse to next whitespace */
 
-int parse_tows(unsigned char **pp, unsigned char *buf)
+int parse_tows(unsigned char **pp, unsigned char **bf)
 {
+	unsigned char *buf = *bf;
 	unsigned char *p = *pp;
+	buf = vstrunc(buf, 0);
 	while (*p && *p!=' ' && *p!='\t' && *p!='\n' && *p!='\r' && *p!='#')
-		*buf++ = *p++;
+		buf = vsadd(buf, *p++);
 
 	*pp = p;
-	*buf = 0;
+	*bf = buf;
 	return 0;
 }
 
@@ -611,29 +741,24 @@ int parse_long(unsigned char **pp, long *buf)
  * -1 if there is no string or if the input ended before the terminating ".
  */
 
-int parse_string(unsigned char **pp, unsigned char *buf, int len)
+int parse_string(unsigned char **pp, unsigned char **dst)
 {
-	unsigned char *start = buf;
+	unsigned char *start = vstrunc(*dst, 0);
 	unsigned char *p= *pp;
 	if(*p=='\"') {
 		++p;
-		while(len > 1 && *p && *p!='\"') {
+		while(*p && *p!='\"') {
 			int x = 50;
 			int c = escape(0, &p, &x);
-			*buf++ = c;
-			--len;
+			start = vsadd(start, c);
 		}
-		*buf = 0;
-		while(*p && *p!='\"')
-			if(*p=='\\' && p[1])
-				p += 2;
-			else
-				p++;
 		if(*p == '\"') {
 			*pp = p + 1;
-			return buf - start;
+			*dst = start;
+			return vslen(start);
 		}
 	}
+	*dst = 0;
 	return -1;
 }
 

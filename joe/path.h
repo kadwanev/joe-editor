@@ -67,7 +67,9 @@ int mkpath PARAMS((unsigned char *path));
 unsigned char *mktmp PARAMS((unsigned char *where));
 
 /* Change drive and directory */
+#ifndef JOEWIN /* Suppress a warning as this is handled in glue */
 #define chddir chdir
+#endif
 
 /* int rmatch(char *pattern,char *string);
  * Return true if string matches pattern
@@ -86,7 +88,7 @@ unsigned char *mktmp PARAMS((unsigned char *where));
  *  '-' may be specified in sets by placing it at the ends
  *  '[' may be specified in sets by placing it first
  */
-int rmatch PARAMS((unsigned char *a, unsigned char *b));
+int rmatch PARAMS((unsigned char *a, unsigned char *b, int fs));
 int isreg PARAMS((unsigned char *s));
 
 /* char **rexpnd(char *path,char *pattern);
@@ -99,5 +101,13 @@ unsigned char **rexpnd_users PARAMS((unsigned char *word));
 int chpwd PARAMS((unsigned char *path));
 unsigned char *pwd PARAMS((void));
 unsigned char *simplify_prefix PARAMS((unsigned char *path));
+
+#ifdef JOEWIN
+#define MATCHCANON(x) (tolower(x))
+#define ISDIRSEP(c) ((c)=='/'||(c)=='\\')
+#else
+#define MATCHCANON(x) (x)
+#define ISDIRSEP(c) ((c)=='/')
+#endif
 
 #endif

@@ -81,6 +81,12 @@ static int keyval(unsigned char *s)
 		else if(!zcmp(s,USTR "M3DOWN")) return KEY_M3DOWN;
 		else if(!zcmp(s,USTR "M3UP")) return KEY_M3UP;
 		else if(!zcmp(s,USTR "M3DRAG")) return KEY_M3DRAG;
+		else if(!zcmp(s,USTR "MRDOWN")) return KEY_MRDOWN;
+		else if(!zcmp(s,USTR "MRUP")) return KEY_MRUP;
+		else if(!zcmp(s,USTR "MRDRAG")) return KEY_MRDRAG;
+		else if(!zcmp(s,USTR "MMDOWN")) return KEY_MMDOWN;
+		else if(!zcmp(s,USTR "MMUP")) return KEY_MMUP;
+		else if(!zcmp(s,USTR "MMDRAG")) return KEY_MMDRAG;
 		else return s[0];
 	} else if (s[1] || !s[0])
 		return -1;
@@ -232,9 +238,9 @@ static KMAP *kbuild(CAP *cap, KMAP *kmap, unsigned char *seq, void *bind, int *e
 		s = jgetstr(cap, seq + 1);
 		seq[x] = c;
 		if (s && (s = tcompile(cap, s, 0, 0, 0, 0))
-		    && (sLEN(s) > 1 || (signed char)s[0] < 0)) {
+		    && (vslen(s) > 1 || (signed char)s[0] < 0)) {
 			capseq = s;
-			seql = sLEN(s);
+			seql = vslen(s);
 			for (seq += x; *seq == ' '; ++seq) ;
 		}
 #endif
@@ -347,30 +353,14 @@ int kdel(KMAP *kmap, unsigned char *seq)
 
 B *keymaphist=0;
 
-int dokeymap(BW *bw,unsigned char *s,void *object,int *notify)
-{
-	KMAP *k=ngetcontext(s);
-	vsrm(s);
-	if(notify) *notify=1;
-	if(!k) {
-		msgnw(bw->parent,joe_gettext(_("No such keymap")));
-		return -1;
-	}
-	rmkbd(bw->parent->kbd);
-	bw->parent->kbd=mkkbd(k);
-	return 0;
-}
-
 static unsigned char **keymap_list;
 
 static int keymap_cmplt(BW *bw)
 {
-	/* Reload every time: we should really check date of tags file...
-	  if (tag_word_list)
-	  	varm(tag_word_list); */
-
-	if (!keymap_list)
+	if (!keymap_list) {
 		keymap_list = get_keymap_list();
+		vaperm(keymap_list);
+	}
 
 	if (!keymap_list) {
 		ttputc(7);
@@ -382,6 +372,18 @@ static int keymap_cmplt(BW *bw)
 
 int ukeymap(BASE *bw)
 {
-	if (wmkpw(bw->parent,joe_gettext(_("Change keymap: ")),&keymaphist,dokeymap,USTR "keymap",NULL,keymap_cmplt,NULL,NULL,locale_map,0)) return 0;
-	else return -1;
+	unsigned char *s = ask(bw->parent, joe_gettext(_("Change keymap: ")),
+	&keymaphist,USTR "keymap",keymap_cmplt,locale_map,0,0,NULL);
+	if (s) {
+		KMAP *k=ngetcontext(s);
+		if(!k) {
+			msgnw(bw->parent,joe_gettext(_("No such keymap")));
+			return -1;
+		}
+		rmkbd(bw->parent->kbd);
+		bw->parent->kbd=mkkbd(k);
+		return 0;
+	} else {
+		return -1;
+	}
 }

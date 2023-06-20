@@ -25,10 +25,16 @@ struct bw {
 	int	linums;
 	int	top_changed;	/* Top changed */
 	struct lattr_db *db;	/* line attribute database */
+	unsigned char *prompt;
+	int promptofst;
+	int promptlen;
 };
 
 extern int dspasis;	/* Display characters above 127 as-is */
 extern int mid;		/* Controls how window scrolls: when set, scroll window enough so that line with cursor becomes centered */
+
+extern int selectmask;	/* Attribute mask for selected text */
+extern int selectatr;	/* Attribute value for selected text */
 
 void bwfllw PARAMS((BW *w));
 void bwfllwt PARAMS((BW *w));
@@ -37,7 +43,7 @@ void bwins PARAMS((BW *w, long int l, long int n, int flg));
 void bwdel PARAMS((BW *w, long int l, long int n, int flg));
 void bwgen PARAMS((BW *w, int linums));
 void bwgenh PARAMS((BW *w));
-BW *bwmk PARAMS((W *window, B *b, int prompt));
+BW *bwmk PARAMS((W *window, B *b, int prompt, unsigned char *ps));
 void bwmove PARAMS((BW *w, int x, int y));
 void bwresz PARAMS((BW *w, int wi, int he));
 void bwrm PARAMS((BW *w));
