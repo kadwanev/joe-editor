@@ -3,24 +3,24 @@
 # Needs lots of work...
 
 =Idle
-=Comment 	green
-=String 	cyan
-=Escape 	bold cyan
+=Comment
+=String		+Constant
+=StringEscape	+Escape
 
 :idle Idle
 	*		idle
 	";"		comment		recolor=-1
 	"\""		string		recolor=-1
 
-:comment Comment
+:comment Comment comment
 	*		comment
 	"\n"		idle
 
-:string String
+:string String string
 	*		string
 	"\""		idle
 	"\\"		string_escape	recolor=-1
 
-:string_escape Escape
+:string_escape StringEscape string
 	*		string
 	"\n"		string		recolor=-2

@@ -1,19 +1,31 @@
 # JOE syntax highlight file for Python
 
 =Idle
-=Comment 	green
-=Docstring	green
-=DocstringLabel	bold green
-=DocEscape	bold cyan
-=Constant 	cyan
-=Escape 	bold cyan
-=Keyword 	bold
-=Bad		bold red
-=Brace		magenta
+=Ident
+=Comment
+=Docstring	+Comment
+=DocstringLabel	+Docstring
+=DocEscape	+Escape +Docstring
+=Constant
+=String		+Constant
+=Number		+Constant
+=Boolean	+Constant
+=StringEscape	+Escape
+=Keyword
+=Statement	+Keyword
+=Loop		+Statement
+=Conditional	+Statement
+=StorageClass	+Type +Keyword
+=Operator	+Keyword
+=Bad
+=Brace
 
-=PrivateMember	yellow #fg_310 # brown
-=Decorator	red
-=Declaration	bold blue
+=DefinedIdent	+Ident
+=DefinedFunction +DefinedIdent
+=DefinedType	+DefinedIdent
+=SpecialIdent	+Ident
+=Decorator	+Define +Preproc
+=Builtin	+DefinedFunction
 
 :idle Idle
 	*		idle
@@ -38,81 +50,154 @@
 	"BFHNTX"	comment		noeat call=comment_todo.comment_todo()
 	"\n"		idle
 
-:first_digit Constant
+:first_digit Number
 	*		idle		noeat
 	"xX"		hex
 	"."		float
 	"eE"		epart
 	"0-9"		first_number
 
-:hex Constant
+:hex Number
 	*		idle		noeat
 	"0-9A-Fa-f"	hex
 
-:first_number Constant
+:first_number Number
 	*		idle		noeat
 	"0-9"		first_number
 	"."		float
 
-:maybe_float Constant
+:maybe_float Number
 	*		idle		recolor=-2	noeat
 	"0-9"		float		recolor=-2
 
-:float Constant
+:float Number
 	*		idle		noeat
 	"eE"		epart
 	"0-9"		float
 
-:epart Constant
+:epart Number
 	*		idle		noeat
 	"0-9+\-"	enum
 
-:enum Constant
+:enum Number
 	*		idle		noeat
 	"0-9"		enum
 
-:ident Idle
+:ident Ident
 	*		ident1		noeat buffer
 	"_"		priv_member	recolor=-1
 
-:ident1 Idle
+:ident1 Ident
 	*		idle		noeat strings
-	"and"		kw
-	"as"		kw
-	"assert"	kw
-	"break"		kw
-	"class"		declkw
-	"continue"	kw
-	"def"		declkw
-	"del"		kw
-	"elif"		kw
-	"else"		kw
-	"except"	kw
-	"exec"		kw
-	"finally"	kw
-	"for"		kw
-	"from"		kw
-	"global"	kw
-	"if"		kw
-	"import"	kw
-	"in"		kw
-	"is"		kw
+	"and"		oper
+	"as"		stmt
+	"assert"	stmt
+	"break"		loop
+	"class"		classstmt
+	"continue"	loop
+	"def"		defstmt
+	"del"		stmt
+	"elif"		cond
+	"else"		cond
+	"except"	stmt
+	"finally"	stmt
+	"for"		loop
+	"from"		stmt
+	"global"	stmt
+	"if"		cond
+	"import"	stmt
+	"in"		oper
+	"is"		oper
 	"lambda"	kw
-	"not"		kw
-	"or"		kw
-	"pass"		kw
-	"print"		kw
-	"raise"		kw
-	"return"	kw
-	"try"		kw
-	"while"		kw
-	"with"		kw
-	"yield"		kw
+	"not"		oper
+	"or"		oper
+	"pass"		stmt
+	"raise"		stmt
+	"return"	stmt
+	"try"		stmt
+	"while"		loop
+	"with"		stmt
+	"yield"		stmt
 	
 	# quasi-keywords
-	"False"		lit
-	"None"		lit
-	"True"		lit
+	"False"		bool
+	"True"		bool
+	"None"		kw
+	
+	# builtins
+	"abs"		builtin
+	"all"		builtin
+	"any"		builtin
+	"ascii"		builtin
+	"bin"		builtin
+	"bool"		builtin
+	"bytearray"	builtin
+	"bytes"		builtin
+	"callable"	builtin
+	"chr"		builtin
+	"classmethod"	builtin
+	"compile"	builtin
+	"complex"	builtin
+	"copyright"	builtin
+	"credits"	builtin
+	"delattr"	builtin
+	"dict"		builtin
+	"dir"		builtin
+	"divmod"	builtin
+	"enumerate"	builtin
+	"eval"		builtin
+	"exec"		builtin
+	"exit"		builtin
+	"filter"	builtin
+	"float"		builtin
+	"format"	builtin
+	"frozenset"	builtin
+	"getattr"	builtin
+	"globals"	builtin
+	"hasattr"	builtin
+	"hash"		builtin
+	"help"		builtin
+	"hex"		builtin
+	"id"		builtin
+	"input"		builtin
+	"int"		builtin
+	"isinstance"	builtin
+	"issubclass"	builtin
+	"iter"		builtin
+	"len"		builtin
+	"license"	builtin
+	"list"		builtin
+	"locals"	builtin
+	"map"		builtin
+	"max"		builtin
+	"memoryview"	builtin
+	"min"		builtin
+	"next"		builtin
+	"object"	builtin
+	"oct"		builtin
+	"open"		builtin
+	"ord"		builtin
+	"pow"		builtin
+	"print"		builtin
+	"property"	builtin
+	"quit"		builtin
+	"range"		builtin
+	"repr"		builtin
+	"reversed"	builtin
+	"round"		builtin
+	"set"		builtin
+	"setattr"	builtin
+	"slice"		builtin
+	"sorted"	builtin
+	"staticmethod"	builtin
+	"str"		builtin
+	"sum"		builtin
+	"super"		builtin
+	"tuple"		builtin
+	"type"		builtin
+	"vars"		builtin
+	"zip"		builtin
+	
 done
 	"'\""		idle 		noeat istrings
 	"u"		string_pre
@@ -126,49 +211,75 @@ done
 :kw Keyword
 	*		idle		noeat
 
-:lit Keyword
+:cond Conditional
 	*		idle		noeat
 
-:declkw Keyword
+:oper Operator
+	*		idle		noeat
+
+:bool Boolean
+	*		idle		noeat
+
+:loop Loop
+	*		idle		noeat
+
+:stmt Statement
+	*		idle		noeat
+
+:builtin Builtin
+	*		idle		noeat
+
+:classstmt Statement
 	*		idle 		noeat recolor=-1
-	"\i"		declkw
-	" \t"		declname_1
+	"\i"		classstmt
+	" \t"		classname_1
 
-:declname_1 Declaration
-	*		declname
-	"_"		priv_member	recolor=-1
+:classname_1 DefinedType
+	*		classname
 
-:declname Declaration
+:classname DefinedType
 	*		idle		noeat recolor=-1
-	"\c"		declname
+	"\c"		classname
 
-:priv_member PrivateMember
+:defstmt Statement
+	*		idle		noeat recolor=-1
+	"\i"		defstmt
+	" \t"		defname_1
+
+:defname_1 DefinedFunction
+	*		defname
+
+:defname DefinedFunction
+	*		idle		noeat recolor=-1
+	"\c"		defname
+
+:priv_member SpecialIdent
 	*		idle		noeat
 	"\c"		priv_member
 
 # Handle string prefixes up to the string itself.
-:string_pre Constant
+:string_pre String string
 	*		idle noeat
 	"'\""		string_quot_1 	save_c
 
-:string_raw_pre Constant
+:string_raw_pre String string
 	*		idle noeat
 	"'\""		string_quot_raw_1 save_c
 
 # Differentiate between docstrings and regular strings, carrying with it raw state
-:string_quot_1 Constant
+:string_quot_1 String string
 	*		idle call=.string() noeat
 	&		string_quot_2
 
-:string_quot_2 Constant
+:string_quot_2 String string
 	*		idle noeat
 	&		idle call=.string(docstring) recolor=-3
 
-:string_quot_raw_1 Constant
+:string_quot_raw_1 String string
 	*		idle call=.string(raw)
 	&		string_quot_raw_2
 
-:string_quot_raw_2 Constant
+:string_quot_raw_2 String string
 	*		idle noeat
 	&		idle call=.string(docstring raw) recolor=-3
 
@@ -184,17 +295,17 @@ done
 .endif
 	&		doc_end_1
 
-:doc_end_1 Docstring
+:doc_end_1 Docstring string
 	*		string noeat
 	&		doc_end_2
 
-:doc_end_2 Docstring
+:doc_end_2 Docstring string
 	*		string noeat
 	&		string return
 
 .else			# Short strings
 
-:string Constant string
+:string String string
 	*		string
 	"\n"		string return
 .ifdef raw
@@ -205,7 +316,7 @@ done
 
 .endif
 
-:string_esc Constant
+:string_esc String string
 	*		string_esc_done
 	"x"		string_hex2
 	"u"		string_hex4
@@ -214,54 +325,54 @@ done
 	"\n"		string_esc_done
 
 # Recolor whole escape sequence based on whether this is a docstring.
-:string_esc_done Constant
+:string_esc_done String string
 	*		string_esc_really_done noeat markend recolormark
 
 .ifdef docstring
 :string_esc_really_done DocEscape
 	*		string 		noeat
 .else
-:string_esc_really_done Escape
+:string_esc_really_done StringEscape string
 	*		string 		noeat
 .endif
 
-:string_hex1 Escape
+:string_hex1 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_esc_done
 
-:string_hex2 Escape
+:string_hex2 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex1
 
-:string_hex3 Escape
+:string_hex3 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex2
 
-:string_hex4 Escape
+:string_hex4 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex3
 
-:string_hex5 Escape
+:string_hex5 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex4
 
-:string_hex6 Escape
+:string_hex6 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex5
 
-:string_hex7 Escape
+:string_hex7 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex6
 
-:string_hex8 Escape
+:string_hex8 StringEscape string
 	*		string_esc_done	noeat
 	"0-9a-fA-F"	string_hex7
 
-:string_octal1 Escape
+:string_octal1 StringEscape string
 	*		string_esc_done	noeat
 	"0-7"		string_esc_done
 
-:string_octal2 Escape
+:string_octal2 StringEscape string
 	*		string_esc_done	noeat
 	"0-7"		string_octal1
 
@@ -269,11 +380,11 @@ done
 
 .subr comment_todo_docstr
 # initial state
-:comment_todo_init Docstring
+:comment_todo_init Docstring string
 	*		comment_todo_guess	buffer
 
 # highlight common TODO labels
-:comment_todo_guess Docstring
+:comment_todo_guess Docstring string
 	*		comment_todo_unknown	noeat strings
 	"BUG"		comment_todo
 	"FIXME"		comment_todo
@@ -284,9 +395,9 @@ done
 done
 	"A-Z"		comment_todo_guess
 
-:comment_todo_unknown Docstring
+:comment_todo_unknown Docstring string
 	*		NULL		noeat return
 
-:comment_todo DocstringLabel
+:comment_todo DocstringLabel string
 	*		NULL		noeat return
 .end

@@ -1,14 +1,15 @@
 # Barebones Dockerfile syntax for JOE.  Doesn't handle more sophisticated sh syntax.
 
 =Idle
-=Command	bold
-=Comment 	green
-=Constant 	cyan
-=Ident		cyan
-=Escape 	magenta
-=Keyword 	bold
-=Var		bold cyan
-=Bad		bold red
+=Command	+Statement +Keyword
+=Comment
+=Constant
+=String		+Constant
+=Ident
+=Escape
+=Brace
+=StringEscape	+Escape
+=Variable	+DefinedIdent
 
 # Start of line is special
 :start Idle
@@ -19,12 +20,13 @@
 	"\n"		start
 
 # Comments between commands
-:comment Comment
+:comment Comment comment
 	*		comment
+	"BFHNTX"	comment				noeat call=comment_todo.comment_todo()
 	"\n"		start
 
 # Comments in the middle of a command
-:comment_idle Comment
+:comment_idle Comment comment
 	*		comment_idle
 	"\n"		idle
 
@@ -53,7 +55,6 @@
 	"MAINTAINER"	string_command
 	"RUN"		list_command
 	"CMD"		list_command
-	"SHELL"		list_command
 	"LABEL"		label
 	"EXPOSE"	generic_command
 	"ENV"		generic_command
@@ -66,7 +67,6 @@
 	"ARG"		generic_command
 	"ONBUILD"	generic_command
 	"STOPSIGNAL"	generic_command
-	"HEALTHCHECK"	healthcheck_command
 done
 	"a-zA-Z"	command
 
@@ -78,7 +78,7 @@ done
 :string_command Command
 	*		string_command_data
 
-:string_command_data Ident
+:string_command_data Constant
 	*		string_command_data
 	"$"		string_command_data		recolor=-1 call=.variable()
 	"\n"		start
@@ -87,7 +87,7 @@ done
 :from Command
 	*		from_image			noeat
 
-:from_image Ident
+:from_image Constant
 	*		from_image
 	":@"		from_tag			noeat
 	"\n"		start
@@ -106,17 +106,13 @@ done
 :array Idle
 	*		array
 	"[]"		bracket				noeat
-	"\""		array				recolor=-1 call=.string() save_c
-	"'"		array_bad			noeat
+	"\"'"		array				recolor=-1 call=.string() save_c
 	"\n"		start
-
-:array_bad Bad
-	*		array
 
 :comma Idle
 	*		array				noeat
 
-:bracket Escape
+:bracket Brace
 	"]"		idle
 	"["		array
 
@@ -125,63 +121,28 @@ done
 	*		label_key
 	"\n"		start
 
-:label_key Ident
+:label_key Variable
 	*		label_key
 	"="		label_value			noeat
 	"\n"		start
 
-:label_value Idle
+:label_value Constant
 	*		label_value
 	"\""		label_value			recolor=-1 call=.string() save_c
 	"\n"		start
 
-# HEALTHCHECK
-:healthcheck_command Command
-       *               idle                            noeat
-       "a-zA-Z"        healthcheck_argument            buffer noeat
-       "\-"            healthcheck_option              recolor=-1
-       " \t"           healthcheck_command
-       "\\"            healthcheck_escape              recolor=-1
-
-:healthcheck_argument Idle
-       *               idle                            noeat istrings
-       "NONE"          healthcheck_none
-       "CMD"           list_command
-done
-       "a-zA-Z"        healthcheck_argument
-
-:healthcheck_option Ident
-       *               healthcheck_option
-       "\n"            start
-       "\\"            healthcheck_escape              recolor=-1
-       " \t"           healthcheck_command
-       "="             healthcheck_value
-
-:healthcheck_value Idle
-       *               healthcheck_value
-       "\n"            start
-       "\\"            healthcheck_escape
-       " \t"           healthcheck_command
-
-:healthcheck_escape Escape
-       "\r"            healthcheck_escape
-       *               healthcheck_command
-
-:healthcheck_none Command
-       *               idle                            noeat
-
 .subr variable
 
-:variable Var
+:variable Variable
 	*		variable			recolor=-2 return noeat
 	"A-Za-z_"	variable_name
 	"{"		variable_long
 
-:variable_name Var
+:variable_name Variable
 	*		variable_name			return noeat
 	"A-Za-z0-9_"	variable_name
 
-:variable_long Var
+:variable_long Variable
 	*		variable_long
 	&		variable			return noeat
 	"\n"		variable			return noeat
@@ -197,14 +158,14 @@ done
 
 .subr string
 
-:string Constant
+:string String string
 	*		string
 	&		string				return
 	"\n"		string				return noeat
 	"\\"		string_escape			recolor=-1
 	"$"		string				recolor=-1 call=.variable()
 
-:string_escape Escape
+:string_escape StringEscape string
 	*		string
 
 .end

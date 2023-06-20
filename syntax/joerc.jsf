@@ -1,10 +1,12 @@
 # JOE syntax highlight file for typical UNIX configuration files
 
 =Idle
-=Comment 	green
-=String 	cyan
-=Escape 	bold cyan
-=Bad		bold red
+=Comment
+=Constant
+=Number		+Constant
+=String		+Constant
+=Escape
+=Bad
 
 :idle Idle
 	*		not_comment
@@ -26,7 +28,7 @@
 	" 	"	keybind_after_comma
 	"\n"		keybind_after_comma
 
-:keybind_string String
+:keybind_string String string
 	*		keybind_string
 	"\\"		keybind_escape recolor=-1
 	"\""		keybind
@@ -69,6 +71,11 @@
 	"msg_color"		sopt
 	"lmsg"			sopt
 	"rmsg"			sopt
+	"smsg"			sopt
+	"zmsg"			sopt
+	"xmsg"			sopt
+	"aborthint"		sopt
+	"helphint"		sopt
 	"cpara"			sopt
 	"encoding"		sopt
 	"syntax"		sopt
@@ -87,18 +94,18 @@ done
 	"\c"	ident
 
 :sopt Idle
-	*		dosopt noeat
+	*		dosopt # Do eat the space
 
-:dosopt String
+:dosopt String string
 	*		dosopt
 	"\n"		idle
 
 :nopt Idle
 	*		bad recolor=-1
-	" 	"	nopt
+	" \t"		nopt
 	"0-9"		nopt1 recolor=-1
 
-:nopt1 String
+:nopt1 Number
 	*		comment noeat
 	"0-9"		nopt1
 
@@ -106,7 +113,7 @@ done
 	*		bad
 	"\n"		idle
 
-:comment Comment
+:comment Comment comment
 	*		comment
 	"\n"		idle
 

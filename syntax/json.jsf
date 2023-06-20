@@ -7,17 +7,19 @@
 =Idle
 =Comma
 =PairSep
-=Bracket	magenta
-=Brace		magenta
-=Number		cyan
-=String		cyan
-=StringEscape	cyan bold
-=Boolean	cyan
-=Null		cyan
+=Bracket	+Brace
+=Brace		+Control +Operator
+=Constant
+=Number		+Constant
+=Boolean	+Constant
+=Null		+Constant
+=String		+Constant
+=Key		+Attr +Type +String
+=Escape
+=StringEscape	+Escape +String
 
-=Bad		red bold inverse # Syntax errors detected by the highlighter
-
-=ERROR		bold yellow bg_red # Errors in the highlighter itself
+=Bad
+=ERROR		+Bad
 
 :json Idle
 	*			end		noeat call=.value()
@@ -64,7 +66,7 @@
 
 :key Idle
 	*			keyBAD		noeat
-	"\""			pairsep		noeat call=.string()
+	"\""			pairsep		noeat call=.keystring()
 	" \t\n"			key
 
 :keyBAD Bad
@@ -129,19 +131,19 @@
 
 .subr string
 
-:string String
+:string String string
 	*			stringBAD	noeat
 	"\""			body
 
-:stringBAD ERROR
-	*			end
-
-:body String
+:body String string
 	*			body
 	"\""			end
 	"\\"			escape		recolor=-1
 
-:escape StringEscape
+:stringBAD ERROR
+	*			end
+
+:escape StringEscape string
 	*			escapeBAD	recolor=-2 noeat
 	"\"/bfnrt\\"		body
 	"u"			unicode1
@@ -149,19 +151,65 @@
 :escapeBAD Bad
 	*			body
 
-:unicode1 StringEscape
+:unicode1 StringEscape string
 	*			unicodeBAD	recolor=-3 noeat
 	"0-9a-fA-F"		unicode2
 
-:unicode2 StringEscape
+:unicode2 StringEscape string
 	*			unicodeBAD	recolor=-4 noeat
 	"0-9a-fA-F"		unicode3
 
-:unicode3 StringEscape
+:unicode3 StringEscape string
 	*			unicodeBAD	recolor=-5 noeat
 	"0-9a-fA-F"		unicode4
 
-:unicode4 StringEscape
+:unicode4 StringEscape string
+	*			unicodeBAD	recolor=-6 noeat
+	"0-9a-fA-F"		body
+
+:unicodeBAD Bad
+	*			body
+
+:end Idle
+	*			NULL		noeat return
+
+.end
+
+.subr keystring
+
+:string Key
+	*			stringBAD	noeat
+	"\""			body
+
+:body Key
+	*			body
+	"\""			end
+	"\\"			escape		recolor=-1
+
+:stringBAD ERROR
+	*			end
+
+:escape Escape
+	*			escapeBAD	recolor=-2 noeat
+	"\"/bfnrt\\"		body
+	"u"			unicode1
+
+:escapeBAD Bad
+	*			body
+
+:unicode1 Escape
+	*			unicodeBAD	recolor=-3 noeat
+	"0-9a-fA-F"		unicode2
+
+:unicode2 Escape
+	*			unicodeBAD	recolor=-4 noeat
+	"0-9a-fA-F"		unicode3
+
+:unicode3 Escape
+	*			unicodeBAD	recolor=-5 noeat
+	"0-9a-fA-F"		unicode4
+
+:unicode4 Escape
 	*			unicodeBAD	recolor=-6 noeat
 	"0-9a-fA-F"		body
 
@@ -215,7 +263,7 @@ done
 :integer Number
 	*			end		noeat
 	"0-9"			integer
-	"."			decimalpoint
+	"."			decimalpart
 	"eE"			exponentpart
 
 :decimalpoint Number

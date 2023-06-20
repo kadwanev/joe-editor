@@ -10,6 +10,77 @@
 
 ### JOE.next (not yet released changes in Mercurial)
 
+### JOE 4.5
+
+* Enhancements
+
+	* New color scheme feature, which can be accessed with ^T S or
+	  by setting the **-colors** option.
+
+	* [24-bit color support](https://gist.github.com/XVilka/8346728)
+	  can be enabled by setting the `COLORTERM` environment variable to
+	  `truecolor` or `24bit`.
+
+	* Several schemes included in-the-box:
+
+		* gruvbox by Pavel Pertsev
+
+		* ir_black by Todd Werth
+
+		* molokai by Tomas Restrepo
+
+		* solarized by Ethan Schoonover
+
+		* wombat by Lars H. Nielsen
+
+		* xoria by Dmitriy Y. Zotikov
+
+		* zenburn by Jani Nurminen
+
+	* The current line can be highlighted by pressing ^T U or by
+	  enabling the **-hiline** option.
+
+	* The gutter containing line numbers has a dynamic size based on the
+	  length of the file, rather than a fixed size of 10.
+
+	* Updated all language syntax files to use comment_todo and
+	  string/comment contexts where appropriate.
+
+	* Now pass character which invoked a macro to each macro step and
+	  call.  If a macro step happens to be the 'type' command, the
+	  character which invoked the macro will be typed in.  For example,
+	  this macro will type three 'X's.  Before this change you got three
+	  NULs.
+
+		type,type,type   X
+
+* Bugs fixed
+
+	* Fix exsave: (^K ^X) should close file when a block is present in
+	  the window, and the file is unmodified (regression from ^C change
+	  in 4.2).
+
+	* Fix regex assertions: they were not working because the character
+	  before the search position was not being loaded.
+
+	* For jmacs: ^Q^J now again inserts \n in the string replace prompt. 
+	  This broke beginning with JOE 4.0.
+
+	* Don't try to open files for writing to check file access.  This
+	  behaves better on unionfs mounts.
+
+	* Fix stray blocks created after find/replace.
+
+* Windows version
+
+	* Fix inability to set indent step to 1 from menu.
+
+	* Add support for math functions, fix engineering display.
+
+	* Fix backslash escapes in find/replace.
+
+	* Support italicized text.
+
 ### JOE 4.4
 
 * Enhancements

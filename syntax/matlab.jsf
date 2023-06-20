@@ -3,12 +3,14 @@
 #
 
 =Idle
-=Comment 	green
-=Keyword 	blue
-=String 	magenta
-=Secondary	magenta
-=Error		red
-=Command	yellow
+=Ident
+=Comment
+=Keyword
+=Number		+Constant
+=String		+Constant
+=Secondary	+Ident
+=Error		+Bad
+=Command	+Statement +Keyword
 
 :idle Idle
 	*		idle
@@ -17,13 +19,15 @@
 	"a-zA-Z_." 	ident           buffer
 	"!"		command		recolor=-1
 	"([{"		parent		buffer
+	"0-9"		first_digit	recolor=-1
 
 :command Command
 	*		command
 	"\n"		idle
 
-:comment Comment
+:comment Comment comment
 	*		comment
+	"BFHNTX"	comment		noeat call=comment_todo.comment_todo()
 	"\n"		idle
 
 :keyword Keyword
@@ -42,15 +46,34 @@
 	"\'"		stringdone	recolormark recolor=-1
 	"\n"		idle
 
-:stringdone String
+:stringdone String string
 	*		idle		recolor=-1
-		
+
+:first_digit Number
+	*		idle		noeat
+	"."		float
+	"eE"		epart
+	"0-9"		first_digit
+	
+:float Number
+	*		idle		noeat
+	"eE"		epart
+	"0-9"		float
+
+:epart Number
+	*		idle		noeat
+	"0-9+\-"	enum
+
+:enum Number
+	*		idle		noeat
+	"0-9"		enum
+
 :secondary Secondary
 	*		idle		noeat
 	"a-zA-Z_0-9. "  secondary
 	"\n;:=!\"\'+-,*(){}[]&\\\|/~"	idle recolor=-1
-	 
-:ident Idle
+
+:ident Ident
 	*		secondary	noeat strings
 	"..."		keywordc
 	"break"		keyword
