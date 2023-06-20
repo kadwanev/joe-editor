@@ -246,7 +246,7 @@ CAP *my_getcap(char *name, long baud, void (*out) (void *, char), void *outptr)
 		fclose(f);
 	}
 	vsrm(idxname);
-	fseeko(f1, idx, 0);
+	fseek(f1, idx, 0); /* Should be fseeko, but old systems don't have it */
 	cap->tbuf = lfind(cap->tbuf, ti, f1, name);
 	fclose(f1);
 	if (sLEN(cap->tbuf) == ti)
@@ -706,7 +706,7 @@ static void cpl(void *ptr, char c)
 char *tcompile(CAP *cap, const char *s, ptrdiff_t a0, ptrdiff_t a1, ptrdiff_t a2, ptrdiff_t a3)
 {
 	void (*out) (void *, char) = cap->out;
-	long div = cap->div;
+	long mydiv = cap->div;
 
 	if (!s)
 		return NULL;
@@ -715,7 +715,7 @@ char *tcompile(CAP *cap, const char *s, ptrdiff_t a0, ptrdiff_t a1, ptrdiff_t a2
 	ssp = vsmk(10);
 	texec(cap, s, 0, a0, a1, a2, a3);
 	cap->out = out;
-	cap->div = div;
+	cap->div = mydiv;
 	return ssp;
 }
 

@@ -12,12 +12,13 @@
 #endif
 
 char *exmsg = NULL;		/* Message to display when exiting the editor */
+char *xmsg;			/* Message to display when starting the editor */
 int usexmouse=0;
 int xmouse=0;
 int nonotice;
 int noexmsg = 0;
 int pastehack;
-int help;
+int helpon;
 
 Screen *maint;			/* Main edit screen */
 
@@ -211,7 +212,7 @@ int edloop(int flg)
 		}
 
 		/* Restore modes */
-		if (maint->curwin->watom->what & TYPETW) {
+		if (!leave && maint->curwin->watom->what & TYPETW) {
 			bw = (BW *)maint->curwin->object;
 
 			if (auto_off) {
@@ -488,7 +489,16 @@ int main(int argc, char **real_argv, const char * const *envv)
 		idleout = 0;
 
 	for (c = 1; argv[c]; ++c) {
-		if (argv[c][0] == '-') {
+		if (!strcmp(argv[c], "-help") || !strcmp(argv[c], "--help")) {
+			printf("Joe's Own Editor v%s\n\n", VERSION);
+			printf("Usage: %s [global-options] [ [local-options] filename ]...\n\n", argv[0]);
+			printf("Global options:\n");
+			cmd_help(0);
+			printf("\nLocal options:\n");
+			printf("    %-23s Start cursor on specified line\n", "+nnn");
+			cmd_help(1);
+			return 0;
+		} else if (argv[c][0] == '-') {
 			if (argv[c][1])
 				switch (glopt(argv[c] + 1, argv[c + 1], NULL, 1)) {
 				case 0:
@@ -626,13 +636,18 @@ int main(int argc, char **real_argv, const char * const *envv)
 		wshowall(maint);
 	}
 
-	if (help) {
+	if (helpon) {
 		help_on(maint);
 	}
 	if (!nonotice) {
-		joe_snprintf_3(msgbuf,JOE_MSGBUFSIZE,joe_gettext(_("\\i** Joe's Own Editor v%s ** (%s) ** Copyright %s 2015 **\\i")),VERSION,locale_map->name,(locale_map->type ? "©" : "(C)"));
+		if (xmsg) {
+			xmsg = stagen(NULL, (BW *)(lastw(maint)->object), joe_gettext(xmsg), ' ');
+			msgnw(((BASE *)lastw(maint)->object)->parent, xmsg);
+		} else {
+			joe_snprintf_3(msgbuf,JOE_MSGBUFSIZE,joe_gettext(_("\\i** Joe's Own Editor v%s ** (%s) ** Copyright %s 2015 **\\i")),VERSION,locale_map->name,(locale_map->type ? "©" : "(C)"));
+			msgnw(((BASE *)lastw(maint)->object)->parent, msgbuf);
+		}
 
-		msgnw(((BASE *)lastw(maint)->object)->parent, msgbuf);
 	}
 
 	if (!idleout) {

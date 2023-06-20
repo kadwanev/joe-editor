@@ -281,7 +281,7 @@ static int steal_lock(W *w,int c,void *object,int *notify)
 static int file_changed(W *w,int c,void *object,int *notify)
 {
 	B *b = (B *)object;
-	if (mkqw(w, sz(joe_gettext(_("Notice: File on disk changed! (hit ^C to continue)  "))), file_changed, NULL, b, notify)) {
+	if (mkqw(w, sz(joe_gettext(_("Notice: File on disk changed! (hit %{abort} to continue)  "))), file_changed, NULL, b, notify)) {
 		b->gave_notice = 1;
 		return 0;
 	} else
@@ -476,18 +476,18 @@ int execmd(CMD *cmd, int k)
 
 void do_auto_scroll()
 {
-	static CMD *scrup = 0;
-	static CMD *scrdn = 0;
+	static CMD *myscrup = 0;
+	static CMD *myscrdn = 0;
 	static CMD *drag = 0;
-	if (!scrup) {
-		scrup = findcmd("upslide");
-		scrdn = findcmd("dnslide");
+	if (!myscrup) {
+		myscrup = findcmd("upslide");
+		myscrdn = findcmd("dnslide");
 		drag = findcmd("defmdrag");
 	}
 	if (auto_scroll > 0)
-		execmd(scrdn,0);
+		execmd(myscrdn,0);
 	else if (auto_scroll < 0)
-		execmd(scrup,0);
+		execmd(myscrup,0);
 
 	execmd(drag,0);
 		

@@ -82,8 +82,8 @@ target_triplet = @target@
 subdir = .
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure $(am__configure_deps) \
-	$(top_srcdir)/charmaps/klingon.in COPYING ChangeLog INSTALL \
-	compile config.guess config.sub depcomp install-sh missing
+	$(top_srcdir)/charmaps/klingon.in COPYING ChangeLog compile \
+	config.guess config.sub depcomp install-sh missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
@@ -327,7 +327,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign
 SUBDIRS = man rc po syntax joe
-EXTRA_DIST = COPYING docs/hacking.md ChangeLog NEWS.md docs/README.old README.md INSTALL INSTALL.AMIGA \
+EXTRA_DIST = COPYING docs/hacking.md ChangeLog NEWS.md docs/README.old README.md INSTALL.md INSTALL.AMIGA \
 	docs/help-system.html charmaps/klingon.in \
 	cygbuild setup.hint autojoe docs/man.md
 

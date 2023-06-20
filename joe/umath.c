@@ -9,9 +9,10 @@
 
 const char *merr;
 
-int mode_hex;
-int mode_eng;
+int mode_display; /* 0 = decimal, 1 = engineering, 2 = hex, 3 = octal, 4 = binary */
 int mode_ins;
+
+static BW *calc_bw;
 
 double vzero = 0.0;
 
@@ -57,6 +58,89 @@ static double eval(const char *s, int secure);
 
 int recur=0;
 
+/* Convert number in string to double */
+
+double joe_strtod(const char *bptr, const char **at_eptr)
+{
+	char buf[128];
+#ifdef HAVE_LONG_LONG
+	unsigned long long n = 0;
+#else
+	unsigned long n = 0;
+#endif
+	double x = 0.0;
+	if (bptr[0] == '0' && (bptr[1] == 'b' || bptr[1] == 'B')) {
+		bptr += 2;
+		while ((*bptr >= '0' && *bptr <= '1') || *bptr == '_') {
+			if (*bptr >= '0' && *bptr <= '1') {
+				n <<= 1;
+				n += (unsigned)(*bptr - '0');
+			}
+			++bptr;
+		}
+		x = (double)n;
+	} else if (bptr[0] == '0' && (bptr[1] == 'o' || bptr[1] == 'O')) {
+		bptr += 2;
+		while ((*bptr >= '0' && *bptr <= '7') || *bptr == '_') {
+			if (*bptr >= '0' && *bptr <= '7') {
+				n <<= 3;
+				n += (unsigned)(*bptr - '0');
+			}
+			++bptr;
+		}
+		x = (double)n;
+	} else if (bptr[0] == '0' && (bptr[1] == 'x' || bptr[1] == 'X')) {
+		bptr += 2;
+		while ((*bptr >= '0' && *bptr <= '9') ||
+			(*bptr >= 'a' && *bptr <= 'f') ||
+			(*bptr >= 'A' && *bptr <= 'F') || *bptr == '_') {
+			if (*bptr >= '0' && *bptr <= '9') {
+				n <<= 4;
+				n += (unsigned)(*bptr - '0');
+			} else if (*bptr >= 'A' && *bptr <= 'F') {
+				n <<= 4;
+				n += (unsigned)(*bptr - 'A' + 10);
+			} else if (*bptr >= 'a' && *bptr <= 'f') {
+				n <<= 4;
+				n += (unsigned)(*bptr - 'a' + 10);
+			}
+			++bptr;
+		}
+		x = (double)n;
+	} else {
+		int j = 0;
+		while ((*bptr >= '0' && *bptr <= '9') || *bptr == '_') {
+			if (*bptr >= '0' && *bptr <= '9')
+				buf[j++] = *bptr;
+			++bptr;
+		}
+		if (*bptr == '.') {
+			buf[j++] = *bptr++;
+			while ((*bptr >= '0' && *bptr <= '9') || *bptr == '_') {
+				if (*bptr >= '0' && *bptr <= '9')
+					buf[j++] = *bptr;
+				++bptr;
+			}
+		}
+		if (*bptr == 'e' || *bptr == 'E') {
+			buf[j++] = *bptr++;
+			if (*bptr == '-' || *bptr == '+') {
+				buf[j++] = *bptr++;
+			}
+			while ((*bptr >= '0' && *bptr <= '9') || *bptr == '_') {
+				if (*bptr >= '0' && *bptr <= '9')
+					buf[j++] = *bptr;
+				++bptr;
+			}
+		}
+		buf[j] = 0;
+		x = strtod(buf,NULL);
+	}
+	if (at_eptr)
+		*at_eptr = bptr;
+	return x;
+}
+
 /* en means enable evaluation */
 
 static double expr(int prec, int en,struct var **rtv, int secure)
@@ -66,13 +150,13 @@ static double expr(int prec, int en,struct var **rtv, int secure)
 	char ident[256];
 	char macr[256];
 
-	parse_ws(&ptr, '#');
+	parse_wsl(&ptr, '#');
 
 	if (!parse_ident(&ptr, ident, SIZEOF(ident))) {
 		if (!secure && !zcmp(ident ,"joe")) {
 			v = 0;
 			x = 0.0;
-			parse_ws(&ptr, '#');
+			parse_wsl(&ptr, '#');
 			if (*ptr=='(') {
 				ptrdiff_t idx;
 				MACRO *m;
@@ -109,18 +193,23 @@ static double expr(int prec, int en,struct var **rtv, int secure)
 			v = 0;
 			x = 0.0;
 		} else if (!zcmp(ident, "hex")) {
-			mode_hex = 1;
-			mode_eng = 0;
+			mode_display = 2;
+			v = get("ans");
+			x = v->val;
+		} else if (!zcmp(ident, "oct")) {
+			mode_display = 3;
+			v = get("ans");
+			x = v->val;
+		} else if (!zcmp(ident, "bin")) {
+			mode_display = 4;
 			v = get("ans");
 			x = v->val;
 		} else if (!zcmp(ident, "dec")) {
-			mode_hex = 0;
-			mode_eng = 0;
+			mode_display = 0;
 			v = get("ans");
 			x = v->val;
 		} else if (!zcmp(ident, "eng")) {
-			mode_hex = 0;
-			mode_eng = 1;
+			mode_display = 1;
 			v = get("ans");
 			x = v->val;
 		} else if (!zcmp(ident, "ins")) {
@@ -129,20 +218,20 @@ static double expr(int prec, int en,struct var **rtv, int secure)
 			x = v->val;
 		} else if (!zcmp(ident, "sum")) {
 			double xsq;
-			int cnt = blksum(&x, &xsq);
+			int cnt = blksum(calc_bw, &x, &xsq);
 			if (!merr && cnt<=0)
 				merr = joe_gettext(_("No numbers in block"));
 			v = 0;
 		} else if (!zcmp(ident, "cnt")) {
 			double xsq;
-			int cnt = blksum(&x, &xsq);
+			int cnt = blksum(calc_bw, &x, &xsq);
 			if (!merr && cnt<=0)
 				merr = joe_gettext(_("No numbers in block"));
 			v = 0;
 			x = cnt;
 		} else if (!zcmp(ident, "avg")) {
 			double xsq;
-			int cnt = blksum(&x, &xsq);
+			int cnt = blksum(calc_bw, &x, &xsq);
 			if (!merr && cnt<=0)
 				merr = joe_gettext(_("No numbers in block"));
 			v = 0;
@@ -150,18 +239,25 @@ static double expr(int prec, int en,struct var **rtv, int secure)
 				x /= (double)cnt;
 		} else if (!zcmp(ident, "dev")) {
 			double xsq;
-			double avg;
-			int cnt = blksum(&x, &xsq);
+			int cnt = blksum(calc_bw, &x, &xsq);
 			if (!merr && cnt<=0)
 				merr = joe_gettext(_("No numbers in block"));
 			v = 0;
 			if (cnt) {
-				avg = x / (double)cnt;
-				x = sqrt(xsq + (double)cnt*avg*avg - 2.0*avg*x);
+				x = sqrt((xsq - x*x/(double)cnt)/(double)cnt);
+			}
+		} else if (!zcmp(ident, "samp")) {
+			double xsq;
+			int cnt = blksum(calc_bw, &x, &xsq);
+			if (!merr && cnt<=0)
+				merr = joe_gettext(_("No numbers in block"));
+			v = 0;
+			if (cnt) {
+				x = sqrt((xsq - x*x/(double)cnt)/(double)(cnt - 1));
 			}
 		} else if (!zcmp(ident, "eval")) {
 			const char *save = ptr;
-			char *e = blkget();
+			char *e = blkget(calc_bw);
 			if (e) {
 				v = 0;
 				x = eval(e,secure);
@@ -175,8 +271,8 @@ static double expr(int prec, int en,struct var **rtv, int secure)
 			x = v->val;
 		}
 	} else if ((*ptr >= '0' && *ptr <= '9') || *ptr == '.') {
-		char *eptr;
-		x = strtod(ptr,&eptr);
+		const char *eptr;
+		x = joe_strtod(ptr, &eptr);
 		ptr = eptr;
 	} else if (*ptr == '(') {
 		++ptr;
@@ -341,17 +437,22 @@ static double eval(const char *s, int secure)
 		return 0.0;
 	}
 	ptr = s;
-	while (!merr && *ptr && *ptr != '#') {
+	while (!merr && parse_wsl(&ptr, '#')) {
 		result = expr(0, 1, &dumb,secure);
 		v = get("ans");
 		v->val = result;
 		v->set = 1;
 		if (!merr) {
-			parse_ws(&ptr, '#');
-			if (*ptr == ':') {
-				++ptr;
-				parse_ws(&ptr, '#');
-			} else if (*ptr && *ptr != '#') {
+			parse_wsn(&ptr, '#');
+			if (*ptr == ':' || *ptr == '\r' || *ptr == '\n') {
+				if (*ptr == '\r') {
+					++ptr;
+					if (*ptr == '\n')
+						++ptr;
+				} else {
+					++ptr;
+				}
+			} else if (*ptr) {
 				merr = joe_gettext(_("Extra junk after end of expr"));
 			}
 		}
@@ -519,6 +620,8 @@ static double m_fabs(double n) { return fabs(n); }
 #else
 #ifdef fabs
 static double m_fabs(double n) { return fabs(n); }
+#else
+static double m_fabs(double n) { return (n < 0.0) ? -n : n; }
 #endif
 #endif
 
@@ -570,16 +673,325 @@ static double m_y1(double n) { return y1(n); }
 #endif
 #endif
 
+#ifdef HAVE_HYPOT
+static double m_hypot(double n, double m) { return hypot(n, m); }
+#else
+#ifdef hypot
+static double m_hypot(double n, double m) { return hypot(n, m); }
+#endif
+#endif
+
 
 static double m_int(double n) { return (int)(n); }
 
-double calc(BW *bw, char *s, int secure)
+static double m_lr(double n)
 {
-	/* BW *tbw = bw->parent->main->object; */
-	BW *tbw = bw;
 	struct var *v;
-	int c = brch(bw->cursor);
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 0, 0);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
 
+	/* Side effects */
+	v = get("b"); v->val = A; v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return A + BB * n;
+}
+
+static double m_Lr(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 1, 0);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = A; v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return A + BB * log(n);
+}
+
+static double m_lR(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 0, 1);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = exp(A); v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return exp(A + BB * n);
+}
+
+static double m_LR(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 1, 1);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = exp(A); v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return exp(A + BB * log(n));
+}
+
+static double m_rlr(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 0, 0);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = A; v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return (n - A) / BB;
+}
+
+static double m_rLr(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 1, 0);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = A; v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return exp((n - A) / BB);
+}
+
+static double m_rlR(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 0, 1);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = exp(A); v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return (log(n) - A) / BB;
+}
+
+static double m_rLR(double n)
+{
+	struct var *v;
+	double xsq;
+	double xsum;
+	double ysq;
+	double ysum;
+	double xy;
+	double A;
+	double BB;
+	double r;
+	double cov;
+	double xavg;
+	double yavg;
+	int cnt = blklr(calc_bw, &xsum, &xsq, &ysum, &ysq, &xy, 1, 1);
+	if (!merr && cnt<=0) {
+		merr = joe_gettext(_("No numbers in block"));
+		return 0.0;
+	}
+	/* Linear regression coefficients: y = A + BB * x */
+	BB = ((double)cnt * xy - xsum * ysum) / ((double)cnt * xsq - xsum * xsum);
+	A = (ysum - BB * xsum) / (double)cnt;
+	/* correlatio coefficient */
+	r = ((double)cnt * xy - xsum * ysum) / sqrt(m_fabs((double)cnt * xsq - xsum * xsum) * m_fabs((double)cnt * ysq - ysum * ysum));
+	/* covariance */
+	xavg = xsum / (double)cnt;
+	yavg = ysum / (double)cnt;
+	cov = (xy - (double)cnt * xavg * yavg) / (double)(cnt - 1);
+
+	/* Side effects */
+	v = get("b"); v->val = exp(A); v->set = 1;
+	v = get("m"); v->val = BB; v->set = 1;
+	v = get("r"); v->val = r; v->set = 1;
+	v = get("cov"); v->val = cov; v->set = 1;
+
+	return exp((log(n) - A) / BB);
+}
+
+static void setup_vars(BW *tbw)
+{
+	struct var *v;
+	int c = brch(tbw->cursor);
 	if (!vars) {
 #ifdef HAVE_SIN
 		v = get("sin"); v->func = m_sin;
@@ -772,6 +1184,15 @@ double calc(BW *bw, char *s, int secure)
 		v = get("int"); v->func = m_int;
 	}
 
+	v = get("lr"); v->func = m_lr;
+	v = get("rlr"); v->func = m_rlr;
+	v = get("Lr"); v->func = m_Lr;
+	v = get("rLr"); v->func = m_rLr;
+	v = get("lR"); v->func = m_lR;
+	v = get("rlR"); v->func = m_rlR;
+	v = get("LR"); v->func = m_LR;
+	v = get("rLR"); v->func = m_rLR;
+
 	v = get("top");
 	v->val = (double)(tbw->top->line + 1);
 	v->set = 1;
@@ -812,19 +1233,259 @@ double calc(BW *bw, char *s, int secure)
 	v->val = current_arg_set;
 	v->set = 1;
 	v = get("no_windows");
-	v->val = countmain(bw->parent->t);
+	v->val = countmain(tbw->parent->t);
 	v->set = 1;
 	merr = 0;
 	v = get("is_shell");
 	v->val = tbw->b->pid;
 	v->set = 1;
+}
+
+double calc(BW *bw, char *s, int secure)
+{
+	calc_bw = bw;
+	setup_vars(calc_bw);
 	merr = 0;
 	return eval(s, secure);
 }
 
+static void insert_commas(char *dst, char *src)
+{
+	int leading; /* Number of leading digits */
+	int trailing;
+	int n;
+	char *s;
+	/* First pass: calculate number of leading and trailing digits */
+	s = src;
+	leading = 0;
+	trailing = 0;
+	if (*s == '-') ++s;
+	else if (*s == '+') ++s;
+	while (*s >= '0' && *s <= '9') {
+		++s;
+		++leading;
+	}
+	if (*s == '.') {
+		++s;
+		while (*s >= '0' && *s <= '9') {
+			++s;
+			++trailing;
+		}
+	}
+	/* Second pass: copy while inserting */
+	s = src;
+	n = 0;
+	if (*s == '-') {
+		*dst++ = *s++;
+	} else if (*s == '+') {
+		*dst++ = *s++;
+	}
+	while (*s >= '0' && *s <= '9') {
+		*dst++ = *s++;
+		--leading;
+		if (leading != 0 && (leading % 3 == 0))
+			*dst++ = '_';
+	}
+	if (*s == '.') {
+		*dst++ = *s++;
+		while (*s >= '0' && *s <= '9') {
+			*dst++ = *s++;
+			++n;
+			if (n != trailing && (n % 3 == 0))
+				*dst++ = '_';
+		}
+	}
+	while (*s) {
+		*dst++ = *s++;
+	}
+	*dst = 0;
+}
+
+/* Convert floating point ascii number into engineering format */
+
+static char *eng(char *d, ptrdiff_t d_len, const char *s)
+{
+	const char *s_org = s;
+	char *d_org = d;
+	char a[128];
+	int a_len;
+	int sign;
+	int dp;
+	int myexp;
+	int exp_sign;
+	int x;
+	int flg = 0;
+
+	--d_len; /* For terminator */
+
+	/* Get sign of number */
+	if (*s == '-') {
+		sign = 1;
+		++s;
+	} else if (*s == '+') {
+		sign = 0;
+		++s;
+	} else {
+		sign = 0;
+	}
+
+	/* Read digits before decimal point */
+	/* Skip leading zeros */
+	while (*s == '0') {
+		flg = 1;
+		++s;
+	}
+	a_len = 0;
+	while (*s >= '0' && *s <= '9') {
+		a[a_len++] = *s++;
+		flg = 1;
+	}
+	/* Decimal point? */
+	dp = 0;
+	if (*s == '.') {
+		flg = 1;
+		++s;
+		/* If we don't have any digits yet, trim leading zeros */
+		if (!a_len) {
+			while (*s == '0') {
+				++s;
+				++dp;
+			}
+		}
+		if (*s >= '0' && *s <= '9') {
+			while (*s >= '0' && *s <= '9') {
+				a[a_len++] = *s++;
+				++dp;
+			}
+		} else {
+			/* No non-zero digits at all? */
+			dp  = 0;
+		}
+	}
+	/* Trim trailing zeros */
+	while (a_len && a[a_len - 1] == '0') {
+		--a_len;
+		--dp;
+	}
+
+	/* Exponent? */
+	if (*s == 'e' || *s == 'E') {
+		++s;
+		if (*s == '-') {
+			++s;
+			exp_sign = 1;
+		} else if (*s == '+') {
+			++s;
+			exp_sign = 0;
+		} else {
+			exp_sign = 0;
+		}
+		myexp = 0;
+		while  (*s >= '0' && *s <= '9') {
+			myexp = myexp * 10 + *s++ - '0';
+		}
+	} else {
+		myexp = 0;
+		exp_sign = 0;
+	}
+
+	/* s should be at end of number now */
+	if (!flg) { /* No digits found? */
+		zlcpy(d, d_len, s_org);
+		return d;
+	}
+
+	/* Sign of exponent */
+	if (exp_sign)
+		myexp = -myexp;
+	/* Account of position of decimal point in exponent */
+	myexp -= dp;
+
+	a[a_len] = 0;
+
+	/* For engineering format, make expoenent a multiple of 3 such that
+	   we have 1 - 3 leading digits */
+
+	/* Don't assume modulus of negative number works consistently */
+	if (myexp < 0) {
+		switch((-myexp) % 3) {
+			case 0: x = 0; break;
+			case 1: x = 2; break;
+			case 2: x = 1; break;
+		}
+	} else {
+		x = (myexp % 3);
+	}
+
+	/* Make exponent a multiple of 3 */
+	myexp -= x;
+
+	/* Add zeros to mantissa to account for this */
+	while (x--) {
+		a[a_len++] = '0';
+	}
+
+	/* If number has no digits, add one now */
+	if (!a_len)
+		a[a_len++] = '0';
+
+	/* Position decimal point near the left */
+	dp = (a_len - 1) / 3;
+	dp *= 3;
+
+	/* Adjust exponent for this */
+	myexp += dp;
+
+	/* Now print */
+	if (sign && d_len) {
+		*d++ = '-';
+		--d_len;
+	}
+
+	/* Digits to left of decimal point */
+	for (x = 0; x != a_len - dp; ++x) {
+		if (d_len) {
+			*d++ = a[x];
+			--d_len;
+		}
+	}
+
+	/* Any more digits? */
+	if (dp) {
+		if (d_len) {
+			*d++ = '.';
+			--d_len;
+		}
+		for (x = a_len - dp; x != a_len; ++x) {
+			if (d_len) {
+				*d++ = a[x];
+				--d_len;
+			}
+		}
+		/* Trim trailing zeros */
+		while (d != d_org && d[-1] == '0') {
+			--d;
+			++d_len;
+		}
+	}
+
+	/* Exponent? */
+	if (myexp) {
+		joe_snprintf_1(d, (size_t)(d_len + 1), "e%d", myexp);
+	} else {
+		*d = 0;
+	}
+
+	return d_org;
+}
+
+static int doumath(W *w, char *s, void *object, int *notify);
+
 /* Main user interface */
 static int domath(W *w, char *s, void *object, int *notify, int secure)
 {
+	char buf[128];
+	char buf1[128];
 	double result;
 	BW *bw;
 	WIND_BW(bw, w);
@@ -838,16 +1499,108 @@ static int domath(W *w, char *s, void *object, int *notify, int secure)
 		return -1;
 	}
 	vsrm(s);
-	if (mode_hex)
+	switch (mode_display) {
+		case 0: { /* Normal */
+			joe_snprintf_1(buf, SIZEOF(buf), "%.16G", result);
+			insert_commas(msgbuf, buf);
+			break;
+		} case 1: { /* Engineering */
+			joe_snprintf_1(buf1, SIZEOF(buf1), "%.16G", result);
+			eng(buf, sizeof(buf), buf1);
+			insert_commas(msgbuf, buf);
+			break;
+		} case 2: { /* Hex */
 #ifdef HAVE_LONG_LONG
-		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "0x%llX", (long long)result);
+			unsigned long long n = (unsigned long long)result;
 #else
-		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "0x%lX", (long)result);
+			unsigned long n = (unsigned long)result;
 #endif
-	else if (mode_eng)
-		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "%.16G", result);
-	else
-		joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "%.16G", result);
+			int ofst = 0;
+			int len = 0;
+			int cnt = 0;
+			msgbuf[ofst++] = '0';
+			msgbuf[ofst++] = 'x';
+			while (n) {
+				buf[len++] = "0123456789ABCDEF"[n & 15];
+				n >>= 4;
+			}
+			if (!len)
+				buf[len++] = '0';
+			cnt = len;
+			do {
+				if (len && cnt != len && (len & 3) == 0)
+					msgbuf[ofst++] = '_';
+				msgbuf[ofst++] = buf[len - 1];
+			} while (--len);
+			msgbuf[ofst] = 0;
+/*
+#ifdef HAVE_LONG_LONG
+			joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "0x%llX", (long long)result);
+#else
+			joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "0x%lX", (long)result);
+#endif
+*/
+			break;
+		} case 3: { /* Octal */
+#ifdef HAVE_LONG_LONG
+			unsigned long long n = (unsigned long long)result;
+#else
+			unsigned long n = (unsigned long)result;
+#endif
+			int ofst = 0;
+			int len = 0;
+			int cnt = 0;
+			msgbuf[ofst++] = '0';
+			msgbuf[ofst++] = 'o';
+			while (n) {
+				buf[len++] = "01234567"[n & 7];
+				n >>= 3;
+			}
+			if (!len)
+				buf[len++] = '0';
+			cnt = len;
+			do {
+				if (len && cnt != len && (len & 3) == 0)
+					msgbuf[ofst++] = '_';
+				msgbuf[ofst++] = buf[len - 1];
+			} while (--len);
+			msgbuf[ofst] = 0;
+/*
+#ifdef HAVE_LONG_LONG
+			joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "0o%llo", (long long)result);
+#else
+			joe_snprintf_1(msgbuf, JOE_MSGBUFSIZE, "0o%lo", (long)result);
+#endif
+*/
+			break;
+		} case 4: { /* Binary */
+#ifdef HAVE_LONG_LONG
+			unsigned long long n = (unsigned long long)result;
+#else
+			unsigned long n = (unsigned long)result;
+#endif
+			int ofst = 0;
+			int len = 0;
+			int cnt = 0;
+			msgbuf[ofst++] = '0';
+			msgbuf[ofst++] = 'b';
+			while (n) {
+				buf[len++] = (char)('0' + (char)(n & 1));
+				n >>= 1;
+			}
+			if (!len)
+				buf[len++] = '0';
+			cnt = len;
+			do {
+				if (len && cnt != len && (len & 3) == 0)
+					msgbuf[ofst++] = '_';
+				msgbuf[ofst++] = buf[len - 1];
+			} while (--len);
+			msgbuf[ofst] = 0;
+			break;
+		}
+	}
+		
 	if (bw->parent->watom->what != TYPETW || mode_ins) {
 		binsm(bw->cursor, sz(msgbuf));
 		pfwrd(bw->cursor, zlen(msgbuf));
@@ -855,8 +1608,20 @@ static int domath(W *w, char *s, void *object, int *notify, int secure)
 	} else {
 		msgnw(bw->parent, msgbuf);
 	}
-	mode_ins = 0;
-	return 0;
+	if (mode_ins) { /* Exit if we are inserting */
+		mode_ins = 0;
+		return 0;
+	} else {
+		return 0;
+#ifdef junk
+		/* Stay at math prompt */
+		if (wmkpw(w, "=", &mathhist, doumath, "Math", NULL, NULL, NULL, NULL, utf8_map, 0)) {
+			return 0;
+		} else {
+			return -1;
+		}
+#endif
+	}
 }
 
 static int doumath(W *w, char *s, void *object, int *notify)
@@ -872,10 +1637,37 @@ static int dosmath(W *w, char *s, void *object, int *notify)
 
 B *mathhist = NULL;
 
+static char **math_word_list;
+
+static void get_math_list()
+{
+	struct var *v;
+	char *s;
+	varm(math_word_list);
+	math_word_list = 0;
+	for (v = vars; v; v = v->next) {
+		s = vsncpy(NULL, 0, sz(v->name));
+		math_word_list = vaadd(math_word_list, s);
+	}
+}
+
+int math_cmplt(BW *bw, int k)
+{
+	setup_vars(bw);
+	get_math_list();
+
+	if (!math_word_list) {
+		ttputc(7);
+		return 0;
+	}
+
+	return word_cmplt(bw, math_word_list);
+}
+
 int umath(W *w, int k)
 {
 	joe_set_signal(SIGFPE, fperr);
-	if (wmkpw(w, "=", &mathhist, doumath, "Math", NULL, NULL, NULL, NULL, utf8_map, 0)) {
+	if (wmkpw(w, "=", &mathhist, doumath, "Math", NULL, math_cmplt, NULL, NULL, utf8_map, 0)) {
 		return 0;
 	} else {
 		return -1;
@@ -887,7 +1679,7 @@ int umath(W *w, int k)
 int usmath(W *w, int k)
 {
 	joe_set_signal(SIGFPE, fperr);
-	if (wmkpw(w, "=", &mathhist, dosmath, "Math", NULL, NULL, NULL, NULL, utf8_map, 0)) {
+	if (wmkpw(w, "=", &mathhist, dosmath, "Math", NULL, math_cmplt, NULL, NULL, utf8_map, 0)) {
 		return 0;
 	} else {
 		return -1;

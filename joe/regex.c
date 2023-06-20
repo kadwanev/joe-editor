@@ -153,9 +153,9 @@ int escape(int utf8, const char **a, ptrdiff_t *b, struct Cclass **cat)
 				++s; --l;
 				c = 'X';
 				if ((!b || l > 0) && *s == '{') {
-					++s; --l;
 					char buf[80];
 					ptrdiff_t idx = 0;
+					++s; --l;
 					while ((!b || l > 0) && *s && *s != '}') {
 						if (idx != SIZEOF(buf) - 1)
 							buf[idx++] = *s;
@@ -326,6 +326,12 @@ static int do_parse_conventional(struct regcomp *g, int prec, int fold)
 	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == '!')) {
 		no = mk_node(g, -'e', -1, -1);
 		g->ptr += 2; g->l -= 2;
+	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == 'y')) {
+		no = mk_node(g, -'{', -1, mk_node(g, -'*', -1, mk_node(g, -'.', -1, -1)));
+		g->ptr += 2; g->l -= 2;
+	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == 'Y')) {
+		no = mk_node(g, -'{', -1, mk_node(g, -'*', -1, mk_node(g, -'e', -1, -1)));
+		g->ptr += 2; g->l -= 2;
 	} else if (g->l >= 2 && g->ptr[0] == '\\' &&
 	           (g->ptr[1] == 'b' || g->ptr[1] == 'B' || g->ptr[1] == 'A' || g->ptr[1] == 'Z' || g->ptr[1] == 'z' ||
 	            g->ptr[1] == '>' || g->ptr[1] == '<')) {
@@ -334,9 +340,10 @@ static int do_parse_conventional(struct regcomp *g, int prec, int fold)
 		no = mk_node(g, -*g->ptr++, -1, -1);
 		--g->l;
 	} else if (g->l && *g->ptr == '[') {
-		no = mk_node(g, -'[', -1, -1);
-		struct Cclass *m = g->nodes[no].cclass;
+		struct Cclass *m;
 		int inv = 0;
+		no = mk_node(g, -'[', -1, -1);
+		m = g->nodes[no].cclass;
 		++g->ptr; --g->l;
 		if (g->l && *g->ptr == '^') {
 			inv = 1;
@@ -547,13 +554,20 @@ static int do_parse(struct regcomp *g, int prec, int fold)
 	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == '.')) {
 		no = mk_node(g, -'.', -1, -1);
 		g->ptr += 2; g->l -= 2;
+	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == 'y')) {
+		no = mk_node(g, -'{', -1, mk_node(g, -'*', -1, mk_node(g, -'.', -1, -1)));
+		g->ptr += 2; g->l -= 2;
+	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == 'Y')) {
+		no = mk_node(g, -'{', -1, mk_node(g, -'*', -1, mk_node(g, -'e', -1, -1)));
+		g->ptr += 2; g->l -= 2;
 	} else if (g->l >= 2 && g->ptr[0] == '\\' && (g->ptr[1] == '!')) {
 		no = mk_node(g, -'e', -1, -1);
 		g->ptr += 2; g->l -= 2;
 	} else if (g->l >= 2 && g->ptr[0] == '\\' && g->ptr[1] == '[') {
-		no = mk_node(g, -'[', -1, -1);
-		struct Cclass *m = g->nodes[no].cclass;
+		struct Cclass *m;
 		int inv = 0;
+		no = mk_node(g, -'[', -1, -1);
+		m = g->nodes[no].cclass;
 		g->ptr += 2; g->l -= 2;
 		if (g->l && *g->ptr == '^') {
 			inv = 1;
@@ -1133,9 +1147,9 @@ static int better(Regmatch_t *a, Regmatch_t *b, int bra_no)
 			return 1;
 		if (a[y].rm_so > b[y].rm_so)
 			return 0;
-		if (a[y].rm_eo > b[y].rm_eo)
-			return 1;
 		if (a[y].rm_eo < b[y].rm_eo)
+			return 1;
+		if (a[y].rm_eo > b[y].rm_eo)
 			return 0;
 	}
 	return 0;
@@ -1163,11 +1177,11 @@ static int add_thread(struct thread *pool, unsigned char *start, int l, int le, 
 						/* New one starts earlier */
 						for (x = 0; x != bra_no; ++x) pool[t].pos[x] = pos[x];
 						return le;
-					} else if (pool[t].pos[y].rm_eo > pos[y].rm_eo) {
-						/* Current is longer */
-						return le;
 					} else if (pool[t].pos[y].rm_eo < pos[y].rm_eo) {
-						/* New one is longer */
+						/* Current is shorter */
+						return le;
+					} else if (pool[t].pos[y].rm_eo > pos[y].rm_eo) {
+						/* New one is shorter */
 						for (x = 0; x != bra_no; ++x) pool[t].pos[x] = pos[x];
 						return le;
 					}
@@ -1495,7 +1509,7 @@ int joe_regexec(struct regcomp *g, P *p, int nmatch, Regmatch_t *matches, int fo
 						}
 						break;
 					} case iDOT: {
-						if (c != NO_MORE_DATA)
+						if (c != NO_MORE_DATA && c != '\n')
 							/* . doesn't match end of string */
 							nle = add_thread(pool, g->frag->start, nl, nle, pc + SIZEOF(int), pool[t].pos, bra_no, pool[t].stack, pool[t].sp);
 						break;
